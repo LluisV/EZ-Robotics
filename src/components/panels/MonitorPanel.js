@@ -17,11 +17,6 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
     errors: [],
   });
 
-  const [logs, setLogs] = useState([
-    { type: 'info', message: 'System initialized', timestamp: new Date().toLocaleTimeString() },
-    { type: 'info', message: 'Waiting for connection', timestamp: new Date().toLocaleTimeString() },
-  ]);
-
   // Simulate status updates
   useEffect(() => {
     const interval = setInterval(() => {
@@ -41,31 +36,6 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
         temperature: newTemp,
         utilization: newUtilization,
       }));
-
-      // Add a log entry occasionally
-      if (Math.random() > 0.7) {
-        const types = ['info', 'warning', 'error'];
-        const typeIndex = Math.floor(Math.random() * 3);
-        const messages = [
-          'Position updated',
-          'Temperature reading',
-          'Movement completed',
-          'Command executed',
-          'Warning: Temperature rising',
-          'Error: Command timeout'
-        ];
-        const messageIndex = Math.floor(Math.random() * messages.length);
-        
-        // Add new log at the beginning
-        setLogs(prev => [
-          {
-            type: types[typeIndex >= messages.length - 2 ? 1 : typeIndex >= messages.length - 1 ? 2 : 0],
-            message: messages[messageIndex],
-            timestamp: new Date().toLocaleTimeString()
-          },
-          ...prev.slice(0, 49) // Keep only the last 50 logs
-        ]);
-      }
     }, refreshRate);
 
     return () => clearInterval(interval);
@@ -108,15 +78,6 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
           <div className="monitor-label">Utilization</div>
           <div className="monitor-data">{statusData.utilization.toFixed(1)} %</div>
         </div>
-      </div>
-      
-      <h4>System Log</h4>
-      <div className="log-container">
-        {logs.map((log, index) => (
-          <div key={index} className={`log-entry log-${log.type}`}>
-            [{log.timestamp}] {log.message}
-          </div>
-        ))}
       </div>
     </div>
   );

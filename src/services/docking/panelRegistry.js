@@ -1,6 +1,6 @@
 import React from 'react';
 // Import panel components with validation
-let ControlPanel, MonitorPanel, Viewer3DPanel, CodeEditorPanel;
+let ControlPanel, MonitorPanel, Viewer3DPanel, CodeEditorPanel, ConsolePanel;
 
 try {
   ControlPanel = require('../../components/panels/ControlPanel').default;
@@ -28,6 +28,13 @@ try {
 } catch (e) {
   console.error('Failed to import CodeEditorPanel:', e);
   CodeEditorPanel = () => <div>Code Editor Panel (Import Error)</div>;
+}
+
+try {
+  ConsolePanel = require('../../components/panels/ConsolePanel').default;
+} catch (e) {
+  console.error('Failed to import ConsolePanel:', e);
+  ConsolePanel = () => <div>Console Panel (Import Error)</div>;
 }
 
 /**
@@ -74,6 +81,16 @@ export const panelComponents = {
       </div>
     );
   },
+  
+  console: (props) => {
+    console.log('Rendering console with props:', props);
+    const params = props?.params || {};
+    return (
+      <div className="panel-container">
+        <ConsolePanel {...params} />
+      </div>
+    );
+  },
 };
 
 /**
@@ -108,5 +125,12 @@ export const panelDefinitions = [
     component: 'codeEditor',
     params: { language: 'gcode' },
     defaultLocation: 'right'
+  },
+  {
+    id: 'console',
+    title: 'Command Console',
+    component: 'console',
+    params: {},
+    defaultLocation: 'bottom'
   }
 ];

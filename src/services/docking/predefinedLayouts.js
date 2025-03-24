@@ -9,21 +9,53 @@ export const defaultLayout = {
       type: 'branch',
       data: [
         {
-          type: 'leaf',
-          data: {
-            views: ['control'],
-            activeView: 'control',
-            id: '1'
-          },
-          size: 20
+          type: 'branch',
+          data: [
+            {
+              type: 'leaf',
+              data: {
+                views: ['control'],
+                activeView: 'control',
+                id: '1'
+              },
+              size: 60
+            },
+            {
+              type: 'leaf',
+              data: {
+                views: ['monitor'],
+                activeView: 'monitor',
+                id: '2'
+              },
+              size: 40
+            }
+          ],
+          direction: 'column',
+          size: 15
         },
         {
-          type: 'leaf',
-          data: {
-            views: ['viewer'],
-            activeView: 'viewer',
-            id: '2'
-          },
+          type: 'branch',
+          data: [
+            {
+              type: 'leaf',
+              data: {
+                views: ['viewer'],
+                activeView: 'viewer',
+                id: '3'
+              },
+              size: 75
+            },
+            {
+              type: 'leaf',
+              data: {
+                views: ['console'],
+                activeView: 'console',
+                id: '4'
+              },
+              size: 25
+            }
+          ],
+          direction: 'column',
           size: 60
         },
         {
@@ -31,13 +63,13 @@ export const defaultLayout = {
           data: {
             views: ['editor'],
             activeView: 'editor',
-            id: '3'
+            id: '5'
           },
           size: 20
         }
       ],
       direction: 'row',
-      size: 80
+      size: 100
     },
     width: 1200,
     height: 800,
@@ -48,28 +80,34 @@ export const defaultLayout = {
       id: 'control',
       contentComponent: 'controlPanel',
       params: { showAdvanced: false },
-      title: 'control'
+      title: 'Robot Control'
     },
     viewer: {
       id: 'viewer',
       contentComponent: 'viewer3D',
       params: { showAxes: true },
-      title: 'viewer'
+      title: '3D Workspace Viewer'
     },
     editor: {
       id: 'editor',
       contentComponent: 'codeEditor',
       params: { language: 'gcode' },
-      title: 'editor'
+      title: 'G-Code Editor'
+    },
+    console: {
+      id: 'console',
+      contentComponent: 'console',
+      params: {},
+      title: 'Command Console'
     },
     monitor: {
       id: 'monitor',
       contentComponent: 'monitor',
       params: { refreshRate: 1000 },
-      title: 'monitor'
+      title: 'Status Monitor'
     }
   },
-  activeGroup: '1'
+  activeGroup: '2'
 };
 
 // Code-focused layout with larger editor area
@@ -88,20 +126,36 @@ export const codingLayout = {
           size: 15
         },
         {
-          type: 'leaf',
-          data: {
-            views: ['editor'],
-            activeView: 'editor',
-            id: '2'
-          },
+          type: 'branch',
+          data: [
+            {
+              type: 'leaf',
+              data: {
+                views: ['editor'],
+                activeView: 'editor',
+                id: '2'
+              },
+              size: 70
+            },
+            {
+              type: 'leaf',
+              data: {
+                views: ['console'],
+                activeView: 'console',
+                id: '3'
+              },
+              size: 30
+            }
+          ],
+          direction: 'column',
           size: 65
         },
         {
           type: 'leaf',
           data: {
             views: ['viewer', 'monitor'],
-            activeView: 'monitor',
-            id: '3'
+            activeView: 'viewer',
+            id: '4'
           },
           size: 20
         }
@@ -118,25 +172,31 @@ export const codingLayout = {
       id: 'control',
       contentComponent: 'controlPanel',
       params: { showAdvanced: true },
-      title: 'control'
+      title: 'Robot Control'
     },
     editor: {
       id: 'editor',
       contentComponent: 'codeEditor',
       params: { language: 'gcode' },
-      title: 'editor'
+      title: 'G-Code Editor'
     },
     viewer: {
       id: 'viewer',
       contentComponent: 'viewer3D',
       params: { showAxes: true },
-      title: 'viewer'
+      title: '3D Workspace Viewer'
     },
     monitor: {
       id: 'monitor',
       contentComponent: 'monitor',
       params: { refreshRate: 1000 },
-      title: 'monitor'
+      title: 'Status Monitor'
+    },
+    console: {
+      id: 'console',
+      contentComponent: 'console',
+      params: {},
+      title: 'Command Console'
     }
   },
   activeGroup: '2'
@@ -158,12 +218,28 @@ export const visualizationLayout = {
           size: 20
         },
         {
-          type: 'leaf',
-          data: {
-            views: ['viewer'],
-            activeView: 'viewer',
-            id: '2'
-          },
+          type: 'branch',
+          data: [
+            {
+              type: 'leaf',
+              data: {
+                views: ['viewer'],
+                activeView: 'viewer',
+                id: '2'
+              },
+              size: 70
+            },
+            {
+              type: 'leaf',
+              data: {
+                views: ['console'],
+                activeView: 'console',
+                id: '3'
+              },
+              size: 30
+            }
+          ],
+          direction: 'column',
           size: 60
         },
         {
@@ -171,7 +247,7 @@ export const visualizationLayout = {
           data: {
             views: ['monitor'],
             activeView: 'monitor',
-            id: '3'
+            id: '4'
           },
           size: 20
         }
@@ -188,25 +264,31 @@ export const visualizationLayout = {
       id: 'control',
       contentComponent: 'controlPanel',
       params: { showAdvanced: false },
-      title: 'control'
+      title: 'Robot Control'
     },
     viewer: {
       id: 'viewer',
       contentComponent: 'viewer3D',
       params: { showAxes: true },
-      title: 'viewer'
+      title: '3D Workspace Viewer'
     },
     editor: {
       id: 'editor',
       contentComponent: 'codeEditor',
       params: { language: 'gcode' },
-      title: 'editor'
+      title: 'G-Code Editor'
     },
     monitor: {
       id: 'monitor',
       contentComponent: 'monitor',
       params: { refreshRate: 1000 },
-      title: 'monitor'
+      title: 'Status Monitor'
+    },
+    console: {
+      id: 'console',
+      contentComponent: 'console',
+      params: {},
+      title: 'Command Console'
     }
   },
   activeGroup: '2'
@@ -228,12 +310,28 @@ export const monitoringLayout = {
           size: 20
         },
         {
-          type: 'leaf',
-          data: {
-            views: ['monitor'],
-            activeView: 'monitor',
-            id: '2'
-          },
+          type: 'branch',
+          data: [
+            {
+              type: 'leaf',
+              data: {
+                views: ['monitor'],
+                activeView: 'monitor',
+                id: '2'
+              },
+              size: 50
+            },
+            {
+              type: 'leaf',
+              data: {
+                views: ['console'],
+                activeView: 'console',
+                id: '3'
+              },
+              size: 50
+            }
+          ],
+          direction: 'column',
           size: 60
         },
         {
@@ -241,7 +339,7 @@ export const monitoringLayout = {
           data: {
             views: ['viewer', 'editor'],
             activeView: 'viewer',
-            id: '3'
+            id: '4'
           },
           size: 20
         }
@@ -258,25 +356,31 @@ export const monitoringLayout = {
       id: 'control',
       contentComponent: 'controlPanel',
       params: { showAdvanced: true },
-      title: 'control'
+      title: 'Robot Control'
     },
     viewer: {
       id: 'viewer',
       contentComponent: 'viewer3D',
       params: { showAxes: true },
-      title: 'viewer'
+      title: '3D Workspace Viewer'
     },
     editor: {
       id: 'editor',
       contentComponent: 'codeEditor',
       params: { language: 'gcode' },
-      title: 'editor'
+      title: 'G-Code Editor'
     },
     monitor: {
       id: 'monitor',
       contentComponent: 'monitor',
       params: { refreshRate: 500 },
-      title: 'monitor'
+      title: 'Status Monitor'
+    },
+    console: {
+      id: 'console',
+      contentComponent: 'console',
+      params: {},
+      title: 'Command Console'
     }
   },
   activeGroup: '2'

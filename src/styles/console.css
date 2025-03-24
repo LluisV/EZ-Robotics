@@ -1,0 +1,89 @@
+/* Console panel styling */
+.console-container {
+    display: flex;
+    flex-direction: column;
+    height: calc(100% - 40px);
+    background-color: var(--dv-group-view-background-color, #1c1c2c);
+    color: var(--dv-activegroup-visiblepanel-tab-color, #e0e0e0);
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 14px;
+    border-radius: var(--dv-border-radius, var(--border-radius));
+    border: 1px solid var(--dv-separator-border, var(--border-color));
+  }
+  
+  .console-output {
+    flex: 1;
+    padding: 10px;
+    overflow: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--dv-tabs-container-scrollbar-color, var(--bg-light)) var(--dv-background-color, var(--bg-dark));
+  }
+  
+  .console-output::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  .console-output::-webkit-scrollbar-track {
+    background: var(--bg-dark);
+  }
+  
+  .console-output::-webkit-scrollbar-thumb {
+    background-color: var(--bg-light);
+    border-radius: 4px;
+  }
+  
+  .console-entry {
+    margin: 2px 0;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  
+  .console-command {
+    color: var(--text-primary);
+  }
+  
+  .console-response {
+    color: #88ccff;
+  }
+  
+  .console-error {
+    color: #ff6666;
+  }
+  
+  .console-welcome {
+    color: var(--text-secondary);
+    font-style: italic;
+  }
+  
+  .console-input-container {
+    display: flex;
+    padding: 10px;
+    background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, var(--bg-light));
+    border-top: 1px solid var(--dv-separator-border, var(--border-color));
+  }
+  
+  .console-prompt {
+    margin-right: 8px;
+    color: var(--accent-green);
+    font-weight: bold;
+    font-size: 16px;
+  }
+  
+  .console-input {
+    flex: 1;
+    background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, var(--bg-medium));
+    color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
+    border: 1px solid var(--dv-separator-border, var(--border-color));
+    border-radius: var(--dv-border-radius, var(--border-radius));
+    padding: 6px 10px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 14px;
+    outline: none;
+    margin-right: 10px;
+  }
+  
+  .console-input:focus {
+    border-color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  }

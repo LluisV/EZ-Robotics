@@ -13,6 +13,7 @@ import {
 import 'dockview/dist/styles/dockview.css';
 import './App.css';
 import './styles/layout.css';
+import './styles/console.css';
 import Header from './components/common/Header';
 import Footer from './components/common/Footer';
 import Toolbar from './components/common/Toolbar';
@@ -24,6 +25,7 @@ import ControlPanel from './components/panels/ControlPanel';
 import MonitorPanel from './components/panels/MonitorPanel';
 import Viewer3DPanel from './components/panels/Viewer3DPanel';
 import CodeEditorPanel from './components/panels/CodeEditorPanel';
+import ConsolePanel from './components/panels/ConsolePanel';
 
 /**
  * Main application component
@@ -119,12 +121,22 @@ function App() {
     );
   });
 
+  const ConsolePanelWrapper = React.memo(props => {
+    const params = props?.params || {};
+    return (
+      <div className="panel-container">
+        <ConsolePanel {...params} />
+      </div>
+    );
+  });
+
   // Define components for dockview
   const components = {
     controlPanel: ControlPanelWrapper,
     monitor: MonitorPanelWrapper,
     viewer3D: Viewer3DPanelWrapper,
-    codeEditor: CodeEditorPanelWrapper
+    codeEditor: CodeEditorPanelWrapper,
+    console: ConsolePanelWrapper
   };
 
   // Handle ready event
