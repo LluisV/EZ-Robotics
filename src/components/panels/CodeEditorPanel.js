@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-
+import '../../styles/control-panel.css';
 /**
  * Code Editor Panel component for editing G-code and other scripts.
  * 
