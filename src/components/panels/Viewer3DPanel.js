@@ -21,28 +21,33 @@ const Viewer3DPanel = ({ showAxes = true }) => {
   const controlsRef = useRef(null);
   const controlsOrthoRef = useRef(null);
   const requestRef = useRef(null);
-  const [gizmoScene, setGizmoScene] = useState(null);
-  const [gizmoCamera, setGizmoCamera] = useState(null);
-  const [gizmoRenderer, setGizmoRenderer] = useState(null);
+  const gizmoSceneRef = useRef(null);
+  const gizmoCameraRef = useRef(null);
+  const gizmoRendererRef = useRef(null);
+  const gizmoCubeRef = useRef(null);
+  const [isInitialized, setIsInitialized] = useState(false);
   
   // Function to update gizmo rotation based on main camera
   const updateGizmo = useCallback(() => {
-    if (!gizmoScene || !gizmoCamera || !gizmoRenderer || !cameraRef.current) return;
+    const gizmoScene = gizmoSceneRef.current;
+    const gizmoCamera = gizmoCameraRef.current;
+    const gizmoRenderer = gizmoRendererRef.current;
+    const gizmoCube = gizmoCubeRef.current;
+    
+    if (!gizmoScene || !gizmoCamera || !gizmoRenderer || !gizmoCube || !cameraRef.current) {
+      return;
+    }
     
     // Get the camera's current quaternion
     const quaternion = cameraRef.current.quaternion.clone();
     
-    // Apply to the gizmo scene's objects
-    const gizmoCube = gizmoScene.getObjectByName('gizmoCube');
-    if (gizmoCube) {
-      // Inverse of the camera quaternion to make the gizmo follow the camera movement
-      const inverseQuaternion = quaternion.clone().invert();
-      gizmoCube.quaternion.copy(inverseQuaternion);
-    }
+    // Apply the inverse quaternion to the gizmo cube
+    const inverseQuaternion = quaternion.clone().invert();
+    gizmoCube.quaternion.copy(inverseQuaternion);
     
-    // Render the gizmo
+    // Render the updated gizmo
     gizmoRenderer.render(gizmoScene, gizmoCamera);
-  }, [gizmoScene, gizmoCamera, gizmoRenderer]);
+  }, []);
   
   // Function to add/remove grid
   const addGrid = (visible) => {
@@ -156,6 +161,154 @@ const Viewer3DPanel = ({ showAxes = true }) => {
     }
   };
   
+  // Handle view mode changes without resetting position
+  const changeView = (mode) => {
+    if (!cameraRef.current || !cameraOrthoRef.current) return;
+    
+    // Set Z as up for all cameras for consistency
+    cameraRef.current.up.set(0, 0, 1);
+    cameraOrthoRef.current.up.set(0, 0, 1);
+    
+    // Preserve the current distance from center
+    const distance = cameraRef.current.position.length();
+    
+    // Get relative position based on view mode
+    let newPosition;
+    switch(mode) {
+      case 'top':
+        newPosition = new THREE.Vector3(0, 0, 1);
+        break;
+      case 'front':
+        newPosition = new THREE.Vector3(0, -1, 0);
+        break;
+      case 'side':
+        newPosition = new THREE.Vector3(1, 0, 0);
+        break;
+      case '3d':
+      default:
+        newPosition = new THREE.Vector3(1, -1, 1).normalize();
+        break;
+    }
+    
+    // Scale the position vector to maintain the same distance
+    newPosition.multiplyScalar(distance);
+    
+    // Apply the new position to both cameras
+    cameraRef.current.position.copy(newPosition);
+    cameraOrthoRef.current.position.copy(newPosition);
+    
+    // Make sure cameras look at the origin
+    cameraRef.current.lookAt(0, 0, 0);
+    cameraOrthoRef.current.lookAt(0, 0, 0);
+    
+    // Update the controls
+    if (controlsRef.current) controlsRef.current.update();
+    if (controlsOrthoRef.current) controlsOrthoRef.current.update();
+  };
+  
+  // Function to create and set up the 3D scene
+  const initializeScene = () => {
+    if (!mountRef.current || isInitialized) return;
+    
+    // Clean up any existing scene
+    if (rendererRef.current && mountRef.current.contains(rendererRef.current.domElement)) {
+      mountRef.current.removeChild(rendererRef.current.domElement);
+      cancelAnimationFrame(requestRef.current);
+    }
+
+    // Scene setup
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#1a1a1a');
+    sceneRef.current = scene;
+
+    // Camera setup
+    const width = mountRef.current.clientWidth;
+    const height = mountRef.current.clientHeight;
+    const aspect = width / height;
+    
+    // Perspective camera
+    const camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
+    camera.position.set(5, -5, 5);
+    camera.up.set(0, 0, 1); // Z is up for robotics
+    camera.lookAt(0, 0, 0);
+    cameraRef.current = camera;
+    
+    // Orthographic camera
+    const frustumSize = 10;
+    const orthoCamera = new THREE.OrthographicCamera(
+      frustumSize * aspect / -2, 
+      frustumSize * aspect / 2, 
+      frustumSize / 2, 
+      frustumSize / -2, 
+      0.1, 
+      1000
+    );
+    orthoCamera.position.set(5, -5, 5);
+    orthoCamera.up.set(0, 0, 1); // Z is up for robotics
+    orthoCamera.lookAt(0, 0, 0);
+    cameraOrthoRef.current = orthoCamera;
+
+    // Renderer setup
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    mountRef.current.appendChild(renderer.domElement);
+    rendererRef.current = renderer;
+
+    // Controls setup for both cameras
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.25;
+    // Set up vector to Z-up for robotics convention
+    controls.object.up.set(0, 0, 1);
+    controlsRef.current = controls;
+    
+    const controlsOrtho = new OrbitControls(orthoCamera, renderer.domElement);
+    controlsOrtho.enableDamping = true;
+    controlsOrtho.dampingFactor = 0.25;
+    // Set up vector to Z-up for robotics convention
+    controlsOrtho.object.up.set(0, 0, 1);
+    controlsOrtho.enabled = false; // Disable initially
+    controlsOrthoRef.current = controlsOrtho;
+
+    // Lights
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambientLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(5, 10, 7.5);
+    scene.add(directionalLight);
+
+    // Grid
+    addGrid(isGridVisible);
+
+    // Axes helper
+    addAxesHelper(showAxes);
+
+    // Animation loop
+    const animate = () => {
+      requestRef.current = requestAnimationFrame(animate);
+      
+      // Update active controls
+      if (isPerspective) {
+        controlsRef.current.update();
+        renderer.render(scene, cameraRef.current);
+      } else {
+        controlsOrthoRef.current.update();
+        renderer.render(scene, cameraOrthoRef.current);
+      }
+      
+      // Update the gizmo to follow camera orientation
+      updateGizmo();
+    };
+    animate();
+
+    // Mark as initialized
+    setIsInitialized(true);
+    
+    console.log("3D viewer initialized successfully");
+  };
+  
   // Initialize the 3D gizmo
   useEffect(() => {
     if (!gizmoRef.current) return;
@@ -164,11 +317,13 @@ const Viewer3DPanel = ({ showAxes = true }) => {
     const gScene = new THREE.Scene();
     gScene.background = new THREE.Color(0x000000);
     gScene.background.alpha = 0;
+    gizmoSceneRef.current = gScene;
     
     // Create a camera for the gizmo
     const gCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
     gCamera.position.set(0, 0, 5);
     gCamera.lookAt(0, 0, 0);
+    gizmoCameraRef.current = gCamera;
     
     // Create a renderer for the gizmo
     const gRenderer = new THREE.WebGLRenderer({ 
@@ -177,6 +332,7 @@ const Viewer3DPanel = ({ showAxes = true }) => {
     });
     gRenderer.setSize(90, 90);
     gRenderer.setClearColor(0x1a1a1a, 1);
+    gizmoRendererRef.current = gRenderer;
     
     // Clear existing content
     if (gizmoRef.current.firstChild) {
@@ -190,6 +346,7 @@ const Viewer3DPanel = ({ showAxes = true }) => {
     // Create a group for the cube
     const cubeGroup = new THREE.Group();
     cubeGroup.name = 'gizmoCube';
+    gizmoCubeRef.current = cubeGroup;
     
     // Create materials with different colors for each face (more subtle)
     const materials = [
@@ -293,7 +450,7 @@ const Viewer3DPanel = ({ showAxes = true }) => {
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
     
-    gizmoRef.current.addEventListener('click', (event) => {
+    const handleGizmoClick = (event) => {
       const bounds = gizmoRef.current.getBoundingClientRect();
       mouse.x = ((event.clientX - bounds.left) / bounds.width) * 2 - 1;
       mouse.y = -((event.clientY - bounds.top) / bounds.height) * 2 + 1;
@@ -308,172 +465,131 @@ const Viewer3DPanel = ({ showAxes = true }) => {
         switch (faceIndex) {
           case 0: // right face (X+)
             setViewMode('side');
+            changeView('side');
             break;
           case 1: // left face (X-)
             // Inverse side view
             setViewMode('side');
+            changeView('side');
             break;
           case 2: // top face (Y+) - in robotics, this is not the top view
             setViewMode('front');
+            changeView('front');
             break;
           case 3: // bottom face (Y-)
             // Inverse front view
             setViewMode('front');
+            changeView('front');
             break;
           case 4: // front face (Z+) - in robotics, this is the top view
             setViewMode('top');
+            changeView('top');
             break;
           case 5: // back face (Z-)
             // Inverse top view
             setViewMode('top');
+            changeView('top');
             break;
           default:
             setViewMode('3d');
+            changeView('3d');
         }
       } else {
         // Clicked on the gizmo but not on a face - set to 3D view
         setViewMode('3d');
+        changeView('3d');
       }
-    });
+    };
     
-    // Store references
-    setGizmoScene(gScene);
-    setGizmoCamera(gCamera);
-    setGizmoRenderer(gRenderer);
+    gizmoRef.current.addEventListener('click', handleGizmoClick);
     
     // Render the gizmo initially
     gRenderer.render(gScene, gCamera);
     
     // Cleanup
     return () => {
-      if (gizmoRef.current && gizmoRef.current.firstChild) {
-        gizmoRef.current.removeChild(gizmoRef.current.firstChild);
+      if (gizmoRef.current) {
+        gizmoRef.current.removeEventListener('click', handleGizmoClick);
+        if (gizmoRef.current.firstChild) {
+          gizmoRef.current.removeChild(gizmoRef.current.firstChild);
+        }
       }
+    };
+  }, [updateGizmo]);
+
+  // Initialize Three.js scene when the component mounts or remounts
+  useEffect(() => {
+    // Slight delay to ensure DOM is ready
+    const timer = setTimeout(() => {
+      initializeScene();
+    }, 100);
+
+    return () => {
+      clearTimeout(timer);
+      
+      // Clean up resources
+      if (requestRef.current) {
+        cancelAnimationFrame(requestRef.current);
+      }
+      
+      if (rendererRef.current && mountRef.current) {
+        if (mountRef.current.contains(rendererRef.current.domElement)) {
+          mountRef.current.removeChild(rendererRef.current.domElement);
+        }
+      }
+      
+      if (controlsRef.current) {
+        controlsRef.current.dispose();
+      }
+      
+      if (controlsOrthoRef.current) {
+        controlsOrthoRef.current.dispose();
+      }
+      
+      if (sceneRef.current) {
+        // Clear all objects from scene
+        while(sceneRef.current.children.length > 0) { 
+          sceneRef.current.remove(sceneRef.current.children[0]); 
+        }
+      }
+      
+      setIsInitialized(false);
     };
   }, []);
 
-  // Initialize Three.js scene
+  // Monitor resize events
   useEffect(() => {
-    if (!mountRef.current) return;
-
-    // Scene setup
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#1a1a1a');
-    sceneRef.current = scene;
-
-    // Camera setup
-    const width = mountRef.current.clientWidth;
-    const height = mountRef.current.clientHeight;
-    const aspect = width / height;
+    if (!mountRef.current || !rendererRef.current) return;
     
-    // Perspective camera
-    const camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
-    camera.position.set(5, -5, 5);
-    camera.up.set(0, 0, 1); // Z is up for robotics
-    camera.lookAt(0, 0, 0);
-    cameraRef.current = camera;
-    
-    // Orthographic camera
-    const frustumSize = 10;
-    const orthoCamera = new THREE.OrthographicCamera(
-      frustumSize * aspect / -2, 
-      frustumSize * aspect / 2, 
-      frustumSize / 2, 
-      frustumSize / -2, 
-      0.1, 
-      1000
-    );
-    orthoCamera.position.set(5, -5, 5);
-    orthoCamera.up.set(0, 0, 1); // Z is up for robotics
-    orthoCamera.lookAt(0, 0, 0);
-    cameraOrthoRef.current = orthoCamera;
-
-    // Renderer setup
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    mountRef.current.appendChild(renderer.domElement);
-    rendererRef.current = renderer;
-
-    // Controls setup for both cameras
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.25;
-    // Set up vector to Z-up for robotics convention
-    controls.object.up.set(0, 0, 1);
-    controlsRef.current = controls;
-    
-    const controlsOrtho = new OrbitControls(orthoCamera, renderer.domElement);
-    controlsOrtho.enableDamping = true;
-    controlsOrtho.dampingFactor = 0.25;
-    // Set up vector to Z-up for robotics convention
-    controlsOrtho.object.up.set(0, 0, 1);
-    controlsOrtho.enabled = false; // Disable initially
-    controlsOrthoRef.current = controlsOrtho;
-
-    // Lights
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-    scene.add(ambientLight);
-
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(5, 10, 7.5);
-    scene.add(directionalLight);
-
-    // Grid
-    addGrid(isGridVisible);
-
-    // Axes helper
-    addAxesHelper(showAxes);
-
-    // Animation loop
-    const animate = () => {
-      requestRef.current = requestAnimationFrame(animate);
-      
-      // Update active controls
-      if (isPerspective) {
-        controlsRef.current.update();
-        renderer.render(scene, cameraRef.current);
-      } else {
-        controlsOrthoRef.current.update();
-        renderer.render(scene, cameraOrthoRef.current);
-      }
-      
-      // Update the gizmo to follow camera orientation
-      updateGizmo();
-    };
-    animate();
-
-    // Resize handler
     const handleResize = () => {
-      if (!mountRef.current) return;
+      if (!mountRef.current || !rendererRef.current) return;
+      
       const width = mountRef.current.clientWidth;
       const height = mountRef.current.clientHeight;
       const aspect = width / height;
       
       // Update perspective camera
-      camera.aspect = aspect;
-      camera.updateProjectionMatrix();
+      if (cameraRef.current) {
+        cameraRef.current.aspect = aspect;
+        cameraRef.current.updateProjectionMatrix();
+      }
       
       // Update orthographic camera
-      const frustumSize = 10;
-      orthoCamera.left = frustumSize * aspect / -2;
-      orthoCamera.right = frustumSize * aspect / 2;
-      orthoCamera.top = frustumSize / 2;
-      orthoCamera.bottom = frustumSize / -2;
-      orthoCamera.updateProjectionMatrix();
+      if (cameraOrthoRef.current) {
+        const frustumSize = 10;
+        cameraOrthoRef.current.left = frustumSize * aspect / -2;
+        cameraOrthoRef.current.right = frustumSize * aspect / 2;
+        cameraOrthoRef.current.top = frustumSize / 2;
+        cameraOrthoRef.current.bottom = frustumSize / -2;
+        cameraOrthoRef.current.updateProjectionMatrix();
+      }
       
-      renderer.setSize(width, height);
+      // Update renderer size
+      rendererRef.current.setSize(width, height);
     };
 
     window.addEventListener('resize', handleResize);
     
-    // Force a resize after a small delay to ensure the container has finalized its dimensions
-    setTimeout(() => {
-      handleResize();
-      // Trigger another resize after layout is fully complete
-      setTimeout(handleResize, 100);
-    }, 10);
-
     // Set up ResizeObserver to monitor container size changes
     const resizeObserver = new ResizeObserver(() => {
       handleResize();
@@ -482,126 +598,68 @@ const Viewer3DPanel = ({ showAxes = true }) => {
     if (mountRef.current) {
       resizeObserver.observe(mountRef.current);
     }
+    
+    // Force a resize after mounting
+    handleResize();
+    
+    // Force another resize after a delay to handle any layout adjustments
+    const resizeTimer = setTimeout(() => {
+      handleResize();
+    }, 500);
 
-    // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize);
-      resizeObserver.disconnect();
-      cancelAnimationFrame(requestRef.current);
-      if (mountRef.current && rendererRef.current) {
-        mountRef.current.removeChild(rendererRef.current.domElement);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
       }
-      scene.clear();
+      clearTimeout(resizeTimer);
     };
-  }, [updateGizmo]);
+  }, [isInitialized]);
 
   // Add/remove grid based on visibility setting
   useEffect(() => {
-    if (!sceneRef.current) return;
+    if (!sceneRef.current || !isInitialized) return;
     addGrid(isGridVisible);
-  }, [isGridVisible]);
+  }, [isGridVisible, isInitialized]);
 
   // Add/remove axes helper based on visibility setting
   useEffect(() => {
-    if (!sceneRef.current) return;
+    if (!sceneRef.current || !isInitialized) return;
     addAxesHelper(showAxes);
-  }, [showAxes]);
+  }, [showAxes, isInitialized]);
 
   // Handle perspective/orthographic toggle
   useEffect(() => {
-    if (!controlsRef.current || !controlsOrthoRef.current) return;
+    if (!controlsRef.current || !controlsOrthoRef.current || !isInitialized) return;
     
     controlsRef.current.enabled = isPerspective;
     controlsOrthoRef.current.enabled = !isPerspective;
-  }, [isPerspective]);
+  }, [isPerspective, isInitialized]);
 
   // Handle view mode changes
   useEffect(() => {
-    if (!cameraRef.current || !cameraOrthoRef.current) return;
+    if (!cameraRef.current || !cameraOrthoRef.current || !isInitialized) return;
+    changeView(viewMode);
+  }, [viewMode, isInitialized]);
+
+  // Force re-initialization when the component becomes visible
+  useEffect(() => {
+    if (!mountRef.current) return;
     
-    const perspCamera = cameraRef.current;
-    const orthoCamera = cameraOrthoRef.current;
-    
-    // Ensure Z is up for all cameras
-    perspCamera.up.set(0, 0, 1);
-    orthoCamera.up.set(0, 0, 1);
-    
-    switch(viewMode) {
-      case 'top':
-        // In robotics, Z is up, so top view looks down the Z axis
-        perspCamera.position.set(0, 0, 10);
-        perspCamera.lookAt(0, 0, 0);
-        
-        orthoCamera.position.set(0, 0, 10);
-        orthoCamera.lookAt(0, 0, 0);
-        break;
-      case 'front':
-        // Front view looks along Y axis
-        perspCamera.position.set(0, -10, 0);
-        perspCamera.lookAt(0, 0, 0);
-        
-        orthoCamera.position.set(0, -10, 0);
-        orthoCamera.lookAt(0, 0, 0);
-        break;
-      case 'side':
-        // Side view looks along X axis
-        perspCamera.position.set(10, 0, 0);
-        perspCamera.lookAt(0, 0, 0);
-        
-        orthoCamera.position.set(10, 0, 0);
-        orthoCamera.lookAt(0, 0, 0);
-        break;
-      case '3d':
-      default:
-        // 3D view from isometric-like position
-        perspCamera.position.set(5, -5, 5);
-        perspCamera.lookAt(0, 0, 0);
-        
-        orthoCamera.position.set(5, -5, 5);
-        orthoCamera.lookAt(0, 0, 0);
-        break;
-    }
-    
-    // Reset the controls to update the camera position properly
-    if (controlsRef.current) {
-      controlsRef.current.update();
-      
-      // Force the controls to recognize the new up vector and position
-      const event = new MouseEvent('mousedown', {
-        clientX: 0,
-        clientY: 0,
-        bubbles: true
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting && !isInitialized) {
+          initializeScene();
+        }
       });
-      controlsRef.current.domElement.dispatchEvent(event);
-      
-      const endEvent = new MouseEvent('mouseup', {
-        clientX: 0,
-        clientY: 0,
-        bubbles: true
-      });
-      controlsRef.current.domElement.dispatchEvent(endEvent);
-    }
+    }, { threshold: 0.1 });
     
-    if (controlsOrthoRef.current) {
-      controlsOrthoRef.current.update();
-      
-      // Force the controls to recognize the new up vector and position
-      const event = new MouseEvent('mousedown', {
-        clientX: 0,
-        clientY: 0,
-        bubbles: true
-      });
-      controlsOrthoRef.current.domElement.dispatchEvent(event);
-      
-      const endEvent = new MouseEvent('mouseup', {
-        clientX: 0,
-        clientY: 0,
-        bubbles: true
-      });
-      controlsOrthoRef.current.domElement.dispatchEvent(endEvent);
-    }
+    observer.observe(mountRef.current);
     
-  }, [viewMode]);
+    return () => {
+      observer.disconnect();
+    };
+  }, [isInitialized]);
 
   return (
     <div className="panel-content">
@@ -618,7 +676,10 @@ const Viewer3DPanel = ({ showAxes = true }) => {
           <select 
             className="toolbar-select"
             value={viewMode}
-            onChange={(e) => setViewMode(e.target.value)}
+            onChange={(e) => {
+              setViewMode(e.target.value);
+              changeView(e.target.value);
+            }}
           >
             <option value="3d">3D View</option>
             <option value="top">Top View</option>
