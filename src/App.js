@@ -17,6 +17,7 @@ import Header from './components/common/Header';
 import Footer from './components/common/Footer';
 import Toolbar from './components/common/Toolbar';
 import ThemeSelector from './components/common/ThemeSelector';
+import dockingManager from './services/docking/DockingManager';
 
 // Import panel components
 import ControlPanel from './components/panels/ControlPanel';
@@ -136,38 +137,10 @@ function App() {
       const { api } = event;
       setDockviewApi(api);
       
-      // Add Control Panel on the left
-      api.addPanel({
-        id: 'control',
-        component: 'controlPanel',
-        params: { showAdvanced: false }
-      });
+      // Initialize the docking manager which will load the default layout
+      dockingManager.initialize(api);
       
-      // Add 3D Viewer next to Control Panel
-      api.addPanel({
-        id: 'viewer',
-        component: 'viewer3D',
-        params: { showAxes: true },
-        position: { referencePanel: 'control', direction: 'right' }
-      });
-      
-      // Add Code Editor to the right of 3D Viewer
-      api.addPanel({
-        id: 'editor',
-        component: 'codeEditor',
-        params: { language: 'gcode' },
-        position: { referencePanel: 'viewer', direction: 'right' }
-      });
-      
-      // Add Monitor at the bottom spanning all columns
-      api.addPanel({
-        id: 'monitor',
-        component: 'monitor',
-        params: { refreshRate: 1000 },
-        position: { referencePanel: 'viewer', direction: 'down' }
-      });
-      
-      console.log('All panels added successfully');
+      console.log('Docking manager initialized');
     } catch (err) {
       console.error('Error in onReady:', err);
       setError(err.message);

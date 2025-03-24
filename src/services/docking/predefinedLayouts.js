@@ -1,5 +1,5 @@
 /**
- * Predefined layouts that mimic common IDE layouts for different workflows
+ * Predefined layouts that match the exact format expected by Dockview
  */
 
 // Default layout with balanced panels
@@ -9,76 +9,67 @@ export const defaultLayout = {
       type: 'branch',
       data: [
         {
-          type: 'branch',
-          data: [
-            {
-              type: 'leaf',
-              data: {
-                views: [
-                  {
-                    id: 'control',
-                    component: 'controlPanel',
-                    params: { showAdvanced: false }
-                  }
-                ],
-                activeView: 'control'
-              },
-              size: 20
-            },
-            {
-              type: 'leaf',
-              data: {
-                views: [
-                  {
-                    id: 'viewer',
-                    component: 'viewer3D',
-                    params: { showAxes: true }
-                  }
-                ],
-                activeView: 'viewer'
-              },
-              size: 60
-            },
-            {
-              type: 'leaf',
-              data: {
-                views: [
-                  {
-                    id: 'editor',
-                    component: 'codeEditor',
-                    params: { language: 'gcode' }
-                  }
-                ],
-                activeView: 'editor'
-              },
-              size: 20
-            }
-          ],
-          size: 80
+          type: 'leaf',
+          data: {
+            views: ['control'],
+            activeView: 'control',
+            id: '1'
+          },
+          size: 20
         },
         {
           type: 'leaf',
           data: {
-            views: [
-              {
-                id: 'monitor',
-                component: 'monitor',
-                params: { refreshRate: 1000 }
-              }
-            ],
-            activeView: 'monitor'
+            views: ['viewer'],
+            activeView: 'viewer',
+            id: '2'
+          },
+          size: 60
+        },
+        {
+          type: 'leaf',
+          data: {
+            views: ['editor'],
+            activeView: 'editor',
+            id: '3'
           },
           size: 20
         }
       ],
-      direction: 'column'
+      direction: 'row',
+      size: 80
     },
     width: 1200,
     height: 800,
-    orientation: 'horizontal'
+    orientation: 'HORIZONTAL'
   },
-  panels: {},
-  activePanel: null
+  panels: {
+    control: {
+      id: 'control',
+      contentComponent: 'controlPanel',
+      params: { showAdvanced: false },
+      title: 'control'
+    },
+    viewer: {
+      id: 'viewer',
+      contentComponent: 'viewer3D',
+      params: { showAxes: true },
+      title: 'viewer'
+    },
+    editor: {
+      id: 'editor',
+      contentComponent: 'codeEditor',
+      params: { language: 'gcode' },
+      title: 'editor'
+    },
+    monitor: {
+      id: 'monitor',
+      contentComponent: 'monitor',
+      params: { refreshRate: 1000 },
+      title: 'monitor'
+    }
+  },
+  activeGroup: '1'
 };
 
 // Code-focused layout with larger editor area
@@ -90,82 +81,65 @@ export const codingLayout = {
         {
           type: 'leaf',
           data: {
-            views: [
-              {
-                id: 'control',
-                component: 'controlPanel',
-                params: { showAdvanced: true }
-              }
-            ],
-            activeView: 'control'
+            views: ['control'],
+            activeView: 'control',
+            id: '1'
           },
           size: 15
         },
         {
-          type: 'branch',
-          data: [
-            {
-              type: 'leaf',
-              data: {
-                views: [
-                  {
-                    id: 'editor',
-                    component: 'codeEditor',
-                    params: { language: 'gcode' }
-                  }
-                ],
-                activeView: 'editor'
-              },
-              size: 70
-            },
-            {
-              type: 'branch',
-              data: [
-                {
-                  type: 'leaf',
-                  data: {
-                    views: [
-                      {
-                        id: 'monitor',
-                        component: 'monitor',
-                        params: { refreshRate: 1000 }
-                      }
-                    ],
-                    activeView: 'monitor'
-                  },
-                  size: 50
-                },
-                {
-                  type: 'leaf',
-                  data: {
-                    views: [
-                      {
-                        id: 'viewer',
-                        component: 'viewer3D',
-                        params: { showAxes: true }
-                      }
-                    ],
-                    activeView: 'viewer'
-                  },
-                  size: 50
-                }
-              ],
-              direction: 'column',
-              size: 30
-            }
-          ],
-          direction: 'row',
-          size: 85
+          type: 'leaf',
+          data: {
+            views: ['editor'],
+            activeView: 'editor',
+            id: '2'
+          },
+          size: 65
+        },
+        {
+          type: 'leaf',
+          data: {
+            views: ['viewer', 'monitor'],
+            activeView: 'monitor',
+            id: '3'
+          },
+          size: 20
         }
       ],
-      direction: 'row'
+      direction: 'row',
+      size: 100
     },
     width: 1200,
     height: 800,
-    orientation: 'horizontal'
+    orientation: 'HORIZONTAL'
   },
-  panels: {},
-  activePanel: null
+  panels: {
+    control: {
+      id: 'control',
+      contentComponent: 'controlPanel',
+      params: { showAdvanced: true },
+      title: 'control'
+    },
+    editor: {
+      id: 'editor',
+      contentComponent: 'codeEditor',
+      params: { language: 'gcode' },
+      title: 'editor'
+    },
+    viewer: {
+      id: 'viewer',
+      contentComponent: 'viewer3D',
+      params: { showAxes: true },
+      title: 'viewer'
+    },
+    monitor: {
+      id: 'monitor',
+      contentComponent: 'monitor',
+      params: { refreshRate: 1000 },
+      title: 'monitor'
+    }
+  },
+  activeGroup: '2'
 };
 
 // 3D view focused layout for modeling and visualization
@@ -175,84 +149,67 @@ export const visualizationLayout = {
       type: 'branch',
       data: [
         {
-          type: 'branch',
-          data: [
-            {
-              type: 'leaf',
-              data: {
-                views: [
-                  {
-                    id: 'control',
-                    component: 'controlPanel',
-                    params: { showAdvanced: false }
-                  }
-                ],
-                activeView: 'control'
-              },
-              size: 100
-            },
-            {
-              type: 'leaf',
-              data: {
-                views: [
-                  {
-                    id: 'editor',
-                    component: 'codeEditor',
-                    params: { language: 'gcode' }
-                  }
-                ],
-                activeView: 'editor'
-              },
-              size: 100
-            }
-          ],
-          direction: 'column',
+          type: 'leaf',
+          data: {
+            views: ['control', 'editor'],
+            activeView: 'control',
+            id: '1'
+          },
           size: 20
         },
         {
-          type: 'branch',
-          data: [
-            {
-              type: 'leaf',
-              data: {
-                views: [
-                  {
-                    id: 'viewer',
-                    component: 'viewer3D',
-                    params: { showAxes: true }
-                  }
-                ],
-                activeView: 'viewer'
-              },
-              size: 80
-            },
-            {
-              type: 'leaf',
-              data: {
-                views: [
-                  {
-                    id: 'monitor',
-                    component: 'monitor',
-                    params: { refreshRate: 1000 }
-                  }
-                ],
-                activeView: 'monitor'
-              },
-              size: 20
-            }
-          ],
-          direction: 'column',
-          size: 80
+          type: 'leaf',
+          data: {
+            views: ['viewer'],
+            activeView: 'viewer',
+            id: '2'
+          },
+          size: 60
+        },
+        {
+          type: 'leaf',
+          data: {
+            views: ['monitor'],
+            activeView: 'monitor',
+            id: '3'
+          },
+          size: 20
         }
       ],
-      direction: 'row'
+      direction: 'row',
+      size: 100
     },
     width: 1200,
     height: 800,
-    orientation: 'horizontal'
+    orientation: 'HORIZONTAL'
   },
-  panels: {},
-  activePanel: null
+  panels: {
+    control: {
+      id: 'control',
+      contentComponent: 'controlPanel',
+      params: { showAdvanced: false },
+      title: 'control'
+    },
+    viewer: {
+      id: 'viewer',
+      contentComponent: 'viewer3D',
+      params: { showAxes: true },
+      title: 'viewer'
+    },
+    editor: {
+      id: 'editor',
+      contentComponent: 'codeEditor',
+      params: { language: 'gcode' },
+      title: 'editor'
+    },
+    monitor: {
+      id: 'monitor',
+      contentComponent: 'monitor',
+      params: { refreshRate: 1000 },
+      title: 'monitor'
+    }
+  },
+  activeGroup: '2'
 };
 
 // Layout for monitoring with emphasis on status displays
@@ -262,82 +219,65 @@ export const monitoringLayout = {
       type: 'branch',
       data: [
         {
-          type: 'branch',
-          data: [
-            {
-              type: 'leaf',
-              data: {
-                views: [
-                  {
-                    id: 'viewer',
-                    component: 'viewer3D',
-                    params: { showAxes: true }
-                  }
-                ],
-                activeView: 'viewer'
-              },
-              size: 50
-            },
-            {
-              type: 'leaf',
-              data: {
-                views: [
-                  {
-                    id: 'control',
-                    component: 'controlPanel',
-                    params: { showAdvanced: true }
-                  }
-                ],
-                activeView: 'control'
-              },
-              size: 50
-            }
-          ],
-          direction: 'column',
-          size: 40
+          type: 'leaf',
+          data: {
+            views: ['control'],
+            activeView: 'control',
+            id: '1'
+          },
+          size: 20
         },
         {
-          type: 'branch',
-          data: [
-            {
-              type: 'leaf',
-              data: {
-                views: [
-                  {
-                    id: 'monitor',
-                    component: 'monitor',
-                    params: { refreshRate: 500 }
-                  }
-                ],
-                activeView: 'monitor'
-              },
-              size: 70
-            },
-            {
-              type: 'leaf',
-              data: {
-                views: [
-                  {
-                    id: 'editor',
-                    component: 'codeEditor',
-                    params: { language: 'gcode' }
-                  }
-                ],
-                activeView: 'editor'
-              },
-              size: 30
-            }
-          ],
-          direction: 'column',
+          type: 'leaf',
+          data: {
+            views: ['monitor'],
+            activeView: 'monitor',
+            id: '2'
+          },
           size: 60
+        },
+        {
+          type: 'leaf',
+          data: {
+            views: ['viewer', 'editor'],
+            activeView: 'viewer',
+            id: '3'
+          },
+          size: 20
         }
       ],
-      direction: 'row'
+      direction: 'row',
+      size: 100
     },
     width: 1200,
     height: 800,
-    orientation: 'horizontal'
+    orientation: 'HORIZONTAL'
   },
-  panels: {},
-  activePanel: null
+  panels: {
+    control: {
+      id: 'control',
+      contentComponent: 'controlPanel',
+      params: { showAdvanced: true },
+      title: 'control'
+    },
+    viewer: {
+      id: 'viewer',
+      contentComponent: 'viewer3D',
+      params: { showAxes: true },
+      title: 'viewer'
+    },
+    editor: {
+      id: 'editor',
+      contentComponent: 'codeEditor',
+      params: { language: 'gcode' },
+      title: 'editor'
+    },
+    monitor: {
+      id: 'monitor',
+      contentComponent: 'monitor',
+      params: { refreshRate: 500 },
+      title: 'monitor'
+    }
+  },
+  activeGroup: '2'
 };

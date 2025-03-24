@@ -34,6 +34,15 @@ class DockingManager {
     if (typeof localStorage !== 'undefined' && !localStorage.getItem('layout_default')) {
       localStorage.setItem('layout_default', JSON.stringify(defaultLayout));
     }
+    
+    // Automatically load the default layout
+    try {
+      this.api.fromJSON(defaultLayout);
+    } catch (error) {
+      console.error('Error loading default layout:', error);
+      // If default layout fails, create a basic layout manually
+      this.resetLayout();
+    }
   }
 
   /**
@@ -177,8 +186,15 @@ class DockingManager {
     }
     
     if (layout) {
-      this.api.fromJSON(layout);
-      return true;
+      try {
+        this.api.fromJSON(layout);
+        return true;
+      } catch (error) {
+        console.error('Error loading layout:', error);
+        // Try to recover
+        this.resetLayout();
+        return false;
+      }
     }
     
     return false;
@@ -204,7 +220,29 @@ class DockingManager {
       throw new Error('DockingManager not initialized');
     }
 
-    this.api.fromJSON(defaultLayout);
+    try {
+      // Use the default layout
+      this.api.fromJSON(defaultLayout);
+    } catch (error) {
+      console.error('Error resetting layout:', error);
+      
+      // Last resort: clear and add panels manually
+      this.api.clear();
+      
+      // Add panels with delays to ensure they load properly
+      setTimeout(() => {
+        this.addPanel('controlPanel', { showAdvanced: false });
+        setTimeout(() => {
+          this.addPanel('viewer3D', { showAxes: true }, 'right');
+          setTimeout(() => {
+            this.addPanel('codeEditor', { language: 'gcode' }, 'right');
+            setTimeout(() => {
+              this.addPanel('monitor', { refreshRate: 1000 }, 'bottom');
+            }, 50);
+          }, 50);
+        }, 50);
+      }, 50);
+    }
   }
 }
 

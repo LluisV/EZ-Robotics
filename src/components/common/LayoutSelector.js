@@ -66,24 +66,40 @@ const LayoutSelector = ({ dockviewApi }) => {
     setUserLayouts(userSaved);
   };
 
-  // Apply a layout
+  // Apply a layout with error handling
   const applyLayout = (layoutId) => {
-    dockingManager.loadLayout(layoutId);
-    setCurrentLayout(layoutId);
-    setShowDropdown(false);
+    try {
+      console.log('Applying layout:', layoutId);
+      const success = dockingManager.loadLayout(layoutId);
+      
+      if (success) {
+        setCurrentLayout(layoutId);
+        setShowDropdown(false);
+      } else {
+        console.warn(`Layout '${layoutId}' could not be loaded`);
+      }
+    } catch (error) {
+      console.error('Error applying layout:', error);
+      alert(`Error applying layout: ${error.message}`);
+    }
   };
 
   // Save current layout
   const saveLayout = () => {
     if (!newLayoutName.trim()) return;
     
-    const formattedName = newLayoutName.trim().toLowerCase().replace(/\s+/g, '_');
-    dockingManager.saveLayout(formattedName);
-    
-    setNewLayoutName('');
-    setShowSaveDialog(false);
-    loadLayouts();
-    setCurrentLayout(formattedName);
+    try {
+      const formattedName = newLayoutName.trim().toLowerCase().replace(/\s+/g, '_');
+      dockingManager.saveLayout(formattedName);
+      
+      setNewLayoutName('');
+      setShowSaveDialog(false);
+      loadLayouts();
+      setCurrentLayout(formattedName);
+    } catch (error) {
+      console.error('Error saving layout:', error);
+      alert(`Error saving layout: ${error.message}`);
+    }
   };
 
   // Delete a layout
@@ -91,11 +107,16 @@ const LayoutSelector = ({ dockviewApi }) => {
     event.stopPropagation();
     
     if (window.confirm(`Are you sure you want to delete the "${layoutId}" layout?`)) {
-      localStorage.removeItem(`layout_${layoutId}`);
-      loadLayouts();
-      
-      if (currentLayout === layoutId) {
-        applyLayout('default');
+      try {
+        localStorage.removeItem(`layout_${layoutId}`);
+        loadLayouts();
+        
+        if (currentLayout === layoutId) {
+          applyLayout('default');
+        }
+      } catch (error) {
+        console.error('Error deleting layout:', error);
+        alert(`Error deleting layout: ${error.message}`);
       }
     }
   };
