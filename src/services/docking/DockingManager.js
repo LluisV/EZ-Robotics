@@ -1,4 +1,10 @@
 import { panelDefinitions } from './panelRegistry';
+import { 
+  defaultLayout, 
+  codingLayout, 
+  visualizationLayout, 
+  monitoringLayout 
+} from './predefinedLayouts';
 
 /**
  * Service class to manage the dockable layout
@@ -7,6 +13,14 @@ class DockingManager {
   constructor() {
     this.api = null;
     this.layouts = {};
+    
+    // Initialize with predefined layouts
+    this.predefinedLayouts = {
+      'default': defaultLayout,
+      'coding': codingLayout,
+      'visualization': visualizationLayout,
+      'monitoring': monitoringLayout
+    };
   }
 
   /**
@@ -15,6 +29,11 @@ class DockingManager {
    */
   initialize(api) {
     this.api = api;
+    
+    // Save default layout if not already saved
+    if (typeof localStorage !== 'undefined' && !localStorage.getItem('layout_default')) {
+      localStorage.setItem('layout_default', JSON.stringify(defaultLayout));
+    }
   }
 
   /**
@@ -29,7 +48,7 @@ class DockingManager {
    * Add a new panel to the layout
    * @param {string} panelType The type of panel to add
    * @param {Object} params Optional parameters for the panel
-   * @param {string} location Where to add the panel (left, right, bottom, etc.)
+   * @param {string|Object} location Where to add the panel (location name or position object)
    * @returns {string} The ID of the created panel
    */
   addPanel(panelType, params = {}, location = 'center') {
@@ -43,11 +62,46 @@ class DockingManager {
     }
 
     const panelId = `${panelType}_${Date.now()}`;
+    
+    // Handle different location formats
+    let position = {};
+    
+    if (typeof location === 'string') {
+      // Convert string location to position object
+      const referencePanel = this.api.activePanel;
+      
+      switch (location) {
+        case 'left':
+          position = { referencePanel, direction: 'left' };
+          break;
+        case 'right':
+          position = { referencePanel, direction: 'right' };
+          break;
+        case 'above':
+        case 'top':
+          position = { referencePanel, direction: 'above' };
+          break;
+        case 'below':
+        case 'bottom':
+          position = { referencePanel, direction: 'below' };
+          break;
+        case 'center':
+        case 'within':
+        default:
+          position = { referencePanel, direction: 'within' };
+          break;
+      }
+    } else if (typeof location === 'object') {
+      // Use location object directly
+      position = location;
+    }
+
+    // Add the panel
     this.api.addPanel({
       id: panelId,
       component: panelDef.component,
       params: { ...panelDef.params, ...params },
-      position: { referencePanel: this.api.activePanel, direction: location }
+      position: position
     });
 
     return panelId;
@@ -100,11 +154,18 @@ class DockingManager {
       throw new Error('DockingManager not initialized');
     }
 
-    // Try to get from memory first
-    let layout = this.layouts[name];
+    let layout;
     
+    // First check if it's a predefined layout
+    if (this.predefinedLayouts[name]) {
+      layout = this.predefinedLayouts[name];
+    }
+    // Otherwise try to get from memory
+    else if (this.layouts[name]) {
+      layout = this.layouts[name];
+    }
     // If not in memory, try localStorage
-    if (!layout && typeof localStorage !== 'undefined') {
+    else if (typeof localStorage !== 'undefined') {
       try {
         const stored = localStorage.getItem(`layout_${name}`);
         if (stored) {
@@ -124,6 +185,18 @@ class DockingManager {
   }
 
   /**
+   * Get all available predefined layouts
+   * @returns {Object} Object with layout names as keys
+   */
+  getPredefinedLayouts() {
+    return Object.keys(this.predefinedLayouts).map(id => ({
+      id,
+      name: id.charAt(0).toUpperCase() + id.slice(1) + ' Layout',
+      isPredefined: true
+    }));
+  }
+
+  /**
    * Reset the layout to the default configuration
    */
   resetLayout() {
@@ -131,10 +204,7 @@ class DockingManager {
       throw new Error('DockingManager not initialized');
     }
 
-    // Import the default layout dynamically to avoid circular dependencies
-    import('./defaultLayout').then(module => {
-      this.api.fromJSON(module.defaultLayout);
-    });
+    this.api.fromJSON(defaultLayout);
   }
 }
 

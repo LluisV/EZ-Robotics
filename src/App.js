@@ -12,6 +12,7 @@ import {
 } from 'dockview';
 import 'dockview/dist/styles/dockview.css';
 import './App.css';
+import './styles/layout.css';
 import Header from './components/common/Header';
 import Footer from './components/common/Footer';
 import Toolbar from './components/common/Toolbar';
@@ -31,6 +32,7 @@ function App() {
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [currentTheme, setCurrentTheme] = useState('dracula');
+  const [dockviewApi, setDockviewApi] = useState(null);
 
   // Define available themes
   const availableThemes = [
@@ -130,8 +132,9 @@ function App() {
       console.log('Dockview ready event received');
       setIsLoading(false);
       
-      // Get the API
+      // Get the API and store it
       const { api } = event;
+      setDockviewApi(api);
       
       // Add Control Panel on the left
       api.addPanel({
@@ -180,7 +183,7 @@ function App() {
           availableThemes={availableThemes}
         />
       </Header>
-      <Toolbar />
+      <Toolbar dockviewApi={dockviewApi} />
       <div className="dock-container">
         {error ? (
           <div className="error-container">

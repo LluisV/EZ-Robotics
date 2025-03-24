@@ -1,0 +1,102 @@
+/* Layout management styles */
+
+.layout-selector {
+    position: relative;
+  }
+  
+  .layout-dropdown {
+    animation: fadeIn 0.2s ease;
+  }
+  
+  .layout-save-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    animation: fadeIn 0.2s ease;
+  }
+  
+  .layout-save-dialog-content {
+    background-color: var(--bg-dark);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    width: 300px;
+    max-width: 90%;
+    box-shadow: var(--shadow-large);
+  }
+  
+  .layout-name-input {
+    width: 100%;
+    padding: 8px 12px;
+    margin: 10px 0 15px 0;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-light);
+    color: var(--text-primary);
+    box-sizing: border-box;
+  }
+  
+  .layout-save-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+  
+  .layout-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-radius: var(--border-radius);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background-color var(--transition-fast);
+  }
+  
+  .layout-item:hover {
+    background-color: var(--bg-medium);
+  }
+  
+  .layout-item.active {
+    background-color: var(--bg-light);
+  }
+  
+  .layout-item-delete {
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+    background: transparent;
+    border: none;
+    color: var(--accent-red);
+    cursor: pointer;
+    padding: 2px;
+    margin-left: 5px;
+  }
+  
+  .layout-item:hover .layout-item-delete {
+    opacity: 1;
+  }
+  
+  .layout-section-title {
+    margin: 5px 0;
+    padding: 5px 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  .layout-divider {
+    height: 1px;
+    background-color: var(--border-color);
+    margin: 5px 0;
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
