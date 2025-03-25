@@ -10,7 +10,7 @@ const Viewer3DPanel = ({ showAxes = true }) => {
   const rendererRef = useRef(null);
   const controlsRef = useRef(null);
 
-  // State for view and projection
+  // State for view and projection (start with orthographic by setting isPerspective to false)
   const [isPerspective, setIsPerspective] = useState(false);
   const [isGridVisible, setIsGridVisible] = useState(true);
 
@@ -46,16 +46,16 @@ const Viewer3DPanel = ({ showAxes = true }) => {
       frustumSize * aspect / 2, 
       frustumSize / 2, 
       frustumSize / -2, 
-      0.1, 
+      -10, 
       1000
     );
     orthographicCamera.position.set(0, 0, 5);
     orthographicCamera.up.set(0, 0, 1); // Z is up
     orthographicCamera.lookAt(0, 0, 0);
 
-    // Set initial camera and expose to global window for Gizmo
-    cameraRef.current = perspectiveCamera;
-    window.parentCamera = perspectiveCamera;
+    // Set initial camera based on projection type (orthographic by default)
+    cameraRef.current = isPerspective ? perspectiveCamera : orthographicCamera;
+    window.parentCamera = cameraRef.current;
 
     // Renderer setup
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -65,7 +65,7 @@ const Viewer3DPanel = ({ showAxes = true }) => {
     rendererRef.current = renderer;
 
     // Orbit controls
-    const controls = new OrbitControls(perspectiveCamera, renderer.domElement);
+    const controls = new OrbitControls(cameraRef.current, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.25;
     controls.object.up.set(0, 0, 1);
@@ -148,7 +148,7 @@ const Viewer3DPanel = ({ showAxes = true }) => {
         rendererRef.current.dispose();
       }
     };
-  }, [isGridVisible, showAxes]);
+  }, [isGridVisible, showAxes, isPerspective]);
 
   // Handle view changes from gizmo
   const handleViewChange = useCallback((view) => {
@@ -188,25 +188,25 @@ const Viewer3DPanel = ({ showAxes = true }) => {
     if (!cameraRef.current || !mountRef.current || !rendererRef.current) return;
 
     const currentCamera = cameraRef.current;
-  const renderer = rendererRef.current;
-  const width = mountRef.current.clientWidth;
-  const height = mountRef.current.clientHeight;
-  const aspect = width / height;
-  
-  // Calculate distance from camera to origin
-  const distance = currentCamera.position.length();
-  
-  // Toggle between perspective and orthographic cameras
-  const newCamera = isPerspective 
-    ? new THREE.OrthographicCamera(
-        -distance * aspect, 
-        distance * aspect, 
-        distance, 
-        -distance, 
-        -10, 
-        1000
-      )
-    : new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
+    const renderer = rendererRef.current;
+    const width = mountRef.current.clientWidth;
+    const height = mountRef.current.clientHeight;
+    const aspect = width / height;
+    
+    // Calculate distance from camera to origin
+    const distance = currentCamera.position.length();
+    
+    // Toggle between perspective and orthographic cameras
+    const newCamera = isPerspective 
+      ? new THREE.OrthographicCamera(
+          -distance * aspect, 
+          distance * aspect, 
+          distance, 
+          -distance, 
+          -10, 
+          1000
+        )
+      : new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
 
     // Copy position and lookAt
     newCamera.position.copy(currentCamera.position);
