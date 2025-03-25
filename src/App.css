@@ -503,3 +503,9 @@ footer {
 .footer-divider {
   color: var(--border-color);
 }
+
+
+.dockview-theme-abyss-spaced {
+  padding: 10px 10px 10px 10px !important; /* top right bottom left */
+  box-sizing: border-box !important;
+}
