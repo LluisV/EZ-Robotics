@@ -83,12 +83,6 @@
   color: var(--dv-paneview-active-outline-color, var(--accent-blue));
 }
 
-.modified-indicator {
-  font-size: 16px;
-  color: var(--dv-paneview-active-outline-color, var(--accent-blue));
-  line-height: 0;
-}
-
 .file-meta {
   display: flex;
   gap: 12px;
@@ -247,7 +241,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
+  padding: 0;
   border-top: var(--editor-border);
   font-size: 12px;
   background-color: var(--editor-footer-bg);
@@ -255,6 +249,50 @@
   z-index: 10;
 }
 
+.editor-status-bar {
+  display: flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 5px;
+}
+
+.status-section {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 8px;
+  border-right: var(--editor-border);
+}
+
+.status-section:last-child {
+  border-right: none;
+}
+
+.info-item {
+  font-size: 11px;
+  color: var(--dv-inactivegroup-hiddenpanel-tab-color, var(--text-secondary));
+}
+
+.status-divider {
+  margin: 0 5px;
+  color: var(--dv-separator-border, var(--border-color));
+}
+
+.mode-indicator {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: var(--dv-inactivegroup-hiddenpanel-tab-color, var(--text-secondary));
+}
+
+.mode-indicator.modified {
+  background-color: rgba(255, 119, 0, 0.15);
+  color: var(--accent-orange);
+}
+
+.info-item.active {
+  color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
+}
 .cursor-position {
   display: flex;
   align-items: center;
@@ -375,7 +413,38 @@
 
 /* Estilos adicionales de integración con temas */
 .gcode-editor-panel {
-  border: var(--editor-border);
+  --editor-bg: var(--dv-activegroup-hiddenpanel-tab-background-color, #1c1c2c);
+  --editor-fg: var(--dv-activegroup-visiblepanel-tab-color, #e0e0e0);
+  --editor-line-highlight: rgba(255, 255, 255, 0.05);
+  --editor-line-numbers-bg: rgba(0, 0, 0, 0.2);
+  --editor-line-numbers-fg: rgba(255, 255, 255, 0.3);
+  --editor-border: 1px solid var(--dv-separator-border, rgba(255, 255, 255, 0.05));
+  --editor-header-bg: var(--dv-activegroup-hiddenpanel-tab-background-color, rgba(28, 28, 44, 0.8));
+  --editor-footer-bg: var(--dv-activegroup-hiddenpanel-tab-background-color, rgba(28, 28, 44, 0.8));
+  --editor-btn-bg: rgba(255, 255, 255, 0.05);
+  --editor-btn-hover: rgba(255, 255, 255, 0.1);
+  --editor-btn-active: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  --editor-btn-primary: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  --editor-radius: var(--dv-border-radius, 8px);
+  --editor-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  
+  /* Colores para resaltado de sintaxis */
+  --syntax-comment: #6A9955;
+  --syntax-command: #569CD6;
+  --syntax-param: #9CDCFE;
+  --syntax-value: #B5CEA8;
+
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
+  font-size: 14px;
+  background-color: var(--editor-bg);
+  color: var(--editor-fg);
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(8px);
+  border-radius: var(--editor-radius);
 }
 
 /* Tooltip para información adicional */
@@ -397,4 +466,92 @@
   white-space: nowrap;
   z-index: 100;
   pointer-events: none;
+}
+
+.editor-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  border-bottom: var(--editor-border);
+  background-color: var(--editor-header-bg);
+  backdrop-filter: blur(8px);
+  z-index: 10;
+}
+.toolbar-section {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px; /* Increase width */
+  height: 38px; /* Increase height */
+  background-color: transparent;
+  border: none;
+  color: var(--editor-fg);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.toolbar-btn svg {
+  width: 20px; /* Adjust icon size */
+  height: 24px; /* Adjust icon size */
+}
+
+.toolbar-btn:hover {
+  background-color: var(--editor-btn-hover);
+}
+
+.toolbar-btn:active {
+  background-color: var(--editor-btn-active);
+  transform: translateY(1px);
+}
+
+.toolbar-btn.primary {
+  background-color: var(--editor-btn-primary);
+  color: white;
+}
+
+.toolbar-btn.primary:hover {
+  filter: brightness(1.1);
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 24px;
+  background-color: var(--editor-border);
+  margin: 0 4px;
+}
+
+/* File info section */
+.file-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.file-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.file-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+}
+
+.modified-indicator {
+  font-size: 16px;
+  color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  line-height: 0;
 }

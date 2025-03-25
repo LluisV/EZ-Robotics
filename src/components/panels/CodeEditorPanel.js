@@ -191,6 +191,47 @@ const CodeEditorPanel = ({ language = 'gcode' }) => {
     setModified(false);
   };
 
+  // Function to handle file opening
+const openFile = () => {
+  const files = [
+    'example1.gcode',
+    'example2.gcode',
+    'spiral.gcode',
+    'calibration.gcode'
+  ];
+  const randomFile = files[Math.floor(Math.random() * files.length)];
+  setFileName(randomFile);
+  setModified(false);
+  alert(`Opened ${randomFile}`);
+  
+  // In a real implementation, you would:
+  // 1. Open a file picker dialog
+  // 2. Read the selected file
+  // 3. Set the content in the editor
+  
+  // Mock different G-code content for each file
+  const fileContents = {
+    'example1.gcode': '; Example G-code\nG28 ; Home all axes\nG1 X100 Y100 Z10 F1000 ; Move to position\nG1 Z2 ; Lower to working height\nG1 X150 Y150 ; Draw diagonal line',
+    'example2.gcode': '; Square pattern\nG28 ; Home all axes\nG1 Z5 F1000 ; Raise head\nG1 X10 Y10 F2000 ; Move to start\nG1 Z0.5 ; Lower to work height\nG1 X10 Y110 ; Draw line\nG1 X110 Y110 ; Draw line\nG1 X110 Y10 ; Draw line\nG1 X10 Y10 ; Draw line',
+    'spiral.gcode': '; Spiral pattern\nG28 ; Home all axes\nG1 Z5 F1000 ; Raise head\nG1 X50 Y50 F2000 ; Move to center\nG1 Z0.5 ; Lower to work height\nG3 X60 Y50 I5 J0 F1000 ; Arc 1\nG3 X70 Y50 I5 J0 F1000 ; Arc 2\nG3 X80 Y50 I5 J0 F1000 ; Arc 3',
+    'calibration.gcode': '; Calibration pattern\nG28 ; Home all axes\nM104 S200 ; Set extruder temp\nM140 S60 ; Set bed temp\nG1 Z5 F1000 ; Raise head\nG1 X20 Y20 F2000 ; Move to start\nG1 Z0.2 ; Lower to work height\nG1 X20 Y100 E10 F1000 ; Extrude line\nG1 X40 Y100 E20 F1000 ; Extrude line'
+  };
+  
+  // Set the content for the selected file
+  setCode(fileContents[randomFile] || '');
+  
+  // Update file size based on content length
+  const contentSize = (fileContents[randomFile] || '').length;
+  if (contentSize < 1024) {
+    setFileSize(`${contentSize} B`);
+  } else {
+    setFileSize(`${(contentSize / 1024).toFixed(1)} KB`);
+  }
+  
+  // Update line count
+  setTotalLines((fileContents[randomFile] || '').split('\n').length);
+ };
+
   // Enviar al robot
   const sendToRobot = () => {
     // Simulación de envío
@@ -198,9 +239,47 @@ const CodeEditorPanel = ({ language = 'gcode' }) => {
   };
 
   return (
-    <div className={`gcode-editor-panel`}>
-      {/* Encabezado del editor */}
-      <div className="editor-header">
+    <div className="gcode-editor-panel">
+      {/* Toolbar at the top */}
+      <div className="editor-toolbar">
+        <div className="toolbar-section">
+        <button className="toolbar-btn" onClick={openFile} title="Open file (Ctrl+O)">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"></path>
+            <path d="M14 2v6h6"></path>
+            <polyline points="14 2 20 8 14 8"></polyline>
+          </svg>
+        </button>
+          <button className="toolbar-btn" onClick={saveFile} title="Save file (Ctrl+S)">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+              <polyline points="17 21 17 13 7 13 7 21"></polyline>
+              <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
+          </button>
+          <span className="toolbar-divider"></span>
+          <button className="toolbar-btn" onClick={formatCode} title="Format code (Shift+Alt+F)">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="21" y1="10" x2="3" y2="10"></line>
+              <line x1="21" y1="6" x2="3" y2="6"></line>
+              <line x1="21" y1="14" x2="3" y2="14"></line>
+              <line x1="21" y1="18" x2="3" y2="18"></line>
+            </svg>
+          </button>
+          <button className="toolbar-btn" onClick={validateCode} title="Validate G-code">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+              <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+          </button>
+          <span className="toolbar-divider"></span>
+          <button className="toolbar-btn primary" onClick={sendToRobot} title="Run G-code (F5)">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+          </button>
+        </div>
+        
         <div className="file-info">
           <div className="file-name">
             <span className="file-icon">
@@ -215,29 +294,10 @@ const CodeEditorPanel = ({ language = 'gcode' }) => {
             <span className="name">{fileName}</span>
             {modified && <span className="modified-indicator">●</span>}
           </div>
-          <div className="file-meta">
-            <span className="meta-item">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="17" y1="10" x2="3" y2="10"></line>
-                <line x1="21" y1="6" x2="3" y2="6"></line>
-                <line x1="21" y1="14" x2="3" y2="14"></line>
-                <line x1="17" y1="18" x2="3" y2="18"></line>
-              </svg>
-              <span>{totalLines} lines</span>
-            </span>
-            <span className="meta-item">
-            <svg xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 50 50">
-            <path d="M 7 2 L 7 48 L 43 48 L 43 14.59375 L 42.71875 14.28125 L 30.71875 2.28125 L 30.40625 2 Z M 9 4 L 29 4 L 29 16 L 41 16 L 41 46 L 9 46 Z M 31 5.4375 L 39.5625 14 L 31 14 Z"></path>
-            </svg>
-            <span>{fileSize}</span>
-            </span>
-
-
-          </div>
         </div>
       </div>
       
-      {/* Área del editor */}
+      {/* Editor container */}
       <div className="editor-container">
         <div 
           className="line-numbers"
@@ -264,49 +324,34 @@ const CodeEditorPanel = ({ language = 'gcode' }) => {
         </div>
       </div>
       
-      {/* Footer del editor */}
+      {/* Status bar (footer) */}
       <div className="editor-footer">
-        <div className="cursor-position">
-          <span className="position-text">
-            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-              <line x1="9" y1="3" x2="9" y2="21"></line>
-            </svg>
-            Line {currentLine}, Column {currentColumn}
-          </span>
-        </div>
-        <div className="editor-actions">
-          <button className="editor-action-btn" onClick={validateCode}>
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-              <polyline points="22 4 12 14.01 9 11.01"></polyline>
-            </svg>
-            Validate
-          </button>
-          <button className="editor-action-btn" onClick={formatCode}>
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="21" y1="10" x2="3" y2="10"></line>
-              <line x1="21" y1="6" x2="3" y2="6"></line>
-              <line x1="21" y1="14" x2="3" y2="14"></line>
-              <line x1="21" y1="18" x2="3" y2="18"></line>
-            </svg>
-            Format
-          </button>
-          <button className="editor-action-btn" onClick={saveFile}>
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-              <polyline points="17 21 17 13 7 13 7 21"></polyline>
-              <polyline points="7 3 7 8 15 8"></polyline>
-            </svg>
-            Save
-          </button>
-          <button className="editor-action-btn primary" onClick={sendToRobot}>
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 19V6"></path>
-            <path d="M5 13L12 6l7 7"></path>
-          </svg>
-          Send G-Code
-        </button>
+        <div className="editor-status-bar">
+          <div className="status-section cursor-position">
+            <span className="position-text">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="9" y1="3" x2="9" y2="21"></line>
+              </svg>
+              Ln {currentLine}, Col {currentColumn}
+            </span>
+          </div>
+          
+          <div className="status-section editor-info">
+            <span className="info-item">{totalLines} lines</span>
+            <span className="status-divider">|</span>
+            <span className="info-item">G-code</span>
+            <span className="status-divider">|</span>
+            <span className="info-item">UTF-8</span>
+            <span className="status-divider">|</span>
+            <span className="info-item">{fileSize}</span>
+          </div>
+          
+          <div className="status-section editor-mode">
+            <span className={`mode-indicator ${modified ? 'modified' : ''}`}>
+              {modified ? 'Modified' : 'Saved'}
+            </span>
+          </div>
         </div>
       </div>
     </div>
