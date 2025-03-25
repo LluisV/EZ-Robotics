@@ -188,22 +188,25 @@ const Viewer3DPanel = ({ showAxes = true }) => {
     if (!cameraRef.current || !mountRef.current || !rendererRef.current) return;
 
     const currentCamera = cameraRef.current;
-    const renderer = rendererRef.current;
-    const width = mountRef.current.clientWidth;
-    const height = mountRef.current.clientHeight;
-    const aspect = width / height;
-
-    // Toggle between perspective and orthographic cameras
-    const newCamera = isPerspective 
-      ? new THREE.OrthographicCamera(
-          10 * aspect / -2, 
-          10 * aspect / 2, 
-          10 / 2, 
-          10 / -2, 
-          0.001, 
-          1000
-        )
-      : new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
+  const renderer = rendererRef.current;
+  const width = mountRef.current.clientWidth;
+  const height = mountRef.current.clientHeight;
+  const aspect = width / height;
+  
+  // Calculate distance from camera to origin
+  const distance = currentCamera.position.length();
+  
+  // Toggle between perspective and orthographic cameras
+  const newCamera = isPerspective 
+    ? new THREE.OrthographicCamera(
+        -distance * aspect, 
+        distance * aspect, 
+        distance, 
+        -distance, 
+        -10, 
+        1000
+      )
+    : new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
 
     // Copy position and lookAt
     newCamera.position.copy(currentCamera.position);
