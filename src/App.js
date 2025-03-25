@@ -15,6 +15,7 @@ import './App.css';
 import './styles/layout.css';
 import './styles/console.css';
 import './styles/control-panel.css';
+import './styles/monitor-panel.css';
 
 import Header from './components/common/Header';
 import Footer from './components/common/Footer';

@@ -56,7 +56,7 @@ const getThemeColors = () => {
   return colors;
 };
 
-const Viewer3DPanel = ({ showAxes = true }) => {
+const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
   const mountRef = useRef(null);
   const sceneRef = useRef(null);
   const cameraRef = useRef(null);
@@ -68,7 +68,13 @@ const Viewer3DPanel = ({ showAxes = true }) => {
   // State for view and projection
   const [isPerspective, setIsPerspective] = useState(false);
   const [isGridVisible, setIsGridVisible] = useState(true);
+  const [showAxes, setShowAxes] = useState(initialShowAxes);
   const [themeColors, setThemeColors] = useState(getThemeColors());
+
+  // Update when the initialShowAxes prop changes
+  useEffect(() => {
+    setShowAxes(initialShowAxes);
+  }, [initialShowAxes]);
 
   // Theme change observer
   useEffect(() => {
@@ -170,6 +176,28 @@ const Viewer3DPanel = ({ showAxes = true }) => {
       observer.disconnect();
     };
   }, [isGridVisible, showAxes]);
+
+  // Function to toggle axes visibility
+  const toggleAxes = useCallback(() => {
+    setShowAxes(prevShowAxes => {
+      const newShowAxes = !prevShowAxes;
+      
+      // Update the scene immediately
+      if (sceneRef.current && axesHelperRef.current) {
+        if (newShowAxes) {
+          // If we're showing axes and they already exist, just make sure they're in the scene
+          if (!sceneRef.current.getObjectByName('axes')) {
+            sceneRef.current.add(axesHelperRef.current);
+          }
+        } else {
+          // If we're hiding axes, remove them from the scene
+          sceneRef.current.remove(axesHelperRef.current);
+        }
+      }
+      
+      return newShowAxes;
+    });
+  }, []);
 
   // Create and set up the scene
   const initializeScene = useCallback(() => {
@@ -453,7 +481,7 @@ const Viewer3DPanel = ({ showAxes = true }) => {
               <input 
                 type="checkbox" 
                 checked={showAxes} 
-                onChange={() => {}} 
+                onChange={toggleAxes} 
                 style={{ margin: 0 }}
               /> 
               Axes
