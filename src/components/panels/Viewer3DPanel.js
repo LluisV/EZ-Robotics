@@ -53,8 +53,9 @@ const Viewer3DPanel = ({ showAxes = true }) => {
     orthographicCamera.up.set(0, 0, 1); // Z is up
     orthographicCamera.lookAt(0, 0, 0);
 
-    // Set initial camera
+    // Set initial camera and expose to global window for Gizmo
     cameraRef.current = perspectiveCamera;
+    window.parentCamera = perspectiveCamera;
 
     // Renderer setup
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -199,7 +200,7 @@ const Viewer3DPanel = ({ showAxes = true }) => {
           10 * aspect / 2, 
           10 / 2, 
           10 / -2, 
-          0.1, 
+          0.001, 
           1000
         )
       : new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
@@ -208,6 +209,9 @@ const Viewer3DPanel = ({ showAxes = true }) => {
     newCamera.position.copy(currentCamera.position);
     newCamera.up.set(0, 0, 1);
     newCamera.lookAt(0, 0, 0);
+
+    // Update global window camera
+    window.parentCamera = newCamera;
 
     // Update controls
     const controls = new OrbitControls(newCamera, renderer.domElement);

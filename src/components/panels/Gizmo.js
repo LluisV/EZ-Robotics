@@ -136,9 +136,6 @@ const Gizmo = ({ onViewChange }) => {
       zLabel.position.set(0, 0, cubeSize + 0.3);
       cubeGroup.add(zLabel);
     }
-
-    // Set initial rotation
-    cubeGroup.rotation.set(Math.PI / 5, Math.PI / 5, 0);
     
     // Add to scene
     scene.add(cubeGroup);
@@ -149,6 +146,11 @@ const Gizmo = ({ onViewChange }) => {
 
     // Render function
     const animate = () => {
+      if (renderer && window.parentCamera) {
+        // Update cube rotation to match the parent camera's current orientation
+        cubeGroup.quaternion.setFromRotationMatrix(window.parentCamera.matrixWorldInverse);
+      }
+      
       if (renderer) {
         renderer.render(scene, camera);
       }
