@@ -1,0 +1,400 @@
+/* Estilos para el Editor de G-Code Moderno */
+.gcode-editor-panel {
+  --editor-bg: var(--dv-activegroup-hiddenpanel-tab-background-color, #1c1c2c);
+  --editor-fg: var(--dv-activegroup-visiblepanel-tab-color, #e0e0e0);
+  --editor-line-highlight: rgba(255, 255, 255, 0.05);
+  --editor-line-numbers-bg: rgba(0, 0, 0, 0.2);
+  --editor-line-numbers-fg: rgba(255, 255, 255, 0.3);
+  --editor-border: 1px solid var(--dv-separator-border, rgba(255, 255, 255, 0.05));
+  --editor-header-bg: var(--dv-activegroup-hiddenpanel-tab-background-color, rgba(28, 28, 44, 0.8));
+  --editor-footer-bg: var(--dv-activegroup-hiddenpanel-tab-background-color, rgba(28, 28, 44, 0.8));
+  --editor-btn-bg: rgba(255, 255, 255, 0.05);
+  --editor-btn-hover: rgba(255, 255, 255, 0.1);
+  --editor-btn-active: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  --editor-btn-primary: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  --editor-radius: var(--dv-border-radius, 8px);
+  --editor-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  
+  /* Colores para resaltado de sintaxis */
+  --syntax-comment: #6A9955;
+  --syntax-command: #569CD6;
+  --syntax-param: #9CDCFE;
+  --syntax-value: #B5CEA8;
+
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
+  font-size: 14px;
+  background-color: var(--editor-bg);
+  color: var(--editor-fg);
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(8px);
+  border-radius: var(--editor-radius);
+}
+
+/* Variante clara */
+.gcode-editor-panel.light {
+  --editor-bg: #f5f5f5;
+  --editor-fg: #2d2d2d;
+  --editor-line-highlight: rgba(0, 0, 0, 0.05);
+  --editor-line-numbers-bg: rgba(0, 0, 0, 0.05);
+  --editor-line-numbers-fg: rgba(0, 0, 0, 0.4);
+  --editor-border: 1px solid rgba(0, 0, 0, 0.1);
+  --editor-header-bg: rgba(245, 245, 245, 0.8);
+  --editor-footer-bg: rgba(245, 245, 245, 0.8);
+  --syntax-comment: #008000;
+  --syntax-command: #0000FF;
+  --syntax-param: #267F99;
+  --syntax-value: #098658;
+}
+
+/* Encabezado del editor */
+.editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: var(--editor-border);
+  background-color: var(--editor-header-bg);
+  backdrop-filter: blur(8px);
+  z-index: 10;
+}
+
+.file-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.file-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.file-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+}
+
+.modified-indicator {
+  font-size: 16px;
+  color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  line-height: 0;
+}
+
+.file-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--dv-inactivegroup-hiddenpanel-tab-color, var(--text-secondary));
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.editor-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.editor-control {
+  background-color: var(--editor-btn-bg);
+  border: var(--editor-border);
+  color: var(--editor-fg);
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.editor-control:hover {
+  background-color: var(--editor-btn-hover);
+}
+
+/* Contenedor del editor */
+.editor-container {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.line-numbers {
+  width: 48px;
+  background-color: var(--editor-line-numbers-bg);
+  color: var(--editor-line-numbers-fg);
+  padding: 8px 0;
+  text-align: right;
+  user-select: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  font-variant-numeric: tabular-nums;
+  border-right: var(--editor-border);
+}
+
+.line-number {
+  padding: 0 8px;
+  height: 20px;
+  line-height: 20px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.line-number:hover {
+  color: var(--editor-fg);
+  background-color: var(--editor-btn-hover);
+}
+
+.line-number.active {
+  color: var(--editor-fg);
+  background-color: var(--editor-line-highlight);
+  border-right: 2px solid var(--editor-btn-active);
+}
+
+.editor-wrapper {
+  flex: 1;
+  position: relative;
+  overflow: auto;
+}
+
+.editor-textarea,
+.editor-highlighting {
+  margin: 0;
+  border: 0;
+  padding: 8px;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 20px;
+  tab-size: 4;
+  white-space: pre;
+  word-wrap: normal;
+  background: transparent;
+}
+
+.editor-textarea {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  resize: none;
+  color: transparent;
+  caret-color: var(--editor-fg);
+  z-index: 2;
+  overflow-wrap: normal;
+  overflow-x: auto;
+}
+
+.editor-textarea:focus {
+  outline: none;
+}
+
+.editor-highlighting {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  color: var(--editor-fg);
+}
+
+.code-line {
+  height: 0px;
+  line-height: 20px;
+}
+
+.highlighted-line {
+  background-color: var(--editor-line-highlight);
+  display: block;
+  width: 100%;
+}
+
+/* Sintaxis resaltada */
+.code-comment {
+  color: var(--syntax-comment);
+  font-style: italic;
+}
+
+.code-command {
+  color: var(--syntax-command);
+  font-weight: bold;
+}
+
+.code-param {
+  color: var(--syntax-param);
+}
+
+.code-value {
+  color: var(--syntax-value);
+}
+
+/* Footer del editor */
+.editor-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-top: var(--editor-border);
+  font-size: 12px;
+  background-color: var(--editor-footer-bg);
+  backdrop-filter: blur(8px);
+  z-index: 10;
+}
+
+.cursor-position {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+  color: var(--dv-inactivegroup-hiddenpanel-tab-color, var(--text-secondary));
+}
+
+.position-text {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.editor-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.editor-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background-color: var(--editor-btn-bg);
+  border: var(--editor-border);
+  color: var(--editor-fg);
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.editor-action-btn:hover {
+  background-color: var(--editor-btn-hover);
+}
+
+.editor-action-btn.primary {
+  background-color: var(--editor-btn-primary);
+  color: white;
+}
+
+.editor-action-btn.primary:hover {
+  filter: brightness(1.1);
+}
+
+/* Scrollbar personalizado */
+.editor-wrapper::-webkit-scrollbar,
+.line-numbers::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.editor-wrapper::-webkit-scrollbar-track,
+.line-numbers::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.editor-wrapper::-webkit-scrollbar-thumb,
+.line-numbers::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.editor-wrapper::-webkit-scrollbar-thumb:hover,
+.line-numbers::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Efectos de glassmorphism para temas oscuros */
+.theme-dark .gcode-editor-panel,
+.theme-abyss .gcode-editor-panel,
+.theme-dracula .gcode-editor-panel,
+.theme-visual-studio .gcode-editor-panel {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+/* Efectos de neomorfismo para temas claros */
+.theme-light .gcode-editor-panel,
+.theme-light-spaced .gcode-editor-panel {
+  box-shadow: 8px 8px 16px rgba(174, 174, 192, 0.2), 
+             -8px -8px 16px rgba(255, 255, 255, 0.6);
+}
+
+/* Animación de escritura para el cursor */
+@keyframes blink-caret {
+  from, to { border-color: transparent; }
+  50% { border-color: var(--editor-fg); }
+}
+
+.editor-textarea::selection {
+  background-color: rgba(100, 100, 255, 0.3);
+}
+
+/* Animación para los botones */
+.editor-action-btn:active,
+.editor-control:active {
+  transform: translateY(1px);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .file-meta {
+    display: none;
+  }
+  
+  .editor-footer {
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  
+  .editor-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+/* Estilos adicionales de integración con temas */
+.gcode-editor-panel {
+  border: var(--editor-border);
+}
+
+/* Tooltip para información adicional */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  z-index: 100;
+  pointer-events: none;
+}
