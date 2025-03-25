@@ -315,7 +315,7 @@ const Viewer3DPanel = ({ showAxes = true }) => {
     
     // Create a separate scene for the gizmo
     const gScene = new THREE.Scene();
-    gScene.background = new THREE.Color(0x000000);
+    gScene.background = new THREE.Color(0x1a1a1a);
     gScene.background.alpha = 0;
     gizmoSceneRef.current = gScene;
     
@@ -331,7 +331,7 @@ const Viewer3DPanel = ({ showAxes = true }) => {
       antialias: true 
     });
     gRenderer.setSize(90, 90);
-    gRenderer.setClearColor(0x1a1a1a, 1);
+    gRenderer.setClearColor(0x000000, 0);
     gizmoRendererRef.current = gRenderer;
     
     // Clear existing content
@@ -757,7 +757,7 @@ const Viewer3DPanel = ({ showAxes = true }) => {
           opacity: 0.8,
           transition: 'opacity 0.2s ease',
           boxShadow: '0 1px 3px rgba(0, 0, 0, 0.2)',
-          background: '#1a1a1a'  // Same as the viewer background
+          background: 'transparent'
         }}
         onMouseEnter={(e) => e.currentTarget.style.opacity = '1.0'}
         onMouseLeave={(e) => e.currentTarget.style.opacity = '0.8'}
