@@ -16,23 +16,7 @@ const CodeEditorPanel = ({ language = 'gcode' }) => {
   return (
     <div className="panel-content">
       <div className="panel-header">
-        <div className="panel-title">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
-            <polyline points="16 18 22 12 16 6"></polyline>
-            <polyline points="8 6 2 12 8 18"></polyline>
-          </svg>
-          {fileName} - G-Code Editor
-        </div>
-        <div>
-          <select 
-            className="toolbar-select"
-            value={language} 
-            onChange={(e) => {}}
-          >
-            <option value="gcode">G-Code</option>
-            <option value="python">Python</option>
-          </select>
-        </div>
+          {fileName}
       </div>
       
       <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100% - 40px)' }}>

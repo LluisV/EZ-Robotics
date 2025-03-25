@@ -446,14 +446,7 @@ const Viewer3DPanel = ({ showAxes = true }) => {
   return (
     <div className="panel-content">
       <div className="panel-header">
-        <div className="panel-title">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
-            <path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"></path>
-            <path d="M8 2v16"></path>
-            <path d="M16 6v16"></path>
-          </svg>
-          3D Workspace
-        </div>
+
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px' }}>
