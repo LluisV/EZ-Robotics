@@ -1,6 +1,70 @@
 import React, { useRef, useEffect, useState } from 'react';
 import * as THREE from 'three';
 
+// Get theme colors with hardcoded values per theme
+const getGizmoColors = () => {
+  // Check the current theme class on document.documentElement
+  const themeClass = document.documentElement.className || '';
+  
+  // Default colors (dracula theme)
+  const colors = {
+    xAxis: '#ff5555',
+    xAxisDark: '#bb3333',
+    yAxis: '#50fa7b',
+    yAxisDark: '#33bb33',
+    zAxis: '#8be9fd',
+    zAxisDark: '#5555bb',
+    edgeColor: '#aaaaaa',
+    background: '#282a36'
+  };
+  
+  // Set colors based on theme
+  if (themeClass.includes('theme-light') || themeClass.includes('theme-light-spaced')) {
+    colors.xAxis = '#ff0000';
+    colors.xAxisDark = '#cc0000';
+    colors.yAxis = '#00cc00';
+    colors.yAxisDark = '#009900';
+    colors.zAxis = '#0088ff';
+    colors.zAxisDark = '#0055cc';
+    colors.edgeColor = '#888888';
+    colors.background = '#f5f5f5';
+  } else if (themeClass.includes('theme-dark')) {
+    colors.xAxis = '#ff5555';
+    colors.xAxisDark = '#cc3333';
+    colors.yAxis = '#55ff55';
+    colors.yAxisDark = '#33cc33';
+    colors.zAxis = '#5555ff';
+    colors.zAxisDark = '#3333bb';
+    colors.background = '#1e1e1e';
+  } else if (themeClass.includes('theme-abyss') || themeClass.includes('theme-abyss-spaced')) {
+    colors.xAxis = '#ff628c';
+    colors.xAxisDark = '#cc3366';
+    colors.yAxis = '#3ad900';
+    colors.yAxisDark = '#22aa00';
+    colors.zAxis = '#5ccfe6';
+    colors.zAxisDark = '#339cbb';
+    colors.background = '#000c18';
+  } else if (themeClass.includes('theme-visual-studio')) {
+    colors.xAxis = '#d16969';
+    colors.xAxisDark = '#b14747';
+    colors.yAxis = '#6a9955';
+    colors.yAxisDark = '#4d7340';
+    colors.zAxis = '#569cd6';
+    colors.zAxisDark = '#3a7daf';
+    colors.background = '#1e1e1e';
+  } else if (themeClass.includes('theme-replit')) {
+    colors.xAxis = '#e91e63';
+    colors.xAxisDark = '#c2185b';
+    colors.yAxis = '#13c2c2';
+    colors.yAxisDark = '#108f8f';
+    colors.zAxis = '#1890ff';
+    colors.zAxisDark = '#0c60b3';
+    colors.background = '#f5f9fc';
+  }
+  
+  return colors;
+};
+
 const Gizmo = ({ onViewChange }) => {
   const gizmoRef = useRef(null);
   const sceneRef = useRef(null);
@@ -8,7 +72,32 @@ const Gizmo = ({ onViewChange }) => {
   const rendererRef = useRef(null);
   const cubeRef = useRef(null);
   const [hoveredFace, setHoveredFace] = useState(null);
+  const [themeColors, setThemeColors] = useState(getGizmoColors());
 
+  // Update colors when theme changes
+  useEffect(() => {
+    const updateThemeColors = () => {
+      setThemeColors(getGizmoColors());
+    };
+
+    // Create a MutationObserver to watch for class/style changes
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === 'class' || mutation.attributeName === 'style') {
+          updateThemeColors();
+        }
+      });
+    });
+
+    // Start observing
+    observer.observe(document.documentElement, { attributes: true });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  // Re-create the gizmo when theme colors change
   useEffect(() => {
     if (!gizmoRef.current) return;
 
@@ -22,7 +111,7 @@ const Gizmo = ({ onViewChange }) => {
     camera.lookAt(0, 0, 0);
     cameraRef.current = camera;
 
-    // Create renderer
+    // Create renderer with transparency
     const renderer = new THREE.WebGLRenderer({ 
       alpha: true,
       antialias: true 
@@ -45,12 +134,12 @@ const Gizmo = ({ onViewChange }) => {
     // Create materials with opacity and hover effect
     const createMaterials = () => {
       return [
-        new THREE.MeshBasicMaterial({ color: 0xff5555, transparent: true, opacity: 0.4 }), // right - red (X+)
-        new THREE.MeshBasicMaterial({ color: 0xbb3333, transparent: true, opacity: 0.4 }), // left - dark red (X-)
-        new THREE.MeshBasicMaterial({ color: 0x55ff55, transparent: true, opacity: 0.4 }), // top - green (Y+)
-        new THREE.MeshBasicMaterial({ color: 0x33bb33, transparent: true, opacity: 0.4 }), // bottom - dark green (Y-)
-        new THREE.MeshBasicMaterial({ color: 0x5555ff, transparent: true, opacity: 0.4 }), // front - blue (Z+)
-        new THREE.MeshBasicMaterial({ color: 0x3333bb, transparent: true, opacity: 0.4 })  // back - dark blue (Z-)
+        new THREE.MeshBasicMaterial({ color: new THREE.Color(themeColors.xAxis), transparent: true, opacity: 0.4 }), // right - red (X+)
+        new THREE.MeshBasicMaterial({ color: new THREE.Color(themeColors.xAxisDark), transparent: true, opacity: 0.4 }), // left - dark red (X-)
+        new THREE.MeshBasicMaterial({ color: new THREE.Color(themeColors.yAxis), transparent: true, opacity: 0.4 }), // top - green (Y+)
+        new THREE.MeshBasicMaterial({ color: new THREE.Color(themeColors.yAxisDark), transparent: true, opacity: 0.4 }), // bottom - dark green (Y-)
+        new THREE.MeshBasicMaterial({ color: new THREE.Color(themeColors.zAxis), transparent: true, opacity: 0.4 }), // front - blue (Z+)
+        new THREE.MeshBasicMaterial({ color: new THREE.Color(themeColors.zAxisDark), transparent: true, opacity: 0.4 })  // back - dark blue (Z-)
       ];
     };
 
@@ -68,7 +157,12 @@ const Gizmo = ({ onViewChange }) => {
 
     // Add wireframe
     const edgesGeometry = new THREE.EdgesGeometry(cubeGeometry);
-    const edgesMaterial = new THREE.LineBasicMaterial({ color: 0xaaaaaa, linewidth: 1, transparent: true, opacity: 0.7 });
+    const edgesMaterial = new THREE.LineBasicMaterial({ 
+      color: new THREE.Color(themeColors.edgeColor), 
+      linewidth: 1, 
+      transparent: true, 
+      opacity: 0.7 
+    });
     const wireframe = new THREE.LineSegments(edgesGeometry, edgesMaterial);
     cubeGroup.add(wireframe);
 
@@ -84,9 +178,9 @@ const Gizmo = ({ onViewChange }) => {
       );
     };
 
-    const xArrow = createAxisArrow(new THREE.Vector3(1, 0, 0), 0xff5555);
-    const yArrow = createAxisArrow(new THREE.Vector3(0, 1, 0), 0x55ff55);
-    const zArrow = createAxisArrow(new THREE.Vector3(0, 0, 1), 0x5555ff);
+    const xArrow = createAxisArrow(new THREE.Vector3(1, 0, 0), new THREE.Color(themeColors.xAxis));
+    const yArrow = createAxisArrow(new THREE.Vector3(0, 1, 0), new THREE.Color(themeColors.yAxis));
+    const zArrow = createAxisArrow(new THREE.Vector3(0, 0, 1), new THREE.Color(themeColors.zAxis));
     
     cubeGroup.add(xArrow);
     cubeGroup.add(yArrow);
@@ -120,9 +214,9 @@ const Gizmo = ({ onViewChange }) => {
       return sprite;
     };
 
-    const xLabel = createTextSprite('X', '#ff5555');
-    const yLabel = createTextSprite('Y', '#55ff55');
-    const zLabel = createTextSprite('Z', '#5555ff');
+    const xLabel = createTextSprite('X', themeColors.xAxis);
+    const yLabel = createTextSprite('Y', themeColors.yAxis);
+    const zLabel = createTextSprite('Z', themeColors.zAxis);
     
     if (xLabel) {
       xLabel.position.set(cubeSize + 0.3, 0, 0);
@@ -146,14 +240,14 @@ const Gizmo = ({ onViewChange }) => {
 
     // Render function
     const animate = () => {
-      if (renderer && window.parentCamera) {
+      if (!rendererRef.current) return;
+      
+      if (window.parentCamera) {
         // Update cube rotation to match the parent camera's current orientation
         cubeGroup.quaternion.setFromRotationMatrix(window.parentCamera.matrixWorldInverse);
       }
       
-      if (renderer) {
-        renderer.render(scene, camera);
-      }
+      rendererRef.current.render(scene, camera);
       requestAnimationFrame(animate);
     };
     animate();
@@ -223,6 +317,8 @@ const Gizmo = ({ onViewChange }) => {
           case 5: // back face (Z-)
             onViewChange('top');
             break;
+          default:
+            break;
         }
       }
     };
@@ -239,14 +335,26 @@ const Gizmo = ({ onViewChange }) => {
         gizmoRef.current.removeEventListener('mouseleave', handleMouseLeave);
         gizmoRef.current.removeEventListener('click', handleClick);
       }
-      renderer.dispose();
-      cubeGeometry.dispose();
-      edgesGeometry.dispose();
-      materials.forEach(mat => mat.dispose());
-      highlightedMaterials.forEach(mat => mat.dispose());
-      edgesMaterial.dispose();
+      if (rendererRef.current) {
+        rendererRef.current.dispose();
+      }
+      if (cubeGeometry) {
+        cubeGeometry.dispose();
+      }
+      if (edgesGeometry) {
+        edgesGeometry.dispose();
+      }
+      if (materials) {
+        materials.forEach(mat => mat.dispose());
+      }
+      if (highlightedMaterials) {
+        highlightedMaterials.forEach(mat => mat.dispose());
+      }
+      if (edgesMaterial) {
+        edgesMaterial.dispose();
+      }
     };
-  }, [onViewChange]);
+  }, [themeColors, onViewChange]);
 
   return (
     <div
