@@ -81,25 +81,25 @@
 .triangle-nw {
   border-right: 9px solid transparent;
   border-bottom: 9px solid currentColor;
-  transform: rotate(-45deg);
+  transform: rotate(90deg);
 }
 
 .triangle-ne {
-  border-left: 9px solid transparent;
+  border-left: 9px solid transparent; 
   border-bottom: 9px solid currentColor;
-  transform: rotate(45deg);
+  transform: rotate(-90deg);
 }
 
 .triangle-sw {
-  border-left: 9px solid transparent;
-  border-bottom: 9px solid currentColor;
-  transform: rotate(-135deg);
+  border-top: 9px solid transparent;
+  border-right: 9px solid currentColor;
+  transform: rotate(90deg);
 }
 
 .triangle-se {
-  border-right: 9px solid transparent;
-  border-bottom: 9px solid currentColor;
-  transform: rotate(135deg);
+  border-top: 9px solid transparent;
+  border-left: 9px solid currentColor;
+  transform: rotate(-90deg);
 }
 
 .home-icon {
