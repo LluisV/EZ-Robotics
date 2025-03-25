@@ -72,7 +72,7 @@ export const defaultLayout = createLayout({
         { type: 'leaf', data: { views: ['monitor'], activeView: 'monitor', id: '2' }, size: 40 }
       ],
       direction: 'column',
-      size: 15
+      size: 20
     },
     {
       type: 'branch',
