@@ -138,7 +138,7 @@
 /* Position cards styling */
 .position-display {
   padding-bottom: 20px;
-  min-height: 130px;
+  min-height: 620px;
 }
 
 .position-cards {
@@ -804,5 +804,151 @@ input:checked + .toggle-slider .toggle-knob {
 
 input:checked + .toggle-slider .toggle-icon {
   color: white;
+}
+
+
+/* Exact position input styling */
+.exact-position-input {
+  margin-top: 16px;
+  padding: 16px;
+  background-color: rgba(0, 0, 0, 0.08);
+  border-radius: var(--dv-border-radius, var(--border-radius));
+  border: 1px solid var(--dv-separator-border, var(--border-color));
+  animation: slideDown 0.3s ease;
+  /* Ensure content is visible */
+  overflow: visible;
+}
+
+.exact-position-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.input-row {
+  display: flex;
+  gap: 12px;
+}
+
+.input-group {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.input-group label {
+  width: 25px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.input-group input {
+  flex: 1;
+  padding: 8px 10px;
+  background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, var(--bg-light));
+  color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
+  border: 1px solid var(--dv-separator-border, var(--border-color));
+  border-radius: var(--dv-border-radius, var(--border-radius));
+  font-family: inherit;
+  font-size: 14px;
+  text-align: right;
+}
+
+.input-group input:focus {
+  outline: none;
+  border-color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+}
+
+.input-group .unit-label {
+  width: 30px;
+  padding-left: 6px;
+  font-size: 12px;
+  color: var(--dv-inactivegroup-hiddenpanel-tab-color, var(--text-secondary));
+}
+
+.axis-label.x-axis {
+  color: var(--accent-red, #cc3333);
+}
+
+.axis-label.y-axis {
+  color: var(--accent-green, #00aa55);
+}
+
+.axis-label.z-axis {
+  color: var(--accent-blue, #0077cc);
+}
+
+.axis-label.a-axis {
+  color: var(--accent-purple, #aa55cc);
+}
+
+.move-to-position-btn {
+  padding: 10px;
+  background-color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  color: white;
+  border: none;
+  border-radius: var(--dv-border-radius, var(--border-radius));
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.move-to-position-btn::before {
+  content: '';
+  width: 16px;
+  height: 16px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14'/%3E%3Cpath d='M12 5l7 7-7 7'/%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+
+.move-to-position-btn:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.move-to-position-btn:active {
+  transform: translateY(1px);
+}
+
+.position-toggle-btn {
+  padding: 4px 10px;
+  background-color: var(--dv-element-active-background-color, var(--bg-light));
+  color: var(--dv-inactivegroup-visiblepanel-tab-color, var(--text-secondary));
+  border: 1px solid var(--dv-separator-border, var(--border-color));
+  border-radius: var(--dv-border-radius, var(--border-radius));
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+}
+
+.position-toggle-btn:hover {
+  background-color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  color: white;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive styling */
+@media (max-width: 600px) {
+  .input-row {
+    flex-direction: column;
+    gap: 8px;
+  }
 }
 

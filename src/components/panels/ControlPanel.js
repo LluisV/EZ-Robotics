@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import '../../styles/control-panel.css';
 
 /**
- * Modern Control Panel component for robot positioning and control.
+ * Modern Control Panel component for robot positioning and control with exact position input.
  */
 const ControlPanel = () => {
   const [speed, setSpeed] = useState(25);
@@ -10,6 +10,8 @@ const ControlPanel = () => {
   const [activeTool, setActiveTool] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0, z: 0, a: 0 });
+  const [targetPosition, setTargetPosition] = useState({ x: 0, y: 0, z: 0, a: 0 });
+  const [showExactPositionInput, setShowExactPositionInput] = useState(false);
   
   // Function to simulate sending a movement command
   const sendMovementCommand = (axis, direction) => {
@@ -25,11 +27,11 @@ const ControlPanel = () => {
     });
   };
   
+  // Function to handle tool control
   const handleToolToggle = () => {
     setActiveTool(!activeTool);
   };
   
-
   // Function to home axes
   const homeAxes = (axes = 'all') => {
     console.log(`Homing ${axes} axes`);
@@ -46,17 +48,24 @@ const ControlPanel = () => {
     });
   };
   
-  // Function to handle tool control
-  const handleToolControl = (action) => {
-    if (action === 'on') {
-      setActiveTool('on');
-      console.log('Tool activated');
-    } else {
-      setActiveTool(null);
-      console.log('Tool deactivated');
-    }
+  // Handle target position input changes
+  const handleTargetPositionChange = (axis, value) => {
+    setTargetPosition(prev => ({
+      ...prev,
+      [axis]: parseFloat(value) || 0
+    }));
   };
   
+  // Function to move to exact position
+  const moveToExactPosition = () => {
+    console.log(`Moving to exact position: X:${targetPosition.x}, Y:${targetPosition.y}, Z:${targetPosition.z}, A:${targetPosition.a} at speed ${speed}%`);
+    
+    // In a real implementation, this would generate and send the appropriate G-code
+    // For example: G1 X10 Y20 Z5 F1000
+    
+    // Simulate position change
+    setPosition({...targetPosition});
+  };
 
   // Simulate random position changes for demonstration
   useEffect(() => {
@@ -65,7 +74,8 @@ const ControlPanel = () => {
         setPosition(prev => ({
           x: parseFloat((prev.x + (Math.random() - 0.5) * 0.05).toFixed(2)),
           y: parseFloat((prev.y + (Math.random() - 0.5) * 0.05).toFixed(2)),
-          z: parseFloat((prev.z + (Math.random() - 0.5) * 0.05).toFixed(2))
+          z: parseFloat((prev.z + (Math.random() - 0.5) * 0.05).toFixed(2)),
+          a: parseFloat((prev.a + (Math.random() - 0.5) * 0.05).toFixed(2))
         }));
       }, 2000);
       
@@ -73,13 +83,27 @@ const ControlPanel = () => {
     }
   }, [isConnected]);
   
+  // Initialize target position from current position
+  useEffect(() => {
+    setTargetPosition({...position});
+  }, [showExactPositionInput]);
+  
   return (
     <div className="control-panel">
       {/* Position Display */}
       <div className="control-section position-display">
         <div className="section-header">
-          <h3>Current Position</h3>
+          <h3>Position Control</h3>
+          <button 
+            className="position-toggle-btn"
+            onClick={() => setShowExactPositionInput(!showExactPositionInput)}
+            title={showExactPositionInput ? "Hide exact position input" : "Set exact position"}
+          >
+            {showExactPositionInput ? "Hide Input" : "Set Position"}
+          </button>
         </div>
+        
+        {/* Enhanced Position Cards */}
         <div className="position-cards">
           <div className="position-card x-position">
             <div className="position-card-header">
@@ -110,18 +134,73 @@ const ControlPanel = () => {
               <div className="axis-label">A</div>
               <div className="axis-value">{position.a.toFixed(2)}</div>
             </div>
-            <div className="unit">º</div>
+            <div className="unit">deg</div>
           </div>
         </div>
-      </div>
+
+        {/* Exact Position Input */}
+        {showExactPositionInput && (
+          <div className="exact-position-input">
+            <div className="exact-position-form">
+              <div className="input-row">
+                <div className="input-group">
+                  <label className="axis-label x-axis">X:</label>
+                  <input 
+                    type="number" 
+                    value={targetPosition.x}
+                    onChange={(e) => handleTargetPositionChange('x', e.target.value)}
+                    step="0.1"
+                  />
+                  <span className="unit-label">mm</span>
+                </div>
+                
+                <div className="input-group">
+                  <label className="axis-label y-axis">Y:</label>
+                  <input 
+                    type="number" 
+                    value={targetPosition.y}
+                    onChange={(e) => handleTargetPositionChange('y', e.target.value)}
+                    step="0.1"
+                  />
+                  <span className="unit-label">mm</span>
+                </div>
+              </div>
+              
+              <div className="input-row">
+                <div className="input-group">
+                  <label className="axis-label z-axis">Z:</label>
+                  <input 
+                    type="number" 
+                    value={targetPosition.z}
+                    onChange={(e) => handleTargetPositionChange('z', e.target.value)}
+                    step="0.1"
+                  />
+                  <span className="unit-label">mm</span>
+                </div>
+                
+                <div className="input-group">
+                  <label className="axis-label a-axis">A:</label>
+                  <input 
+                    type="number" 
+                    value={targetPosition.a}
+                    onChange={(e) => handleTargetPositionChange('a', e.target.value)}
+                    step="0.1"
+                  />
+                  <span className="unit-label">º</span>
+                </div>
+              </div>
+              
+              <button 
+                className="move-to-position-btn"
+                onClick={moveToExactPosition}
+              >
+                Move to Position
+              </button>
+            </div>
+          </div>
+        )}
       
-      
-      {/* Movement Controls */}
-      <div className="control-section movement-section">
-        <div className="section-header">
-          <h3>Movement Controls</h3>
-        </div>
-        
+        {/* Movement Controls */}
         <div className="movement-controls">
           <div className="xy-controls">
             <div className="control-grid">
@@ -223,11 +302,10 @@ const ControlPanel = () => {
                   <polyline points="17 17 17 7 7 7"></polyline>
                 </svg>
               </button>
-              
             </div>
+            
             {/* A Controls */}
             <div className="a-control">
-
               <button 
                 className="jog-btn a-minus" 
                 onClick={() => sendMovementCommand('A', -1)}
@@ -241,7 +319,7 @@ const ControlPanel = () => {
                 onClick={() => homeAxes('a')}
                 title="Home A"
               >
-                                <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none">
+                <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none">
                   <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
                   <polyline points="9 22 9 12 15 12 15 22"></polyline>
                 </svg>
@@ -254,7 +332,6 @@ const ControlPanel = () => {
                 <span className="triangle-right"></span>
                 <span className="axis-text">A+</span>
               </button>
-
             </div>
           </div>
           
@@ -293,7 +370,7 @@ const ControlPanel = () => {
             </button>
           </div>
         </div>
-        
+                
         <div className="global-controls">
           <button 
             className="global-btn home-all" 
@@ -368,49 +445,49 @@ const ControlPanel = () => {
       
       {/* Tool Controls */}
       <div className="control-section tool-section">
-      <div className="section-header">
-        <h3>Tool Control</h3>
-        <div className="status-badge">
-          <span className={`status-text ${activeTool ? 'active' : 'inactive'}`}>
-            {activeTool ? 'Enabled' : 'Disabled'}
-          </span>
-        </div>
-      </div>
-      
-      <div className="tool-control-container">
-        <div className="tool-status-display">
-          <div className={`status-indicator ${activeTool ? 'active' : 'inactive'}`}>
-            <div className="pulse-ring"></div>
-          </div>
-          <div className="tool-status-info">
-            <div className="tool-name">CNC Tool</div>
-            <div className="tool-state">{activeTool ? 'Ready to operate' : 'Standby mode'}</div>
+        <div className="section-header">
+          <h3>Tool Control</h3>
+          <div className="status-badge">
+            <span className={`status-text ${activeTool ? 'active' : 'inactive'}`}>
+              {activeTool ? 'Enabled' : 'Disabled'}
+            </span>
           </div>
         </div>
         
-        <label className="toggle-switch">
-          <input 
-            type="checkbox" 
-            checked={activeTool} 
-            onChange={handleToolToggle}
-          />
-          <span className="toggle-slider">
-            <span className="toggle-knob">
-              <span className="toggle-icon">
-                {activeTool ? (
-                  <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="3" fill="none">
-                    <path d="M5 12l5 5 9-9" />
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="3" fill="none">
-                    <path d="M18 6L6 18M6 6l12 12" />
-                  </svg>
-                )}
+        <div className="tool-control-container">
+          <div className="tool-status-display">
+            <div className={`status-indicator ${activeTool ? 'active' : 'inactive'}`}>
+              <div className="pulse-ring"></div>
+            </div>
+            <div className="tool-status-info">
+              <div className="tool-name">CNC Tool</div>
+              <div className="tool-state">{activeTool ? 'Ready to operate' : 'Standby mode'}</div>
+            </div>
+          </div>
+          
+          <label className="toggle-switch">
+            <input 
+              type="checkbox" 
+              checked={activeTool} 
+              onChange={handleToolToggle}
+            />
+            <span className="toggle-slider">
+              <span className="toggle-knob">
+                <span className="toggle-icon">
+                  {activeTool ? (
+                    <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="3" fill="none">
+                      <path d="M5 12l5 5 9-9" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="3" fill="none">
+                      <path d="M18 6L6 18M6 6l12 12" />
+                    </svg>
+                  )}
+                </span>
               </span>
             </span>
-          </span>
-        </label>
-      </div>
+          </label>
+        </div>
       </div>
     </div>
   );
