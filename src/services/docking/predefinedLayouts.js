@@ -65,24 +65,35 @@ const createLayout = (gridRoot, activeGroup = '2') => ({
 export const defaultLayout = createLayout({
   type: 'branch',
   data: [
+    // First column: Only Robot Control
+    { type: 'leaf', data: { views: ['control'], activeView: 'control', id: '1' }, size: 20 },
+    
+    // Second column: 3D workspace viewer on top, and two panels below
     {
       type: 'branch',
       data: [
-        { type: 'leaf', data: { views: ['control'], activeView: 'control', id: '1' }, size: 60 },
-        { type: 'leaf', data: { views: ['monitor'], activeView: 'monitor', id: '2' }, size: 40 }
-      ],
-      direction: 'column',
-      size: 20
-    },
-    {
-      type: 'branch',
-      data: [
-        { type: 'leaf', data: { views: ['viewer'], activeView: 'viewer', id: '3' }, size: 75 },
-        { type: 'leaf', data: { views: ['console'], activeView: 'console', id: '4' }, size: 25 }
+        // Top row: 3D Workspace Viewer
+        { type: 'leaf', data: { views: ['viewer'], activeView: 'viewer', id: '2' }, size: 75 },
+        
+        // Bottom row: Status Monitor and Command Console
+        {
+          type: 'branch',
+          data: [
+            // Left side: Status Monitor
+            { type: 'leaf', data: { views: ['monitor'], activeView: 'monitor', id: '3' }, size: 50 },
+            
+            // Right side: Command Console
+            { type: 'leaf', data: { views: ['console'], activeView: 'console', id: '4' }, size: 50 }
+          ],
+          direction: 'row',
+          size: 40
+        }
       ],
       direction: 'column',
       size: 60
     },
+    
+    // Third column: G-Code Editor
     { type: 'leaf', data: { views: ['editor'], activeView: 'editor', id: '5' }, size: 20 }
   ],
   direction: 'row',

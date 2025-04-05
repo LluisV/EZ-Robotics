@@ -4,7 +4,7 @@ import '../../styles/monitor-panel.css';
 const MonitorPanel = ({ refreshRate = 1000 }) => {
   const [statusData, setStatusData] = useState({
     connected: false,
-    position: { x: 0, y: 0, z: 0 },
+    position: { x: 0, y: 0, z: 0, a: 0 },
     speed: 0,
     temperature: 0,
     utilization: 0,
@@ -44,6 +44,7 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
           x: prev.position.x + (Math.random() - 0.5) * 0.1,
           y: prev.position.y + (Math.random() - 0.5) * 0.1,
           z: prev.position.z + (Math.random() - 0.5) * 0.1,
+          a: prev.position.a + (Math.random() - 0.5) * 0.5,
         },
         speed: newSpeed,
         temperature: newTemp,
@@ -227,31 +228,7 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
       </div>
       
       <div className="monitor-container">
-        <div className="monitor-section position-section">
-          <div className="position-header">
-            <h3 className="section-title">Current Position</h3>
-            <div className="position-icons">
 
-            </div>
-          </div>
-          <div className="coordinates">
-            <div className="coordinate x-coord">
-              <div className="coord-label">X</div>
-              <div className="coord-value">{statusData.position.x.toFixed(2)}</div>
-              <div className="coord-unit">mm</div>
-            </div>
-            <div className="coordinate y-coord">
-              <div className="coord-label">Y</div>
-              <div className="coord-value">{statusData.position.y.toFixed(2)}</div>
-              <div className="coord-unit">mm</div>
-            </div>
-            <div className="coordinate z-coord">
-              <div className="coord-label">Z</div>
-              <div className="coord-value">{statusData.position.z.toFixed(2)}</div>
-              <div className="coord-unit">mm</div>
-            </div>
-          </div>
-        </div>
         
         <div className="monitor-section status-cards">
           <div className="status-card">
