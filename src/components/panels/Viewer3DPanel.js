@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback, useContext } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import { useGCode } from '../../contexts/GCodeContext';
+import ToolpathVisualizer from '../../utils/ToolpathVisualizer';
 import Gizmo from './Gizmo';
 
 // Theme colors object with theme-specific hardcoded values
@@ -64,12 +66,17 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
   const controlsRef = useRef(null);
   const gridHelperRef = useRef(null);
   const axesHelperRef = useRef(null);
+  const toolpathVisualizerRef = useRef(null);
+
+  // Get toolpath data from the GCode context
+  const { parsedToolpath, selectedLine } = useGCode();
 
   // State for view and projection
-  const [isPerspective, setIsPerspective] = useState(false);
+  const [isPerspective, setIsPerspective] = useState(true);
   const [isGridVisible, setIsGridVisible] = useState(true);
   const [showAxes, setShowAxes] = useState(initialShowAxes);
   const [themeColors, setThemeColors] = useState(getThemeColors());
+  const [showToolpath, setShowToolpath] = useState(true);
 
   // Update when the initialShowAxes prop changes
   useEffect(() => {
@@ -177,6 +184,81 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     };
   }, [isGridVisible, showAxes]);
 
+  // Update toolpath visualization when parsedToolpath changes
+  useEffect(() => {
+    if (!toolpathVisualizerRef.current || !sceneRef.current || !parsedToolpath) return;
+    
+    if (showToolpath) {
+      // Visualize the toolpath
+      const bounds = toolpathVisualizerRef.current.visualize(parsedToolpath);
+      
+      // Focus camera on the toolpath if we have bounds
+      if (bounds && controlsRef.current && cameraRef.current) {
+        centerCameraOnBounds(bounds);
+      }
+    } else {
+      // Clear the toolpath visualization
+      toolpathVisualizerRef.current.clear();
+    }
+  }, [parsedToolpath, showToolpath]);
+
+  // Center camera on the toolpath bounds
+  const centerCameraOnBounds = (bounds) => {
+    if (!bounds || !controlsRef.current || !cameraRef.current) return;
+    
+    const center = new THREE.Vector3(
+      (bounds.min.x + bounds.max.x) / 2,
+      (bounds.min.y + bounds.max.y) / 2,
+      (bounds.min.z + bounds.max.z) / 2
+    );
+    
+    // Calculate the bounding box diagonal length
+    const size = new THREE.Vector3(
+      Math.abs(bounds.max.x - bounds.min.x),
+      Math.abs(bounds.max.y - bounds.min.y),
+      Math.abs(bounds.max.z - bounds.min.z)
+    );
+    
+    const maxSize = Math.max(size.x, size.y, size.z);
+    
+    // Position the camera to see the entire toolpath
+    if (isPerspective) {
+      const distance = maxSize * 1.5;
+      cameraRef.current.position.set(
+        center.x + distance,
+        center.y + distance,
+        center.z + distance
+      );
+    } else {
+      const orthographicCamera = cameraRef.current;
+      const aspect = mountRef.current.clientWidth / mountRef.current.clientHeight;
+      const frustumSize = maxSize * 1.5;
+      
+      orthographicCamera.left = frustumSize * aspect / -2;
+      orthographicCamera.right = frustumSize * aspect / 2;
+      orthographicCamera.top = frustumSize / 2;
+      orthographicCamera.bottom = frustumSize / -2;
+      orthographicCamera.updateProjectionMatrix();
+      
+      orthographicCamera.position.set(
+        center.x + maxSize,
+        center.y + maxSize,
+        center.z + maxSize
+      );
+    }
+    
+    // Set controls target to the center of the toolpath
+    controlsRef.current.target.copy(center);
+    controlsRef.current.update();
+  };
+
+  // Highlight specific line in the toolpath
+  useEffect(() => {
+    if (!toolpathVisualizerRef.current || selectedLine < 0) return;
+    
+    toolpathVisualizerRef.current.highlightLine(selectedLine);
+  }, [selectedLine]);
+
   // Function to toggle axes visibility
   const toggleAxes = useCallback(() => {
     setShowAxes(prevShowAxes => {
@@ -199,6 +281,24 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     });
   }, []);
 
+  // Toggle toolpath visibility
+  const toggleToolpath = useCallback(() => {
+    setShowToolpath(prevShowToolpath => {
+      const newShowToolpath = !prevShowToolpath;
+      
+      // Update visualization immediately
+      if (toolpathVisualizerRef.current) {
+        if (newShowToolpath && parsedToolpath) {
+          toolpathVisualizerRef.current.visualize(parsedToolpath);
+        } else {
+          toolpathVisualizerRef.current.clear();
+        }
+      }
+      
+      return newShowToolpath;
+    });
+  }, [parsedToolpath]);
+
   // Create and set up the scene
   const initializeScene = useCallback(() => {
     if (!mountRef.current) return;
@@ -220,7 +320,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
 
     // Create perspective camera
     const perspectiveCamera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
-    perspectiveCamera.position.set(0, 0, 5);
+    perspectiveCamera.position.set(5, 5, 5);
     perspectiveCamera.up.set(0, 0, 1); // Z is up
     perspectiveCamera.lookAt(0, 0, 0);
 
@@ -234,7 +334,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
       -10, 
       1000
     );
-    orthographicCamera.position.set(0, 0, 5);
+    orthographicCamera.position.set(5, 5, 5);
     orthographicCamera.up.set(0, 0, 1); // Z is up
     orthographicCamera.lookAt(0, 0, 0);
 
@@ -323,14 +423,19 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
       axesHelperRef.current = axesGroup;
     }
 
-    // Set top view as default
-    const distance = 5;
-    perspectiveCamera.position.set(0, 0, distance);
-    orthographicCamera.position.set(0, 0, distance);
-    perspectiveCamera.lookAt(0, 0, 0);
-    orthographicCamera.lookAt(0, 0, 0);
-    controls.target.set(0, 0, 0);
-    controls.update();
+    // Initialize toolpath visualizer
+    toolpathVisualizerRef.current = new ToolpathVisualizer(scene);
+    
+    // If we already have a toolpath, visualize it
+    if (parsedToolpath && showToolpath) {
+      const bounds = toolpathVisualizerRef.current.visualize(parsedToolpath);
+      
+      // Focus camera on the toolpath
+      if (bounds) {
+        // Adjust camera position after a short delay to ensure everything is set up
+        setTimeout(() => centerCameraOnBounds(bounds), 100);
+      }
+    }
 
     // Handle resize
     const handleResize = () => {
@@ -385,7 +490,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
         rendererRef.current.dispose();
       }
     };
-  }, [isGridVisible, showAxes, isPerspective, themeColors]);
+  }, [isGridVisible, showAxes, isPerspective, themeColors, parsedToolpath, showToolpath]);
 
   // Handle view changes from gizmo
   const handleViewChange = useCallback((view) => {
@@ -474,7 +579,6 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
   return (
     <div className="panel-content">
       <div className="panel-header">
-
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px' }}>
@@ -496,13 +600,23 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
               /> 
               Grid
             </label>
+            
+            <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px' }}>
+              <input 
+                type="checkbox" 
+                checked={showToolpath} 
+                onChange={toggleToolpath}
+                style={{ margin: 0 }}
+              /> 
+              Toolpath
+            </label>
           </div>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderLeft: '1px solid var(--border-color)', paddingLeft: '8px' }}>
             <button 
               className={`toolbar-button ${!isPerspective ? 'primary' : ''}`} 
               onClick={togglePerspective}
-              title="Projection View"
+              title="Orthographic View"
               style={{ padding: '4px 8px', fontSize: '11px' }}
             >
               Ortho

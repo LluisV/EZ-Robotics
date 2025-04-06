@@ -22,6 +22,7 @@ import Footer from './components/common/Footer';
 import Toolbar from './components/common/Toolbar';
 import ThemeSelector from './components/common/ThemeSelector';
 import dockingManager from './services/docking/DockingManager';
+import { GCodeProvider } from './contexts/GCodeContext';
 
 // Import panel components
 import ControlPanel from './components/panels/ControlPanel';
@@ -163,38 +164,40 @@ function App() {
   };
 
   return (
-    <div className="app-container">
-      <Header>
-        <ThemeSelector 
-          currentTheme={currentTheme}
-          onThemeChange={handleThemeChange}
-          availableThemes={availableThemes}
-        />
-      </Header>
-      <Toolbar dockviewApi={dockviewApi} />
-      <div className="dock-container">
-        {error ? (
-          <div className="error-container">
-            <h2>Error initializing dockable layout</h2>
-            <p>{error}</p>
-            <button onClick={() => window.location.reload()} className="danger">
-              Retry
-            </button>
-          </div>
-        ) : (
-          <DockviewReact
-            components={components}
-            onReady={onReady}
-            theme={getCurrentThemeObject()}
+    <GCodeProvider>
+      <div className="app-container">
+        <Header>
+          <ThemeSelector 
+            currentTheme={currentTheme}
+            onThemeChange={handleThemeChange}
+            availableThemes={availableThemes}
           />
-        )}
-        {isLoading && (
-          <div className="loading-overlay">
-            <div className="loading-spinner"></div>
-          </div>
-        )}
+        </Header>
+        <Toolbar dockviewApi={dockviewApi} />
+        <div className="dock-container">
+          {error ? (
+            <div className="error-container">
+              <h2>Error initializing dockable layout</h2>
+              <p>{error}</p>
+              <button onClick={() => window.location.reload()} className="danger">
+                Retry
+              </button>
+            </div>
+          ) : (
+            <DockviewReact
+              components={components}
+              onReady={onReady}
+              theme={getCurrentThemeObject()}
+            />
+          )}
+          {isLoading && (
+            <div className="loading-overlay">
+              <div className="loading-spinner"></div>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </GCodeProvider>
   );
 }
 

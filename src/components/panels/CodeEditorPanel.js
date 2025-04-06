@@ -1,14 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
 import '../../styles/code-editor.css';
+import { useGCode } from '../../contexts/GCodeContext';
+// Sample G-Code examples
+const EXAMPLE_CODES = {
+  'example.gcode': '; Example G-code\nG28 ; Home all axes\nG1 X100 Y100 Z10 F1000 ; Move to position\nG1 Z2 ; Lower to working height\nG1 X150 Y150 ; Draw diagonal line\nG1 X100 Y150 ; Draw horizontal line\nG1 X100 Y100 ; Return to start\nG1 Z10 ; Raise head',
+  'square.gcode': '; Square pattern\nG28 ; Home all axes\nG1 Z5 F1000 ; Raise head\nG1 X10 Y10 F2000 ; Move to start\nG1 Z0.5 ; Lower to work height\nG1 X10 Y110 ; Draw line\nG1 X110 Y110 ; Draw line\nG1 X110 Y10 ; Draw line\nG1 X10 Y10 ; Draw line\nG1 Z5 ; Raise head',
+  'spiral.gcode': '; Spiral pattern\nG28 ; Home all axes\nG1 Z5 F1000 ; Raise head\nG1 X50 Y50 F2000 ; Move to center\nG1 Z0.5 ; Lower to work height\nG3 X60 Y50 I5 J0 F1000 ; Arc 1\nG3 X70 Y50 I5 J0 F1000 ; Arc 2\nG3 X80 Y50 I5 J0 F1000 ; Arc 3\nG3 X90 Y50 I5 J0 F1000 ; Arc 4\nG3 X100 Y50 I5 J0 F1000 ; Arc 5\nG1 Z5 ; Raise head',
+  'calibration.gcode': '; Calibration pattern\nG28 ; Home all axes\nG1 Z5 F1000 ; Raise head\nG1 X20 Y20 F2000 ; Move to start\nG1 Z0.2 ; Lower to work height\nG1 X20 Y100 E10 F1000 ; Line 1\nG1 X40 Y100 E20 F1000 ; Line 2\nG1 X60 Y100 E30 F1000 ; Line 3\nG1 X80 Y100 E40 F1000 ; Line 4\nG1 Z5 ; Raise head'
+};
 
 /**
  * Editor de G-Code moderno con características profesionales
  */
 const CodeEditorPanel = ({ language = 'gcode' }) => {
+  const { gcode, setGCode, selectedLine, setSelectedLine } = useGCode();
   const [code, setCode] = useState(
-    '; Example G-code\nG28 ; Home all axes\nG1 X100 Y100 Z10 F1000 ; Move to position\nG1 Z2 ; Lower to working height\nG1 X150 Y150 ; Draw diagonal line\nG1 X100 Y150 ; Draw horizontal line\nG1 X100 Y100 ; Return to start\nG1 Z10 ; Raise head'
+    gcode || EXAMPLE_CODES['example.gcode']
   );
-
   const [fileName, setFileName] = useState('example.gcode');
   const [currentLine, setCurrentLine] = useState(1);
   const [currentColumn, setCurrentColumn] = useState(1);
@@ -19,6 +27,22 @@ const CodeEditorPanel = ({ language = 'gcode' }) => {
   
   const editorRef = useRef(null);
   const lineNumbersRef = useRef(null);
+
+  // Initialize the editor with the current gcode from context
+  useEffect(() => {
+    if (!code && gcode) {
+      setCode(gcode);
+    } else if (!gcode && code) {
+      setGCode(code);
+    }
+  }, [code, gcode, setGCode]);
+
+  // Handle code changes
+  const handleCodeChange = (newCode) => {
+    setCode(newCode);
+    setGCode(newCode);
+    setModified(true);
+  };
 
   // Cálculo de número de líneas y actualización de la barra de desplazamiento
   useEffect(() => {
@@ -33,7 +57,7 @@ const CodeEditorPanel = ({ language = 'gcode' }) => {
         .map((_, i) => `<div class="line-number${i + 1 === highlightedLine ? ' active' : ''}">${i + 1}</div>`)
         .join('');
     }
-    
+  
     // Calcular tamaño del archivo (aproximado)
     const sizeInBytes = new Blob([code]).size;
     if (sizeInBytes < 1024) {
@@ -43,10 +67,33 @@ const CodeEditorPanel = ({ language = 'gcode' }) => {
     } else {
       setFileSize(`${(sizeInBytes / (1024 * 1024)).toFixed(1)} MB`);
     }
-    
-    // Marcar como modificado
-    setModified(true);
   }, [code, highlightedLine]);
+
+      // Update when selected line in context changes
+      useEffect(() => {
+        if (selectedLine >= 0 && selectedLine !== highlightedLine) {
+          setHighlightedLine(selectedLine);
+          
+          // Position cursor at the beginning of the line
+          if (editorRef.current) {
+            const lines = code.split('\n');
+            let position = 0;
+            
+            for (let i = 0; i < selectedLine - 1; i++) {
+              position += (lines[i] || '').length + 1; // +1 for newline
+            }
+            
+            editorRef.current.focus();
+            editorRef.current.setSelectionRange(position, position);
+            
+            // Also scroll to the line
+            const lineHeight = 20; // Approximate line height in pixels
+            if (lineNumbersRef.current) {
+              lineNumbersRef.current.scrollTop = (selectedLine - 5) * lineHeight; // -5 to show some context
+            }
+          }
+        }
+      }, [selectedLine, highlightedLine, code]);
 
   // Sincronizar desplazamiento entre el editor y los números de línea
   const syncScroll = (e) => {
@@ -58,6 +105,7 @@ const CodeEditorPanel = ({ language = 'gcode' }) => {
   // Manejar click en los números de línea
   const handleLineNumberClick = (lineNumber) => {
     setHighlightedLine(lineNumber);
+    setSelectedLine(lineNumber);
     
     // Poner el cursor al principio de la línea seleccionada
     const lines = code.split('\n');
@@ -110,6 +158,7 @@ const CodeEditorPanel = ({ language = 'gcode' }) => {
     setCurrentLine(line);
     setCurrentColumn(col);
     setHighlightedLine(line);
+    setSelectedLine(line);
   };
 
   // Validar el G-code
@@ -313,7 +362,7 @@ const openFile = () => {
           <textarea
             ref={editorRef}
             value={code}
-            onChange={(e) => setCode(e.target.value)}
+            onChange={(e) => handleCodeChange(e.target.value)}
             onScroll={syncScroll}
             onKeyUp={handleCursorPosition}
             onClick={handleCursorPosition}
