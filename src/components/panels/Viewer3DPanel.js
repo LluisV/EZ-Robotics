@@ -191,11 +191,12 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     if (showToolpath) {
       // Visualize the toolpath
       const bounds = toolpathVisualizerRef.current.visualize(parsedToolpath);
-      
+      /*
       // Focus camera on the toolpath if we have bounds
       if (bounds && controlsRef.current && cameraRef.current) {
         centerCameraOnBounds(bounds);
       }
+        */
     } else {
       // Clear the toolpath visualization
       toolpathVisualizerRef.current.clear();

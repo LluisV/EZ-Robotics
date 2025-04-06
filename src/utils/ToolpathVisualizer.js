@@ -114,8 +114,9 @@ class ToolpathVisualizer {
       this.toolpathGroup.add(pathLine);
     }
     
+    return null; 
     // Scale the bounds before returning them
-    const scaledBounds = {
+    /*const scaledBounds = {
       min: {
         x: toolpath.bounds.min.x * this.scale,
         y: toolpath.bounds.min.y * this.scale,
@@ -129,7 +130,7 @@ class ToolpathVisualizer {
     };
     
     // Return the scaled bounds for camera adjustment
-    return scaledBounds;
+    return scaledBounds;*/
   }
 
   /**
@@ -141,17 +142,9 @@ class ToolpathVisualizer {
     
     // Create points for the line
     const points = [
-        new THREE.Vector3(
-          start.x * this.scale, 
-          start.z * this.scale,  // Z becomes Y (up)
-          start.y * this.scale   // Y becomes Z
-        ),
-        new THREE.Vector3(
-          end.x * this.scale, 
-          end.z * this.scale,    // Z becomes Y (up)
-          end.y * this.scale     // Y becomes Z
-        )
-      ];
+        new THREE.Vector3(start.x * this.scale, start.y * this.scale, start.z * this.scale),
+        new THREE.Vector3(end.x * this.scale, end.y * this.scale, end.z * this.scale)
+    ];
     
     // Add to the overall path
     if (this.pathPoints.length === 0) {
@@ -222,7 +215,7 @@ class ToolpathVisualizer {
     
     // Create an arc curve
     const curve = new THREE.EllipseCurve(
-      center.x, center.y,             // center
+      center.x * this.scale, center.y * this.scale, // center
       radius, radius,                 // xRadius, yRadius
       startAngle, endAngle,           // startAngle, endAngle
       clockwise,                      // clockwise
@@ -230,13 +223,22 @@ class ToolpathVisualizer {
     );
     
     // Get points along the curve
-    const points = curve.getPoints(32).map(pt => 
-        new THREE.Vector3(
-          pt.x * this.scale, 
-          ((start.z + (end.z - start.z) * (curve.getLength(0, points.length) / curve.getLength())) * this.scale),
-          pt.y * this.scale
-        )
+    const curvePoints = curve.getPoints(32);
+    
+    // Convert curve points to 3D and interpolate Z
+    const points = curvePoints.map((pt, i) => {
+      // Calculate progress along the curve (0 to 1)
+      const progress = i / (curvePoints.length - 1);
+      
+      // Interpolate Z value
+      const z = start.z + (end.z - start.z) * progress;
+      
+      return new THREE.Vector3(
+        pt.x, 
+        z * this.scale,
+        pt.y
       );
+    });
     
     // Add to the overall path
     this.pathPoints.push(...points);
@@ -286,8 +288,8 @@ class ToolpathVisualizer {
     if (position) {
       this.toolPositionSphere.position.set(
         position.x * this.scale, 
-        position.z * this.scale,  // Z becomes Y
-        position.y * this.scale   // Y becomes Z
+        position.y * this.scale, 
+        position.z * this.scale
       );
       this.toolPositionSphere.visible = true;
     } else {
