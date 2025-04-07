@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
 import { useGCode } from '../../contexts/GCodeContext';
 import ToolpathVisualizer from '../../utils/ToolpathVisualizer';
 import Gizmo from './Gizmo';
@@ -19,7 +20,9 @@ const getThemeColors = () => {
     xAxis: '#cc3333',
     yAxis: '#00aa55',
     zAxis: '#0077cc',
-    robotPosition: '#ffaa00'
+    robotPosition: '#ffaa00',
+    stlDefault: '#d9eaff',
+    stlSelected: '#ffcc66'
   };
   
   // Adjust colors based on theme
@@ -31,10 +34,14 @@ const getThemeColors = () => {
     colors.yAxis = '#007700';
     colors.zAxis = '#0000aa';
     colors.robotPosition = '#ff8800';
+    colors.stlDefault = '#7088aa';
+    colors.stlSelected = '#ee9944';
   } else if (themeClass.includes('theme-visual-studio')) {
     colors.background = '#1e1e1e';
     colors.gridPrimary = '#3f3f3f';
     colors.gridSecondary = '#2d2d2d';
+    colors.stlDefault = '#569cd6';
+    colors.stlSelected = '#ce9178';
   } else if (themeClass.includes('theme-dracula')) {
     colors.background = '#282a36';
     colors.gridPrimary = '#44475a';
@@ -43,6 +50,8 @@ const getThemeColors = () => {
     colors.yAxis = '#50fa7b';
     colors.zAxis = '#8be9fd';
     colors.robotPosition = '#ffb86c';
+    colors.stlDefault = '#bd93f9';
+    colors.stlSelected = '#ffb86c';
   }
   
   return colors;
@@ -61,6 +70,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
   const mouseRef = useRef(new THREE.Vector2());
   const robotToolRef = useRef(null);
   const mouseIndicatorRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   // Get toolpath data from the GCode context
   const { parsedToolpath, selectedLine } = useGCode();
@@ -76,6 +86,11 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
   // State for robot position
   const [robotPosition, setRobotPosition] = useState({ x: 0, y: 0, z: 0, a: 0 });
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0, z: 0 });
+  
+  // State for STL files
+  const [stlFiles, setStlFiles] = useState([]);
+  const [hoveredStl, setHoveredStl] = useState(null);
+  const stlObjectsRef = useRef({});
 
   // Update when the initialShowAxes prop changes
   useEffect(() => {
@@ -167,6 +182,18 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
           robotToolRef.current.material.color = new THREE.Color(newColors.robotPosition);
         }
       }
+      
+      // Update STL object colors
+      Object.keys(stlObjectsRef.current).forEach(id => {
+        const stlObject = stlObjectsRef.current[id];
+        if (stlObject && stlObject.material) {
+          if (id === hoveredStl) {
+            stlObject.material.color = new THREE.Color(newColors.stlSelected);
+          } else {
+            stlObject.material.color = new THREE.Color(newColors.stlDefault);
+          }
+        }
+      });
     };
 
     // Create a MutationObserver to watch for class changes on document.documentElement
@@ -188,7 +215,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     return () => {
       observer.disconnect();
     };
-  }, [isGridVisible, showAxes]);
+  }, [isGridVisible, showAxes, hoveredStl]);
 
   // Update toolpath visualization when parsedToolpath changes
   useEffect(() => {
@@ -207,6 +234,37 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
       toolpathVisualizerRef.current.clear();
     }
   }, [parsedToolpath, showToolpath]);
+  
+  // Sync mesh positions and rotations with state
+  useEffect(() => {
+    console.log("STL files updated:", stlFiles.length);
+    
+    // Update mesh positions and rotations
+    stlFiles.forEach(file => {
+      const mesh = stlObjectsRef.current[file.id];
+      if (mesh) {
+        // Update position
+        mesh.position.set(file.position[0], file.position[1], file.position[2]);
+        
+        // Update rotation - convert degrees to radians
+        mesh.rotation.set(
+          THREE.MathUtils.degToRad(file.rotation[0]),
+          THREE.MathUtils.degToRad(file.rotation[1]),
+          THREE.MathUtils.degToRad(file.rotation[2])
+        );
+      }
+    });
+    
+    // Force re-render when stlFiles changes to ensure panel visibility
+    if (stlFiles.length > 0) {
+      // Ensure highlighting is reset
+      if (hoveredStl && stlObjectsRef.current[hoveredStl]) {
+        stlObjectsRef.current[hoveredStl].material.color = new THREE.Color(themeColors.stlDefault);
+        stlObjectsRef.current[hoveredStl].material.emissive = new THREE.Color(0x000000);
+        setHoveredStl(null);
+      }
+    }
+  }, [stlFiles, hoveredStl, themeColors]);
 
   // Highlight specific line in the toolpath
   useEffect(() => {
@@ -304,9 +362,283 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     
   }, [robotPosition, themeColors]);
 
+  // STL file import functions
+  const handleImportClick = useCallback(() => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  }, []);
+
+  const handleFileSelected = useCallback((event) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+    
+    // Convert FileList to Array for easy manipulation
+    const fileArray = Array.from(files);
+    
+    // Process each STL file
+    fileArray.forEach(file => {
+      // Only process STL files
+      if (!file.name.toLowerCase().endsWith('.stl')) {
+        console.warn(`File ${file.name} is not an STL file and will be skipped.`);
+        return;
+      }
+      
+      const reader = new FileReader();
+      
+      reader.onload = (e) => {
+        const fileContent = e.target.result;
+        loadStlModel(file.name, fileContent);
+      };
+      
+      reader.onerror = (e) => {
+        console.error(`Error reading file ${file.name}:`, e);
+      };
+      
+      // Read the file as an ArrayBuffer
+      reader.readAsArrayBuffer(file);
+    });
+    
+    // Reset the file input
+    event.target.value = null;
+  }, []);
+
+  const loadStlModel = useCallback((fileName, fileContent) => {
+    if (!sceneRef.current) return;
+    
+    const loader = new STLLoader();
+    
+    try {
+      // Parse the STL file
+      const geometry = loader.parse(fileContent);
+      
+      // Create material for the STL model
+      const material = new THREE.MeshStandardMaterial({
+        color: themeColors.stlDefault,
+        metalness: 0.2,
+        roughness: 0.5,
+        flatShading: true
+      });
+      
+      // Calculate original bounds before any transformations
+      geometry.computeBoundingBox();
+      const originalBoundingBox = geometry.boundingBox.clone();
+      const size = originalBoundingBox.getSize(new THREE.Vector3());
+      
+      // Create mesh from geometry and material - don't center it yet
+      const mesh = new THREE.Mesh(geometry, material);
+      
+      // Scale the model to fit in scene if needed
+      const maxDim = Math.max(size.x, size.y, size.z);
+      if (maxDim > 5) { // if larger than 5 units
+        const scale = 5 / maxDim;
+        mesh.scale.set(scale, scale, scale);
+      }
+      
+      // Generate a unique ID for this STL file
+      const fileId = `stl-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      mesh.userData.fileId = fileId;
+      mesh.userData.fileName = fileName;
+      mesh.userData.originalSize = size.clone();
+      
+      // Add the mesh to the scene
+      sceneRef.current.add(mesh);
+      
+      // Store reference to the mesh
+      stlObjectsRef.current[fileId] = mesh;
+      
+      // Update the state with the new STL file info - use actual mesh position and rotation
+      const newFile = {
+        id: fileId, 
+        name: fileName, 
+        visible: true,
+        position: [mesh.position.x, mesh.position.y, mesh.position.z],
+        rotation: [0, 0, 0], // Euler angles in degrees
+        dimensions: size.toArray(),
+        scale: maxDim > 5 ? 5 / maxDim : 1,
+        boundingBox: {
+          min: originalBoundingBox.min.toArray(),
+          max: originalBoundingBox.max.toArray()
+        }
+      };
+      
+      // Force state update immediately
+      setStlFiles(prevFiles => [...prevFiles, newFile]);
+      
+      console.log(`Added STL file: ${fileName} with ID: ${fileId}`);
+      
+    } catch (error) {
+      console.error(`Error loading STL model ${fileName}:`, error);
+    }
+  }, [themeColors]);
+
+  // STL file management functions
+  const toggleStlVisibility = useCallback((fileId) => {
+    if (!stlObjectsRef.current[fileId]) return;
+    
+    // Toggle visibility
+    const mesh = stlObjectsRef.current[fileId];
+    mesh.visible = !mesh.visible;
+    
+    // Update state
+    setStlFiles(prevFiles => prevFiles.map(file => 
+      file.id === fileId 
+        ? { ...file, visible: mesh.visible } 
+        : file
+    ));
+  }, []);
+
+  const removeStlFile = useCallback((fileId) => {
+    if (!stlObjectsRef.current[fileId] || !sceneRef.current) return;
+    
+    // Remove from scene
+    const mesh = stlObjectsRef.current[fileId];
+    sceneRef.current.remove(mesh);
+    
+    // Dispose of geometry and material
+    if (mesh.geometry) mesh.geometry.dispose();
+    if (mesh.material) mesh.material.dispose();
+    
+    // Remove from references
+    delete stlObjectsRef.current[fileId];
+    
+    // Update state
+    setStlFiles(prevFiles => prevFiles.filter(file => file.id !== fileId));
+    
+    // If this was the hovered STL, clear the hover state
+    if (hoveredStl === fileId) {
+      setHoveredStl(null);
+    }
+  }, [hoveredStl]);
+
+  const centerOnStl = useCallback((fileId) => {
+    if (!stlObjectsRef.current[fileId] || !cameraRef.current || !controlsRef.current) return;
+    
+    const mesh = stlObjectsRef.current[fileId];
+    const position = new THREE.Vector3();
+    
+    // Get world position
+    mesh.getWorldPosition(position);
+    
+    // Set controls target to mesh position
+    controlsRef.current.target.copy(position);
+    controlsRef.current.update();
+  }, []);
+  
+  const updateStlPosition = useCallback((fileId, axis, value) => {
+    if (!stlObjectsRef.current[fileId]) return;
+    
+    const mesh = stlObjectsRef.current[fileId];
+    const floatValue = parseFloat(value);
+    
+    if (isNaN(floatValue)) return;
+    
+    // Update the corresponding axis
+    switch(axis) {
+      case 'x':
+        mesh.position.x = floatValue;
+        break;
+      case 'y':
+        mesh.position.y = floatValue;
+        break;
+      case 'z':
+        mesh.position.z = floatValue;
+        break;
+      default:
+        break;
+    }
+    
+    // Update state
+    setStlFiles(prevFiles => prevFiles.map(file => {
+      if (file.id === fileId) {
+        const newPosition = [...file.position];
+        const axisIndex = axis === 'x' ? 0 : axis === 'y' ? 1 : 2;
+        newPosition[axisIndex] = floatValue;
+        return { ...file, position: newPosition };
+      }
+      return file;
+    }));
+  }, []);
+  
+  const updateStlRotation = useCallback((fileId, axis, value) => {
+    if (!stlObjectsRef.current[fileId]) return;
+    
+    const mesh = stlObjectsRef.current[fileId];
+    const floatValue = parseFloat(value);
+    
+    if (isNaN(floatValue)) return;
+    
+    // Convert degrees to radians for the corresponding axis
+    const angleRad = THREE.MathUtils.degToRad(floatValue);
+    
+    // Update the corresponding axis
+    switch(axis) {
+      case 'x':
+        mesh.rotation.x = angleRad;
+        break;
+      case 'y':
+        mesh.rotation.y = angleRad;
+        break;
+      case 'z':
+        mesh.rotation.z = angleRad;
+        break;
+      default:
+        break;
+    }
+    
+    // Update state
+    setStlFiles(prevFiles => prevFiles.map(file => {
+      if (file.id === fileId) {
+        const newRotation = [...file.rotation];
+        const axisIndex = axis === 'x' ? 0 : axis === 'y' ? 1 : 2;
+        newRotation[axisIndex] = floatValue;
+        return { ...file, rotation: newRotation };
+      }
+      return file;
+    }));
+  }, []);
+  
+  const centerGeometryAtOrigin = useCallback((fileId) => {
+    if (!stlObjectsRef.current[fileId]) return;
+    
+    const mesh = stlObjectsRef.current[fileId];
+    
+    // Store current rotation
+    const currentRotation = new THREE.Euler().copy(mesh.rotation);
+    
+    // Reset rotation temporarily to compute accurate bounding box
+    mesh.rotation.set(0, 0, 0);
+    
+    // Compute bounding box with zero rotation
+    mesh.geometry.computeBoundingBox();
+    const boundingBox = mesh.geometry.boundingBox;
+    const center = new THREE.Vector3();
+    boundingBox.getCenter(center);
+    
+    // Translate geometry to center it at origin
+    mesh.geometry.translate(-center.x, -center.y, -center.z);
+    
+    // Reset position to origin
+    mesh.position.set(0, 0, 0);
+    
+    // Restore original rotation
+    mesh.rotation.copy(currentRotation);
+    
+    // Update state
+    setStlFiles(prevFiles => prevFiles.map(file => {
+      if (file.id === fileId) {
+        return { 
+          ...file, 
+          position: [0, 0, 0]
+        };
+      }
+      return file;
+    }));
+  }, []);
+
   // Handle mousemove event for position tracking
   const handleMouseMove = useCallback((event) => {
-    if (!mountRef.current || !raycasterRef.current || !cameraRef.current || !showMousePosition) return;
+    if (!mountRef.current || !raycasterRef.current || !cameraRef.current) return;
     
     // Calculate mouse position in normalized device coordinates (-1 to +1)
     const rect = mountRef.current.getBoundingClientRect();
@@ -316,31 +648,98 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     // Update the picking ray
     raycasterRef.current.setFromCamera(mouseRef.current, cameraRef.current);
     
-    // Calculate objects intersecting the ray - we're only interested in the grid plane
-    const gridPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0); // XY plane
-    const intersection = new THREE.Vector3();
+    // Objects that can be intersected
+    const allSTLObjects = Object.values(stlObjectsRef.current);
     
-    // Check if the ray intersects the plane
-    if (raycasterRef.current.ray.intersectPlane(gridPlane, intersection)) {
+    // Calculate intersections with STL objects
+    const stlIntersections = raycasterRef.current.intersectObjects(allSTLObjects, false);
+    
+    // Clear hover state by default
+    let shouldClearHover = true;
+    
+    if (stlIntersections.length > 0) {
+      // We have intersected with an STL object
+      const firstIntersection = stlIntersections[0];
+      const intersectionPoint = firstIntersection.point;
+      
       // Scale the intersection point back to world units
-      const scale = 10; // Assuming grid is 10x10
-      const x = intersection.x * scale;
-      const y = intersection.y * scale;
-      const z = intersection.z * scale;
+      const x = intersectionPoint.x * 10;
+      const y = intersectionPoint.y * 10;
+      const z = intersectionPoint.z * 10;
       
-      // Update position state
-      setMousePosition({ x, y, z });
-      
-      // Update the mouse indicator sphere
-      if (mouseIndicatorRef.current) {
-        mouseIndicatorRef.current.position.copy(intersection);
-        mouseIndicatorRef.current.visible = true;
+      // Update mouse position display
+      if (showMousePosition) {
+        setMousePosition({ x, y, z });
       }
-    } else if (mouseIndicatorRef.current) {
-      // Hide the indicator if not intersecting
-      mouseIndicatorRef.current.visible = false;
+      
+      // Update mouse indicator sphere position
+      if (mouseIndicatorRef.current) {
+        mouseIndicatorRef.current.position.copy(intersectionPoint);
+        mouseIndicatorRef.current.visible = showMousePosition;
+      }
+      
+      // Get the intersected object and its file ID
+      const object = firstIntersection.object;
+      const fileId = object.userData.fileId;
+      
+      if (fileId) {
+        shouldClearHover = false; // Don't clear hover if we found a valid intersection
+        
+        // Only update if hovering a different object
+        if (fileId !== hoveredStl) {
+          // Reset previous hover styling
+          if (hoveredStl && stlObjectsRef.current[hoveredStl]) {
+            stlObjectsRef.current[hoveredStl].material.color = new THREE.Color(themeColors.stlDefault);
+            stlObjectsRef.current[hoveredStl].material.emissive = new THREE.Color(0x000000);
+          }
+          
+          // Apply hover styling
+          if (stlObjectsRef.current[fileId]) {
+            stlObjectsRef.current[fileId].material.color = new THREE.Color(themeColors.stlSelected);
+            stlObjectsRef.current[fileId].material.emissive = new THREE.Color(0x222222);
+          }
+          
+          setHoveredStl(fileId);
+        }
+      }
     }
-  }, [showMousePosition]);
+    
+    // Clear hover state if we're not hovering any STL object
+    if (shouldClearHover && hoveredStl) {
+      if (stlObjectsRef.current[hoveredStl]) {
+        stlObjectsRef.current[hoveredStl].material.color = new THREE.Color(themeColors.stlDefault);
+        stlObjectsRef.current[hoveredStl].material.emissive = new THREE.Color(0x000000);
+      }
+      setHoveredStl(null);
+    }
+    
+    // If we didn't hit an STL object, check for grid plane intersection
+    if (shouldClearHover && showMousePosition) {
+      const gridPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0); // XY plane
+      const intersection = new THREE.Vector3();
+      
+      // Check if the ray intersects the plane
+      if (raycasterRef.current.ray.intersectPlane(gridPlane, intersection)) {
+        // Scale the intersection point back to world units
+        const scale = 10; // Assuming grid is 10x10
+        const x = intersection.x * scale;
+        const y = intersection.y * scale;
+        const z = intersection.z * scale;
+        
+        // Update position state
+        setMousePosition({ x, y, z });
+        
+        // Update the mouse indicator sphere
+        if (mouseIndicatorRef.current) {
+          mouseIndicatorRef.current.position.copy(intersection);
+          mouseIndicatorRef.current.visible = true;
+        }
+      } else if (mouseIndicatorRef.current) {
+        // Hide the indicator if not intersecting
+        mouseIndicatorRef.current.visible = false;
+      }
+    }
+  }, [showMousePosition, hoveredStl, themeColors]);
 
   // Handle mouseout event
   const handleMouseOut = useCallback(() => {
@@ -351,7 +750,31 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     if (mouseIndicatorRef.current) {
       mouseIndicatorRef.current.visible = false;
     }
-  }, []);
+    
+    // Reset hover state
+    if (hoveredStl && stlObjectsRef.current[hoveredStl]) {
+      stlObjectsRef.current[hoveredStl].material.color = new THREE.Color(themeColors.stlDefault);
+      stlObjectsRef.current[hoveredStl].material.emissive = new THREE.Color(0x000000);
+      setHoveredStl(null);
+    }
+  }, [hoveredStl, themeColors]);
+  
+  // Force clear all highlights - utility function
+  const clearAllHighlights = useCallback(() => {
+    if (hoveredStl && stlObjectsRef.current[hoveredStl]) {
+      stlObjectsRef.current[hoveredStl].material.color = new THREE.Color(themeColors.stlDefault);
+      stlObjectsRef.current[hoveredStl].material.emissive = new THREE.Color(0x000000);
+      setHoveredStl(null);
+    }
+    
+    // Also check all objects to ensure nothing remains highlighted
+    Object.values(stlObjectsRef.current).forEach(obj => {
+      if (obj && obj.material) {
+        obj.material.color = new THREE.Color(themeColors.stlDefault);
+        obj.material.emissive = new THREE.Color(0x000000);
+      }
+    });
+  }, [hoveredStl, themeColors]);
 
   // Toggle mouse position display
   const toggleMousePosition = useCallback(() => {
@@ -486,9 +909,13 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     mountRef.current.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    // Add mouse move event listener to the renderer domElement
+    // Add mouse event listeners to the renderer domElement
     renderer.domElement.addEventListener('mousemove', handleMouseMove);
     renderer.domElement.addEventListener('mouseout', handleMouseOut);
+    renderer.domElement.addEventListener('mouseleave', handleMouseOut);
+    
+    // Add clear highlight on click
+    renderer.domElement.addEventListener('click', clearAllHighlights);
 
     // Orbit controls
     const controls = new OrbitControls(cameraRef.current, renderer.domElement);
@@ -637,6 +1064,8 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
       if (rendererRef.current?.domElement) {
         rendererRef.current.domElement.removeEventListener('mousemove', handleMouseMove);
         rendererRef.current.domElement.removeEventListener('mouseout', handleMouseOut);
+        rendererRef.current.domElement.removeEventListener('mouseleave', handleMouseOut);
+        rendererRef.current.domElement.removeEventListener('click', clearAllHighlights);
       }
       if (controlsRef.current) {
         controlsRef.current.dispose();
@@ -647,11 +1076,25 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     };
   }, [isGridVisible, showAxes, isPerspective, themeColors, parsedToolpath, showToolpath, handleMouseMove, handleMouseOut, createRobotTool]);
 
-  // Trigger scene initialization 
+  // Trigger scene initialization only once on mount
   useEffect(() => {
     const cleanup = initializeScene();
-    return cleanup;
-  }, [initializeScene]);
+    
+    // Add a click handler to document to clear highlights when clicking outside
+    const handleDocumentClick = (e) => {
+      // If click is outside the 3D canvas
+      if (mountRef.current && !mountRef.current.contains(e.target)) {
+        clearAllHighlights();
+      }
+    };
+    
+    document.addEventListener('click', handleDocumentClick);
+    
+    return () => {
+      cleanup();
+      document.removeEventListener('click', handleDocumentClick);
+    };
+  }, [initializeScene, clearAllHighlights]);
 
   return (
     <div className="panel-content">
@@ -716,6 +1159,22 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
             >
               Persp
             </button>
+            <button
+              className="toolbar-button"
+              onClick={handleImportClick}
+              title="Import STL file"
+              style={{ padding: '4px 8px', fontSize: '11px' }}
+            >
+              Import STL
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".stl"
+              multiple
+              onChange={handleFileSelected}
+              style={{ display: 'none' }}
+            />
           </div>
         </div>
         
@@ -741,55 +1200,256 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
         </div>
       </div>
       
-      <div style={{ position: 'relative', height: 'calc(100% - 40px)' }}>
-        <div 
-          ref={mountRef} 
-          style={{ 
-            width: '100%', 
-            height: '100%', 
-            backgroundColor: themeColors.background,
-            borderRadius: 'var(--border-radius)',
-            overflow: 'hidden',
-            position: 'relative'
-          }} 
-        />
-        
-        {showMousePosition && (
+      <div style={{ position: 'relative', display: 'flex', height: 'calc(100% - 40px)', overflow: 'hidden' }}>
+        {/* Main 3D viewport */}
+        <div style={{ position: 'relative', flex: '1 1 auto', height: '100%' }}>
           <div 
-            style={{
-              position: 'absolute',
-              bottom: '10px',
-              right: '10px',
-              padding: '8px 12px',
-              backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            ref={mountRef} 
+            style={{ 
+              width: '100%', 
+              height: '100%', 
+              backgroundColor: themeColors.background,
               borderRadius: 'var(--border-radius)',
-              color: 'white',
-              fontSize: '12px',
-              fontFamily: 'monospace',
+              overflow: 'hidden',
+              position: 'relative'
+            }} 
+          />
+          
+          {showMousePosition && (
+            <div 
+              style={{
+                position: 'absolute',
+                bottom: '10px',
+                right: '10px',
+                padding: '8px 12px',
+                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                borderRadius: 'var(--border-radius)',
+                color: 'white',
+                fontSize: '12px',
+                fontFamily: 'monospace',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '2px',
+                zIndex: 100,
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+                border: '1px solid rgba(255, 255, 255, 0.1)'
+              }}
+            >
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'space-between' }}>
+                <span style={{ color: themeColors.xAxis }}>X:</span>
+                <span>{mousePosition.x.toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'space-between' }}>
+                <span style={{ color: themeColors.yAxis }}>Y:</span>
+                <span>{mousePosition.y.toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'space-between' }}>
+                <span style={{ color: themeColors.zAxis }}>Z:</span>
+                <span>{mousePosition.z.toFixed(2)}</span>
+              </div>
+            </div>
+          )}
+          
+          <Gizmo onViewChange={handleViewChange} />
+        </div>
+        
+        {/* STL Files Panel - Only visible when files exist */}
+        {stlFiles.length > 0 && (
+          <div 
+            style={{ 
+              width: '250px',
+              minWidth: '250px', 
+              flex: '0 0 250px',
+              borderLeft: '1px solid var(--border-color)', 
+              overflow: 'auto',
+              backgroundColor: 'var(--panel-bg-color)',
+              borderRadius: 'var(--border-radius)',
+              marginLeft: '8px',
               display: 'flex',
-              flexDirection: 'column',
-              gap: '2px',
-              zIndex: 100,
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
-              border: '1px solid rgba(255, 255, 255, 0.1)'
+              flexDirection: 'column'
             }}
           >
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'space-between' }}>
-              <span style={{ color: themeColors.xAxis }}>X:</span>
-              <span>{mousePosition.x.toFixed(2)}</span>
+            <div style={{ padding: '10px', borderBottom: '1px solid var(--border-color)' }}>
+              <h3 style={{ margin: 0, fontSize: '14px' }}>Imported STL Files</h3>
             </div>
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'space-between' }}>
-              <span style={{ color: themeColors.yAxis }}>Y:</span>
-              <span>{mousePosition.y.toFixed(2)}</span>
-            </div>
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'space-between' }}>
-              <span style={{ color: themeColors.zAxis }}>Z:</span>
-              <span>{mousePosition.z.toFixed(2)}</span>
+            <div style={{ padding: '8px', flexGrow: 1, overflowY: 'auto' }}>
+              {stlFiles.map((file) => (
+                <div 
+                  key={file.id} 
+                  style={{ 
+                    marginBottom: '8px', 
+                    padding: '8px', 
+                    borderRadius: 'var(--border-radius)', 
+                    backgroundColor: hoveredStl === file.id ? 'var(--hover-bg-color)' : 'transparent',
+                    border: '1px solid var(--border-color)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <div style={{ 
+                      fontWeight: 'bold', 
+                      fontSize: '12px',
+                      maxWidth: '180px',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {file.name}
+                    </div>
+                    <input 
+                      type="checkbox" 
+                      checked={file.visible} 
+                      onChange={() => toggleStlVisibility(file.id)}
+                      style={{ margin: 0 }}
+                    />
+                  </div>
+                  
+                  {/* Position Controls */}
+                  <div style={{ marginBottom: '8px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Position</div>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
+                      <label style={{ width: '12px', fontSize: '10px', color: themeColors.xAxis }}>X:</label>
+                      <input 
+                        type="number" 
+                        value={file.position[0]} 
+                        onChange={(e) => updateStlPosition(file.id, 'x', e.target.value)}
+                        step="0.1"
+                        style={{ 
+                          flex: 1, 
+                          fontSize: '10px', 
+                          padding: '2px 4px', 
+                          borderRadius: '2px',
+                          border: '1px solid var(--border-color)'
+                        }} 
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
+                      <label style={{ width: '12px', fontSize: '10px', color: themeColors.yAxis }}>Y:</label>
+                      <input 
+                        type="number" 
+                        value={file.position[1]} 
+                        onChange={(e) => updateStlPosition(file.id, 'y', e.target.value)}
+                        step="0.1"
+                        style={{ 
+                          flex: 1, 
+                          fontSize: '10px', 
+                          padding: '2px 4px', 
+                          borderRadius: '2px',
+                          border: '1px solid var(--border-color)'
+                        }} 
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      <label style={{ width: '12px', fontSize: '10px', color: themeColors.zAxis }}>Z:</label>
+                      <input 
+                        type="number" 
+                        value={file.position[2]} 
+                        onChange={(e) => updateStlPosition(file.id, 'z', e.target.value)}
+                        step="0.1"
+                        style={{ 
+                          flex: 1, 
+                          fontSize: '10px', 
+                          padding: '2px 4px', 
+                          borderRadius: '2px',
+                          border: '1px solid var(--border-color)'
+                        }} 
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Rotation Controls */}
+                  <div style={{ marginBottom: '8px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Rotation (degrees)</div>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
+                      <label style={{ width: '12px', fontSize: '10px', color: themeColors.xAxis }}>X:</label>
+                      <input 
+                        type="number" 
+                        value={file.rotation[0]} 
+                        onChange={(e) => updateStlRotation(file.id, 'x', e.target.value)}
+                        step="5"
+                        min="-180"
+                        max="180"
+                        style={{ 
+                          flex: 1, 
+                          fontSize: '10px', 
+                          padding: '2px 4px', 
+                          borderRadius: '2px',
+                          border: '1px solid var(--border-color)'
+                        }} 
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
+                      <label style={{ width: '12px', fontSize: '10px', color: themeColors.yAxis }}>Y:</label>
+                      <input 
+                        type="number" 
+                        value={file.rotation[1]} 
+                        onChange={(e) => updateStlRotation(file.id, 'y', e.target.value)}
+                        step="5"
+                        min="-180"
+                        max="180"
+                        style={{ 
+                          flex: 1, 
+                          fontSize: '10px', 
+                          padding: '2px 4px', 
+                          borderRadius: '2px',
+                          border: '1px solid var(--border-color)'
+                        }} 
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      <label style={{ width: '12px', fontSize: '10px', color: themeColors.zAxis }}>Z:</label>
+                      <input 
+                        type="number" 
+                        value={file.rotation[2]} 
+                        onChange={(e) => updateStlRotation(file.id, 'z', e.target.value)}
+                        step="5"
+                        min="-180"
+                        max="180"
+                        style={{ 
+                          flex: 1, 
+                          fontSize: '10px', 
+                          padding: '2px 4px', 
+                          borderRadius: '2px',
+                          border: '1px solid var(--border-color)'
+                        }} 
+                      />
+                    </div>
+                  </div>
+                  
+                  <div style={{ display: 'flex', gap: '4px', justifyContent: 'space-between', fontSize: '11px' }}>
+                    <button 
+                      className="toolbar-button"
+                      onClick={() => centerOnStl(file.id)}
+                      style={{ padding: '2px 4px', fontSize: '10px', flex: 1 }}
+                    >
+                      Center View
+                    </button>
+                    <button 
+                      className="toolbar-button"
+                      onClick={() => centerGeometryAtOrigin(file.id)}
+                      style={{ padding: '2px 4px', fontSize: '10px', flex: 1 }}
+                    >
+                      Center Object
+                    </button>
+                    <button 
+                      className="toolbar-button danger"
+                      onClick={() => removeStlFile(file.id)}
+                      style={{ padding: '2px 4px', fontSize: '10px', flex: 1 }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  
+                  {/* Size info */}
+                  {file.dimensions && (
+                    <div style={{ marginTop: '6px', fontSize: '10px', opacity: 0.8 }}>
+                      Size: {file.dimensions[0].toFixed(1)} x {file.dimensions[1].toFixed(1)} x {file.dimensions[2].toFixed(1)}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         )}
-        
-        <Gizmo onViewChange={handleViewChange} />
       </div>
     </div>
   );
