@@ -1,16 +1,28 @@
 import React, { useState, useRef, useEffect } from 'react';
+import communicationService from '../../services/communication/CommunicationService';
+import '../../styles/console.css';
 
 /**
- * Console Panel component for sending commands to the robot.
- * 
- * @param {Object} props Component properties
- * @param {function} props.onSendCommand Function to call when a command is sent
+ * Enhanced Console Panel component for sending commands and viewing filtered messages.
+ * Features debug level filtering and styled message output.
  */
 const ConsolePanel = ({ onSendCommand = () => {} }) => {
   const [commandHistory, setCommandHistory] = useState([]);
   const [currentCommand, setCurrentCommand] = useState('');
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [autoScroll, setAutoScroll] = useState(true);
+  const [debugLevels, setDebugLevels] = useState({
+    ERROR: true,    // DEBUG_ERROR (0)
+    WARNING: true,  // DEBUG_WARNING (1)
+    INFO: true,     // DEBUG_INFO (2)
+    DEBUG: true,    // DEBUG_VERBOSE (3)
+    COMMAND: true,  // User commands
+    RESPONSE: true, // General responses
+    SYSTEM: true    // System messages
+  });
+  
   const consoleEndRef = useRef(null);
+  const consoleOutputRef = useRef(null);
 
   // Sample commands that a user might send to a robot
   const sampleCommands = [
@@ -21,19 +33,60 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
     { command: 'M106 S255', description: 'Set fan speed to maximum' },
   ];
 
-  // Add a command response to the history
-  const addCommandResponse = (command, response, isError = false) => {
+  // Parse message level from robot message format
+  const parseMessageLevel = (message) => {
+    // Message format: [timestamp][CORE #][LEVEL][Module] Message
+    const levelMatch = message.match(/\[\d+:\d+:\d+\.\d+\]\[CORE \d+\]\[([A-Z]+)\s*\]/);
+    if (levelMatch) {
+      return levelMatch[1].trim();
+    }
+    return null;
+  };
+
+  // Get level-specific styles
+  const getLevelStyle = (level) => {
+    switch(level) {
+      case 'ERROR':
+        return 'console-error';
+      case 'WARN':
+        return 'console-warning';
+      case 'INFO':
+        return 'console-info';
+      case 'DEBUG':
+        return 'console-debug';
+      case 'command':
+        return 'console-command';
+      case 'response':
+        return 'console-response';
+      case 'error':
+        return 'console-error';
+      case 'system':
+        return 'console-system';
+      default:
+        return '';
+    }
+  };
+
+  // Add a command or response to the history
+  const addEntry = (type, content) => {
+    const timestamp = new Date().toLocaleTimeString();
+    let level = type;
+    
+    // For responses, try to parse the level from the message
+    if (type === 'response') {
+      const parsedLevel = parseMessageLevel(content);
+      if (parsedLevel) {
+        level = parsedLevel;
+      }
+    }
+    
     setCommandHistory(prev => [
       ...prev, 
-      { 
-        type: 'command', 
-        content: command, 
-        timestamp: new Date().toLocaleTimeString() 
-      },
-      { 
-        type: isError ? 'error' : 'response', 
-        content: response, 
-        timestamp: new Date().toLocaleTimeString() 
+      {
+        type,
+        level,
+        content,
+        timestamp
       }
     ]);
   };
@@ -42,46 +95,38 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
   const sendCommand = () => {
     if (!currentCommand.trim()) return;
 
-    // In a real implementation, this would send the command to the robot
-    // and get a real response
-    
-    // For now, simulate a response
-    let response;
-    let isError = false;
-
-    if (currentCommand.toLowerCase() === 'help') {
-      response = 'Available commands:\n' + sampleCommands.map(cmd => 
-        `${cmd.command} - ${cmd.description}`
-      ).join('\n');
-    } else if (currentCommand.toLowerCase() === 'clear') {
+    // Special command handling
+    if (currentCommand.toLowerCase() === 'clear') {
       setCommandHistory([]);
       setCurrentCommand('');
       return;
-    } else if (currentCommand.startsWith('G28')) {
-      response = 'Homing all axes...';
-    } else if (currentCommand.startsWith('G1')) {
-      response = 'Moving to specified position...';
-    } else if (currentCommand.startsWith('M104')) {
-      const tempMatch = currentCommand.match(/S(\d+)/);
-      const temp = tempMatch ? tempMatch[1] : '0';
-      response = `Setting extruder temperature to ${temp}°C`;
-    } else if (currentCommand.startsWith('M140')) {
-      const tempMatch = currentCommand.match(/S(\d+)/);
-      const temp = tempMatch ? tempMatch[1] : '0';
-      response = `Setting bed temperature to ${temp}°C`;
-    } else if (Math.random() > 0.8) {
-      // Occasionally show an error
-      response = `Error: Command '${currentCommand}' could not be executed`;
-      isError = true;
-    } else {
-      response = `Command '${currentCommand}' executed successfully`;
     }
 
-    // Add to history
-    addCommandResponse(currentCommand, response, isError);
+    // Add command to history
+    addEntry('command', currentCommand);
     
-    // Call the callback
-    onSendCommand(currentCommand);
+    // Handle help command
+    if (currentCommand.toLowerCase() === 'help') {
+      const helpResponse = 'Available commands:\n' + sampleCommands.map(cmd => 
+        `${cmd.command} - ${cmd.description}`
+      ).join('\n');
+      addEntry('system', helpResponse);
+    } else {
+      // In a real implementation, this would send to communication service
+      communicationService.sendCommand(currentCommand)
+        .then(response => {
+          // Process actual response from the robot
+          if (response) {
+            addEntry('response', response);
+          }
+        })
+        .catch(error => {
+          addEntry('error', `Error: ${error.message}`);
+        });
+      
+      // Call the callback
+      onSendCommand(currentCommand);
+    }
     
     // Clear current command
     setCurrentCommand('');
@@ -121,40 +166,247 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
     }
   };
 
+  // Toggle a debug level filter
+  const toggleDebugLevel = (level) => {
+    setDebugLevels(prev => ({
+      ...prev,
+      [level]: !prev[level]
+    }));
+  };
+
+  // Check if a message should be visible based on current filters
+  const isMessageVisible = (entry) => {
+    // Map entry types/levels to filter keys
+    let filterKey;
+    
+    if (entry.type === 'command') {
+      filterKey = 'COMMAND';
+    } else if (entry.type === 'error') {
+      filterKey = 'ERROR';
+    } else if (entry.type === 'system') {
+      filterKey = 'SYSTEM';
+    } else if (entry.level) {
+      // Use parsed level for responses
+      if (['ERROR', 'WARN', 'INFO', 'DEBUG'].includes(entry.level)) {
+        filterKey = entry.level;
+        // Normalize WARN to WARNING for filter
+        if (filterKey === 'WARN') filterKey = 'WARNING';
+      } else {
+        filterKey = 'RESPONSE';
+      }
+    } else {
+      filterKey = 'RESPONSE';
+    }
+    
+    return debugLevels[filterKey];
+  };
+
   // Auto-scroll to the bottom when command history changes
   useEffect(() => {
-    if (consoleEndRef.current) {
+    if (autoScroll && consoleEndRef.current) {
       consoleEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [commandHistory]);
+  }, [commandHistory, autoScroll]);
+
+  // Listen for messages from the communication service
+  useEffect(() => {
+    const handleResponse = (data) => {
+      if (data && data.response) {
+        addEntry('response', data.response);
+      }
+    };
+
+    const handleError = (data) => {
+      if (data && data.error) {
+        addEntry('error', typeof data.error === 'string' ? data.error : data.error.message || 'Unknown error');
+      }
+    };
+
+    // Register event listeners
+    communicationService.on('response', handleResponse);
+    communicationService.on('error', handleError);
+    
+    // Clean up listeners on unmount
+    return () => {
+      communicationService.removeListener('response', handleResponse);
+      communicationService.removeListener('error', handleError);
+    };
+  }, []);
+
+  // Handle scroll to detect if user has scrolled up manually
+  const handleScroll = () => {
+    if (!consoleOutputRef.current) return;
+    
+    const { scrollTop, scrollHeight, clientHeight } = consoleOutputRef.current;
+    const isScrolledToBottom = scrollHeight - scrollTop - clientHeight < 10;
+    
+    if (isScrolledToBottom !== autoScroll) {
+      setAutoScroll(isScrolledToBottom);
+    }
+  };
 
   return (
-    <div className="panel-content">
-      <div className="console-container">
-        <div className="console-output">
-          {commandHistory.map((entry, index) => (
+    <div className="console-container">
+      {/* Debug level filters */}
+      <div className="console-toolbar">
+        {/* Compact filter section - just buttons */}
+        <div className="toolbar-section">
+          <div className="console-filters">
             <div 
-              key={index} 
-              className={`console-entry console-${entry.type}`}
+              className={`filter-option ${debugLevels.ERROR ? 'active' : ''}`}
+              onClick={() => toggleDebugLevel('ERROR')}
+              title="Show ERROR messages (level 0)"
             >
-              {entry.type === 'command' ? (
-                <span><span className="console-prompt">&gt;</span> {entry.content}</span>
-              ) : (
-                <span>{entry.content}</span>
-              )}
+              <span className="filter-indicator error"></span>
+              <span className="filter-label">ERROR</span>
             </div>
-          ))}
-          {commandHistory.length === 0 && (
-            <div className="console-welcome">
-              <p>Welcome to the Robot Command Console.</p>
-              <p>Type 'help' for a list of sample commands.</p>
-              <p>Type 'clear' to clear the console.</p>
+            
+            <div 
+              className={`filter-option ${debugLevels.WARNING ? 'active' : ''}`}
+              onClick={() => toggleDebugLevel('WARNING')}
+              title="Show WARNING messages (level 1)"
+            >
+              <span className="filter-indicator warning"></span>
+              <span className="filter-label">WARN</span>
             </div>
-          )}
-          <div ref={consoleEndRef} />
+            
+            <div 
+              className={`filter-option ${debugLevels.INFO ? 'active' : ''}`}
+              onClick={() => toggleDebugLevel('INFO')}
+              title="Show INFO messages (level 2)"
+            >
+              <span className="filter-indicator info"></span>
+              <span className="filter-label">INFO</span>
+            </div>
+            
+            <div 
+              className={`filter-option ${debugLevels.DEBUG ? 'active' : ''}`}
+              onClick={() => toggleDebugLevel('DEBUG')}
+              title="Show DEBUG messages (level 3)"
+            >
+              <span className="filter-indicator debug"></span>
+              <span className="filter-label">DEBUG</span>
+            </div>
+          </div>
         </div>
         
-        <div className="console-input-container">
+        <div className="toolbar-divider"></div>
+        
+        <div className="toolbar-section">
+          <div className="console-filters">
+            <div 
+              className={`filter-option ${debugLevels.COMMAND ? 'active' : ''}`}
+              onClick={() => toggleDebugLevel('COMMAND')}
+              title="Show user commands"
+            >
+              <span className="filter-indicator command"></span>
+              <span className="filter-label">CMD</span>
+            </div>
+            
+            <div 
+              className={`filter-option ${debugLevels.RESPONSE ? 'active' : ''}`}
+              onClick={() => toggleDebugLevel('RESPONSE')}
+              title="Show general responses"
+            >
+              <span className="filter-indicator response"></span>
+              <span className="filter-label">RESP</span>
+            </div>
+            
+            <div 
+              className={`filter-option ${debugLevels.SYSTEM ? 'active' : ''}`}
+              onClick={() => toggleDebugLevel('SYSTEM')}
+              title="Show system messages"
+            >
+              <span className="filter-indicator system"></span>
+              <span className="filter-label">SYS</span>
+            </div>
+          </div>
+        </div>
+        
+        <div className="toolbar-spacer"></div>
+        
+        <div className="console-actions">
+          <button 
+            className="toolbar-button"
+            onClick={() => {
+              setAutoScroll(true);
+              consoleEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }}
+            title="Scroll to bottom"
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none">
+              <path d="M12 3v18"></path>
+              <path d="M6 15l6 6 6-6"></path>
+            </svg>
+          </button>
+          
+          <button 
+            className="toolbar-button"
+            onClick={() => setCommandHistory([])}
+            title="Clear console"
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none">
+              <path d="M3 6h18"></path>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              <line x1="10" y1="11" x2="10" y2="17"></line>
+              <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Console output area */}
+      <div 
+        className="console-output" 
+        ref={consoleOutputRef}
+        onScroll={handleScroll}
+      >
+        {commandHistory.length === 0 && (
+          <div className="console-welcome">
+            <p>Welcome to the Robot Command Console.</p>
+            <p>Type 'help' for a list of sample commands.</p>
+            <p>Type 'clear' to clear the console.</p>
+          </div>
+        )}
+        
+        {commandHistory.filter(isMessageVisible).map((entry, index) => {
+          const levelClass = getLevelStyle(entry.type === 'response' ? entry.level : entry.type);
+          
+          // Format robot messages with syntax highlighting
+          const formattedContent = entry.type === 'response' && entry.content.match(/\[\d+:\d+:\d+\.\d+\]\[CORE \d+\]\[[A-Z]+\s*\]/) 
+            ? entry.content.replace(
+                /(\[\d+:\d+:\d+\.\d+\])(\[CORE \d+\])(\[[A-Z]+\s*\])(\[[^\]]+\])(.*)/g, 
+                '<span class="timestamp">$1</span><span class="core">$2</span><span class="level">$3</span><span class="module">$4</span>$5'
+              )
+            : entry.content;
+          
+          return (
+            <div 
+              key={index} 
+              className={`console-entry ${levelClass}`}
+            >
+              <span className="entry-line-number">{index + 1}</span>
+              
+              {entry.type === 'command' ? (
+                <span className="entry-content">
+                  <span className="console-prompt">&gt;</span> {entry.content}
+                </span>
+              ) : (
+                <span 
+                  className="entry-content"
+                  dangerouslySetInnerHTML={{ __html: formattedContent }}
+                />
+              )}
+            </div>
+          );
+        })}
+        
+        <div ref={consoleEndRef} />
+      </div>
+      
+      {/* Input area */}
+      <div className="console-input-container">
+        <div className="console-input-wrapper">
           <span className="console-prompt">&gt;</span>
           <input
             type="text"
@@ -162,14 +414,39 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
             value={currentCommand}
             onChange={(e) => setCurrentCommand(e.target.value)}
             onKeyDown={handleKeyPress}
-            placeholder="Enter command..."
+            placeholder="Enter command... (Press Enter to send)"
+            autoFocus
           />
-          <button 
-            className="toolbar-button primary"
-            onClick={sendCommand}
-          >
-            Send
-          </button>
+        </div>
+        <div className="console-status-bar">
+          <div className="status-item">
+            <span className="status-label">Status:</span>
+            <span className={`status-value ${communicationService.getConnectionInfo().status === "connected" ? "connected" : "disconnected"}`}>
+              {communicationService.getConnectionInfo().status === "connected" ? "Connected" : "Disconnected"}
+            </span>
+          </div>
+          <div className="status-item">
+            <span className="status-label">Debug Level:</span>
+            <span className="status-value">
+              {Object.entries(debugLevels)
+                .filter(([_, enabled]) => enabled)
+                .map(([level]) => level.charAt(0))
+                .join('')}
+            </span>
+          </div>
+          <div className="status-indicator-wrapper">
+            <button 
+              className="toolbar-button send-button"
+              onClick={sendCommand}
+              title="Send command (Enter)"
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+              Send
+            </button>
+          </div>
         </div>
       </div>
     </div>
