@@ -11,7 +11,7 @@ const ControlPanel = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0, z: 0, a: 0 });
   const [targetPosition, setTargetPosition] = useState({ x: 0, y: 0, z: 0, a: 0 });
-  const [showExactPositionInput, setShowExactPositionInput] = useState(false);
+  const [showExactPositionInput, setShowExactPositionInput] = useState(true);
   
   // Function to simulate sending a movement command
   const sendMovementCommand = (axis, direction) => {
@@ -94,13 +94,6 @@ const ControlPanel = () => {
       <div className="control-section position-display">
         <div className="section-header">
           <h3>Position Control</h3>
-          <button 
-            className="position-toggle-btn"
-            onClick={() => setShowExactPositionInput(!showExactPositionInput)}
-            title={showExactPositionInput ? "Hide exact position input" : "Set exact position"}
-          >
-            {showExactPositionInput ? "Hide Input" : "Set Position"}
-          </button>
         </div>
         
         {/* Enhanced Position Cards */}
