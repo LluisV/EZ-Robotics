@@ -18,57 +18,95 @@ const SerialConnection = ({ onStatusChange = () => {} }) => {
   
   // Refresh available ports
   const refreshPorts = async () => {
-    setError(null);
     try {
       const availablePorts = await communicationService.getAvailablePorts();
-      console.log('Available ports:', availablePorts);
-      setPorts(availablePorts);
+      
+      // Enhanced port naming with more information
+      const formattedPorts = availablePorts.map((port, index) => ({
+        ...port,
+        displayName: port.path || `Serial Device COM${index + 1}`,
+        id: port.path || `port-${index + 1}`
+      }));
+      
+      console.log('Available ports:', formattedPorts);
+      communicationService.emit('response', { 
+        response: `Found ${formattedPorts.length} available port(s)` 
+      });
+      
+      setPorts(formattedPorts);
       
       // If we have ports but none selected, select the first one
-      if (availablePorts.length > 0 && !selectedPort) {
-        setSelectedPort(availablePorts[0].port);
+      if (formattedPorts.length > 0 && !selectedPort) {
+        setSelectedPort(formattedPorts[0].id);
       }
     } catch (err) {
-      console.error('Error listing ports:', err);
-      setError('Failed to list ports: ' + err.message);
+      const errorMsg = `Failed to list ports: ${err.message}`;
+      console.error(errorMsg);
+      communicationService.emit('error', { error: errorMsg });
     }
   };
   
   // Connect to selected port
   const connect = async () => {
-    if (!selectedPort) {
-      setError('No port selected');
+    // Find the full port details based on the selected port ID
+    const portDetails = ports.find(p => p.id === selectedPort);
+    
+    if (!portDetails) {
+      const errorMsg = 'No valid port selected';
+      console.error(errorMsg);
+      communicationService.emit('error', { error: errorMsg });
       return;
     }
     
     setIsConnecting(true);
-    setError(null);
-    
+
     try {
       const connected = await communicationService.connect({
         type: 'SERIAL',
-        port: selectedPort,
+        port: portDetails.path || portDetails.port,
         baudRate: parseInt(baudRate)
       });
       
       if (connected) {
         setIsConnected(true);
-        onStatusChange({ connected: true, port: selectedPort });
-        
-        // Log connection to console
-        communicationService.emit('response', { 
-          response: `Connected to ${selectedPort} at ${baudRate} baud` 
+        onStatusChange({ 
+          connected: true, 
+          port: portDetails.displayName || portDetails.path 
         });
+        
+        // Log connection to console and communication service
+        const connectionMsg = `Connected to ${portDetails.displayName || portDetails.path} at ${baudRate} baud`;
+        console.log(connectionMsg);
+        communicationService.emit('response', { response: connectionMsg });
       } else {
-        setError('Failed to connect to port');
+        // Get more detailed error information from the communication service
+        const connectionInfo = communicationService.getConnectionInfo();
+        const detailedError = connectionInfo.error || 'Unknown connection error';
+        
+        const errorMsg = `Failed to connect: ${detailedError}`;
+        console.error(errorMsg);
+        communicationService.emit('error', { error: errorMsg });
+        
         setIsConnected(false);
-        onStatusChange({ connected: false, error: 'Failed to connect' });
+        onStatusChange({ 
+          connected: false, 
+          error: detailedError 
+        });
       }
     } catch (err) {
-      console.error('Connection error:', err);
-      setError(err.message);
+      // Ensure we always have a string error message
+      const errorMessage = err 
+        ? (err.message || err.toString() || 'Unexpected connection error') 
+        : 'Undefined connection error';
+      
+      console.error('Connection error:', errorMessage);
+      communicationService.emit('error', { error: errorMessage });
+      
       setIsConnected(false);
-      onStatusChange({ connected: false, error: err.message });
+      onStatusChange({ 
+        connected: false, 
+        error: errorMessage 
+      });
     } finally {
       setIsConnecting(false);
     }
@@ -77,20 +115,20 @@ const SerialConnection = ({ onStatusChange = () => {} }) => {
   // Disconnect from port
   const disconnect = async () => {
     setIsConnecting(true);
-    setError(null);
     
     try {
       await communicationService.disconnect();
       setIsConnected(false);
       onStatusChange({ connected: false });
       
-      // Log disconnection to console
-      communicationService.emit('response', { 
-        response: 'Disconnected from serial port' 
-      });
+      // Log disconnection to console and communication service
+      const disconnectMsg = 'Disconnected from serial port';
+      console.log(disconnectMsg);
+      communicationService.emit('response', { response: disconnectMsg });
     } catch (err) {
-      console.error('Disconnection error:', err);
-      setError(err.message);
+      const errorMsg = `Disconnection error: ${err.message}`;
+      console.error(errorMsg);
+      communicationService.emit('error', { error: errorMsg });
     } finally {
       setIsConnecting(false);
     }
@@ -125,17 +163,19 @@ const SerialConnection = ({ onStatusChange = () => {} }) => {
     <div className="serial-connection">
       <div className="connection-controls">
         <select 
-          value={selectedPort ? selectedPort.path || selectedPort : ''}
+          value={selectedPort}
           onChange={(e) => setSelectedPort(e.target.value)}
           disabled={isConnected || isConnecting}
           className="port-select"
         >
-          <option value="">Select COM Port</option>
-          {ports.map((port, index) => (
-            <option key={index} value={port.port || port}>
-              {port.displayName || port.port || port}
-            </option>
-          ))}
+          {ports.length > 0 
+            ? ports.map((port) => (
+                <option key={port.id} value={port.id}>
+                  {port.displayName || 'Serial Device'}
+                </option>
+              ))
+            : <option value="">No ports available</option>
+          }
         </select>
         
         <select 
@@ -173,17 +213,13 @@ const SerialConnection = ({ onStatusChange = () => {} }) => {
         <button 
           className={`toolbar-button ${isConnecting ? 'disabled' : ''} ${isConnected ? 'danger' : 'primary'}`}
           onClick={isConnected ? disconnect : connect}
-          disabled={isConnecting || (!selectedPort && !isConnected)}
+          disabled={isConnecting || (ports.length === 0)}
         >
           {isConnecting ? 'Connecting...' : isConnected ? 'Disconnect' : 'Connect'}
         </button>
       </div>
       
-      {error && (
-        <div className="connection-error">
-          {error}
-        </div>
-      )}
+      {/* Errors are now logged to the console */}
     </div>
   );
 };
