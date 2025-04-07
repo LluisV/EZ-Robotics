@@ -1,5 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+
 import '../../styles/control-panel.css';
+import communicationService from '../../services/communication/CommunicationService';
+
 
 /**
  * Modern Control Panel component for robot positioning and control with exact position input.
@@ -12,18 +15,68 @@ const ControlPanel = () => {
   const [position, setPosition] = useState({ x: 0, y: 0, z: 0, a: 0 });
   const [targetPosition, setTargetPosition] = useState({ x: 0, y: 0, z: 0, a: 0 });
   const [showExactPositionInput, setShowExactPositionInput] = useState(true);
+  const [moveType, setMoveType] = useState('G1');
+  const [pollingEnabled, setPollingEnabled] = useState(true);
+  const pollingIntervalRef = useRef(null);
+  const POLLING_RATE = 500; // 500ms (2Hz) - adjust based on your requirements
   
+  const logToConsole = (type, message) => {
+    switch(type) {
+      case 'command':
+        communicationService.emit('command', { command: message, sent: true });
+        break;
+      case 'response':
+        communicationService.emit('response', { response: message });
+        break;
+      case 'error':
+        communicationService.emit('error', { error: message });
+        break;
+      case 'info':
+        communicationService.emit('response', { response: `[INFO] ${message}` });
+        break;
+      default:
+        communicationService.emit('response', { response: message });
+    }
+  };
+
   // Function to simulate sending a movement command
   const sendMovementCommand = (axis, direction) => {
-    // In a real implementation, this would send a G-code command to the robot
-    const distance = direction * stepSize;
-    console.log(`Moving ${axis} by ${distance}mm at speed ${speed}%`);
-    
-    // Simulate position change
-    setPosition(prev => {
-      const newPosition = { ...prev };
-      newPosition[axis.toLowerCase()] += distance;
-      return newPosition;
+    // Get connection status
+  const connectionInfo = communicationService.getConnectionInfo();
+  if (connectionInfo.status !== 'connected') {
+    console.log('Not connected. Connection status:', connectionInfo.status);
+    return;
+  }
+
+  const distance = direction * stepSize;
+  
+  // Create G-code command for movement
+  const gcode = `G1 ${axis}${distance} F${speed * 60}`; // Convert speed percentage to mm/min feed rate
+  
+  console.log(`Sending command: ${gcode}`);
+  
+  // Send the command
+  communicationService.sendCommand(gcode)
+    .then(() => {
+      // Request current position after movement
+      return communicationService.sendCommand('?POS', { immediate: true });
+    })
+    .then(response => {
+      // Parse position from response
+      const posRegex = /X:(-?\d+\.?\d*)\s+Y:(-?\d+\.?\d*)\s+Z:(-?\d+\.?\d*)(?:\s+A:(-?\d+\.?\d*))?/i;
+      const match = response.match(posRegex);
+      
+      if (match) {
+        setPosition({
+          x: parseFloat(match[1]),
+          y: parseFloat(match[2]),
+          z: parseFloat(match[3]),
+          a: match[4] ? parseFloat(match[4]) : position.a // Keep the current value for A if not reported
+        });
+      }
+    })
+    .catch(err => {
+      console.error('Error sending movement command:', err);
     });
   };
   
@@ -34,18 +87,47 @@ const ControlPanel = () => {
   
   // Function to home axes
   const homeAxes = (axes = 'all') => {
-    console.log(`Homing ${axes} axes`);
-    // Reset position based on which axes are being homed
-    setPosition(prev => {
-      const newPosition = { ...prev };
-      
-      if (axes === 'all' || axes.includes('x')) newPosition.x = 0;
-      if (axes === 'all' || axes.includes('y')) newPosition.y = 0;
-      if (axes === 'all' || axes.includes('z')) newPosition.z = 0;
-      if (axes === 'all' || axes.includes('a')) newPosition.a = 0;
-      
-      return newPosition;
-    });
+    // Get connection status
+    const connectionInfo = communicationService.getConnectionInfo();
+    if (connectionInfo.status !== 'connected') {
+      console.log('Not connected. Connection status:', connectionInfo.status);
+      return;
+    }
+  
+    let gcode = '';
+    
+    if (axes === 'all') {
+      gcode = 'G28';
+      console.log('Sending home all axes command: G28');
+    } else {
+      // Format: G28 X Y Z for specific axes
+      gcode = `G28 ${axes.toUpperCase()}`;
+      console.log(`Sending home command: ${gcode}`);
+    }
+    
+    // Send the command
+    communicationService.sendCommand(gcode)
+      .then(() => {
+        // Request current position after homing
+        return communicationService.sendCommand('?POS', { immediate: true });
+      })
+      .then(response => {
+        // Parse position from response
+        const posRegex = /X:(-?\d+\.?\d*)\s+Y:(-?\d+\.?\d*)\s+Z:(-?\d+\.?\d*)(?:\s+A:(-?\d+\.?\d*))?/i;
+        const match = response.match(posRegex);
+        
+        if (match) {
+          setPosition({
+            x: parseFloat(match[1]),
+            y: parseFloat(match[2]),
+            z: parseFloat(match[3]),
+            a: match[4] ? parseFloat(match[4]) : position.a // Keep the current value for A if not reported
+          });
+        }
+      })
+      .catch(err => {
+        console.error('Error sending home command:', err);
+      });
   };
   
   // Handle target position input changes
@@ -55,39 +137,157 @@ const ControlPanel = () => {
       [axis]: parseFloat(value) || 0
     }));
   };
+
+  const handleStop = () => {
+    const connectionInfo = communicationService.getConnectionInfo();
+    if (connectionInfo.status !== 'connected') {
+      console.log('Not connected. Connection status:', connectionInfo.status);
+      return;
+    }
+  
+    console.log('Sending stop command');
+    
+    // Send the command
+    communicationService.sendSpecialCommand('STOP')
+      .catch(err => {
+        console.error('Error sending stop command:', err);
+      });
+  };
   
   // Function to move to exact position
-  const moveToExactPosition = () => {
-    console.log(`Moving to exact position: X:${targetPosition.x}, Y:${targetPosition.y}, Z:${targetPosition.z}, A:${targetPosition.a} at speed ${speed}%`);
+  const moveToExactPosition = (moveType = 'G1') => {
+    // Get connection status
+    const connectionInfo = communicationService.getConnectionInfo();
+    if (connectionInfo.status !== 'connected') {
+      console.log('Not connected. Connection status:', connectionInfo.status);
+      return;
+    }
+  
+    // Create G-code command for movement
+    const gcode = `${moveType} X${targetPosition.x} Y${targetPosition.y} Z${targetPosition.z} A${targetPosition.a} F${speed * 60}`; // Convert speed percentage to mm/min feed rate
     
-    // In a real implementation, this would generate and send the appropriate G-code
-    // For example: G1 X10 Y20 Z5 F1000
+    console.log(`Sending command: ${gcode}`);
     
-    // Simulate position change
-    setPosition({...targetPosition});
+    // Send the command
+    communicationService.sendCommand(gcode)
+      .then(() => {
+        // Request current position after movement
+        return communicationService.sendCommand('?POS', { immediate: true });
+      })
+      .then(response => {
+        // Parse position from response
+        const posRegex = /X:(-?\d+\.?\d*)\s+Y:(-?\d+\.?\d*)\s+Z:(-?\d+\.?\d*)(?:\s+A:(-?\d+\.?\d*))?/i;
+        const match = response.match(posRegex);
+        
+        if (match) {
+          setPosition({
+            x: parseFloat(match[1]),
+            y: parseFloat(match[2]),
+            z: parseFloat(match[3]),
+            a: match[4] ? parseFloat(match[4]) : position.a // Keep the current value for A if not reported
+          });
+        }
+      })
+      .catch(err => {
+        console.error('Error sending movement command:', err);
+      });
   };
 
-  // Simulate random position changes for demonstration
-  useEffect(() => {
-    if (isConnected) {
-      const interval = setInterval(() => {
-        setPosition(prev => ({
-          x: parseFloat((prev.x + (Math.random() - 0.5) * 0.05).toFixed(2)),
-          y: parseFloat((prev.y + (Math.random() - 0.5) * 0.05).toFixed(2)),
-          z: parseFloat((prev.z + (Math.random() - 0.5) * 0.05).toFixed(2)),
-          a: parseFloat((prev.a + (Math.random() - 0.5) * 0.05).toFixed(2))
-        }));
-      }, 2000);
+  const queryPosition = useCallback(async () => {
+    if (!isConnected) return;
+    
+    try {
+      const response = await communicationService.sendCommand('?POS', { 
+        immediate: true,
+        expectResponse: true,
+        silent: true // Don't log the command itself
+      });
       
-      return () => clearInterval(interval);
+      // Parse position from response
+      const posRegex = /X:(-?\d+\.?\d*)\s+Y:(-?\d+\.?\d*)\s+Z:(-?\d+\.?\d*)(?:\s+A:(-?\d+\.?\d*))?/i;
+      const match = response.match(posRegex);
+      
+      if (match) {
+        setPosition({
+          x: parseFloat(match[1]),
+          y: parseFloat(match[2]),
+          z: parseFloat(match[3]),
+          a: match[4] ? parseFloat(match[4]) : position.a // Keep current A value if not reported
+        });
+      }
+    } catch (err) {
+      // Silent failure for polling - no need to show errors for routine position checks
+      console.error('Position polling error:', err);
     }
-  }, [isConnected]);
+  }, [isConnected, position.a]);
   
   // Initialize target position from current position
   useEffect(() => {
     setTargetPosition({...position});
   }, [showExactPositionInput]);
   
+// Setup and cleanup for position polling
+useEffect(() => {
+  // Check connection status initially
+  const connectionInfo = communicationService.getConnectionInfo();
+  setIsConnected(connectionInfo.status === 'connected');
+
+  // Setup connection status listener
+  const handleConnection = (data) => {
+    setIsConnected(data.status === 'connected');
+    
+    if (data.status === 'connected') {
+      logToConsole('info', 'Connection established - starting position monitoring');
+    } else {
+      logToConsole('info', 'Connection lost - position monitoring paused');
+    }
+  };
+  
+  communicationService.on('connection', handleConnection);
+  
+  // Start position polling if connected
+  if (isConnected && pollingEnabled) {
+    logToConsole('info', 'Starting position monitoring');
+    pollingIntervalRef.current = setInterval(queryPosition, POLLING_RATE);
+  }
+  
+  // Cleanup function
+  return () => {
+    communicationService.removeListener('connection', handleConnection);
+    
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+  };
+}, [isConnected, pollingEnabled, queryPosition]);
+
+// Effect to manage the polling interval when connection state changes
+useEffect(() => {
+  // Clear existing interval
+  if (pollingIntervalRef.current) {
+    clearInterval(pollingIntervalRef.current);
+    pollingIntervalRef.current = null;
+  }
+  
+  // Start new interval if connected and polling is enabled
+  if (isConnected && pollingEnabled) {
+    pollingIntervalRef.current = setInterval(queryPosition, POLLING_RATE);
+    
+    // Immediately query position on connection
+    queryPosition();
+  }
+  
+  return () => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+  };
+}, [isConnected, pollingEnabled, queryPosition]);
+
+
+
   return (
     <div className="control-panel">
       {/* Position Display */}
@@ -134,63 +334,87 @@ const ControlPanel = () => {
         {/* Exact Position Input */}
         {showExactPositionInput && (
           <div className="exact-position-input">
-            <div className="exact-position-form">
-              <div className="input-row">
-                <div className="input-group">
-                  <label className="axis-label x-axis">X:</label>
-                  <input 
-                    type="number" 
-                    value={targetPosition.x}
-                    onChange={(e) => handleTargetPositionChange('x', e.target.value)}
-                    step="0.1"
-                  />
-                  <span className="unit-label">mm</span>
-                </div>
-                
-                <div className="input-group">
-                  <label className="axis-label y-axis">Y:</label>
-                  <input 
-                    type="number" 
-                    value={targetPosition.y}
-                    onChange={(e) => handleTargetPositionChange('y', e.target.value)}
-                    step="0.1"
-                  />
-                  <span className="unit-label">mm</span>
-                </div>
+          <div className="exact-position-form">
+            <div className="input-row">
+              <div className="input-group">
+                <label className="axis-label x-axis">X:</label>
+                <input 
+                  type="number" 
+                  value={targetPosition.x}
+                  onChange={(e) => handleTargetPositionChange('x', e.target.value)}
+                  step="0.1"
+                />
+                <span className="unit-label">mm</span>
               </div>
               
-              <div className="input-row">
-                <div className="input-group">
-                  <label className="axis-label z-axis">Z:</label>
-                  <input 
-                    type="number" 
-                    value={targetPosition.z}
-                    onChange={(e) => handleTargetPositionChange('z', e.target.value)}
-                    step="0.1"
-                  />
-                  <span className="unit-label">mm</span>
-                </div>
-                
-                <div className="input-group">
-                  <label className="axis-label a-axis">A:</label>
-                  <input 
-                    type="number" 
-                    value={targetPosition.a}
-                    onChange={(e) => handleTargetPositionChange('a', e.target.value)}
-                    step="0.1"
-                  />
-                  <span className="unit-label">º</span>
-                </div>
+              <div className="input-group">
+                <label className="axis-label y-axis">Y:</label>
+                <input 
+                  type="number" 
+                  value={targetPosition.y}
+                  onChange={(e) => handleTargetPositionChange('y', e.target.value)}
+                  step="0.1"
+                />
+                <span className="unit-label">mm</span>
+              </div>
+            </div>
+            
+            <div className="input-row">
+              <div className="input-group">
+                <label className="axis-label z-axis">Z:</label>
+                <input 
+                  type="number" 
+                  value={targetPosition.z}
+                  onChange={(e) => handleTargetPositionChange('z', e.target.value)}
+                  step="0.1"
+                />
+                <span className="unit-label">mm</span>
+              </div>
+              
+              <div className="input-group">
+                <label className="axis-label a-axis">A:</label>
+                <input 
+                  type="number" 
+                  value={targetPosition.a}
+                  onChange={(e) => handleTargetPositionChange('a', e.target.value)}
+                  step="0.1"
+                />
+                <span className="unit-label">°</span>
+              </div>
+            </div>
+            
+            <div className="move-controls">
+              <div className="move-mode-selector">
+                <button 
+                  className={`move-mode-btn ${moveType === 'G0' ? 'active' : ''}`}
+                  onClick={() => setMoveType('G0')}
+                >
+                  <span className="move-mode-icon">G0</span>
+                  <span className="move-mode-label">Rapid</span>
+                </button>
+                <button 
+                  className={`move-mode-btn ${moveType === 'G1' ? 'active' : ''}`}
+                  onClick={() => setMoveType('G1')}
+                >
+                  <span className="move-mode-icon">G1</span>
+                  <span className="move-mode-label">Controlled</span>
+                </button>
               </div>
               
               <button 
                 className="move-to-position-btn"
-                onClick={moveToExactPosition}
+                onClick={() => moveToExactPosition(moveType)}
               >
+                <span className="btn-icon">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                  </svg>
+                </span>
                 Move to Position
               </button>
             </div>
           </div>
+        </div>
         )}
       
         {/* Movement Controls */}
@@ -377,13 +601,14 @@ const ControlPanel = () => {
           </button>
           
           <button 
-            className="global-btn stop-btn" 
-          >
-            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-            </svg>
-            STOP
-          </button>
+  className="global-btn stop-btn" 
+  onClick={handleStop}
+>
+  <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none">
+    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+  </svg>
+  STOP
+</button>
         </div>
       </div>
       
