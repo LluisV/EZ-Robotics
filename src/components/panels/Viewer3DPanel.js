@@ -1,9 +1,10 @@
-import React, { useState, useRef, useEffect, useCallback, useContext } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { useGCode } from '../../contexts/GCodeContext';
 import ToolpathVisualizer from '../../utils/ToolpathVisualizer';
 import Gizmo from './Gizmo';
+import communicationService from '../../services/communication/CommunicationService';
 
 // Theme colors object with theme-specific hardcoded values
 const getThemeColors = () => {
@@ -17,7 +18,8 @@ const getThemeColors = () => {
     gridSecondary: '#333333',
     xAxis: '#cc3333',
     yAxis: '#00aa55',
-    zAxis: '#0077cc'
+    zAxis: '#0077cc',
+    robotPosition: '#ffaa00'
   };
   
   // Adjust colors based on theme
@@ -28,17 +30,11 @@ const getThemeColors = () => {
     colors.xAxis = '#aa0000';
     colors.yAxis = '#007700';
     colors.zAxis = '#0000aa';
+    colors.robotPosition = '#ff8800';
   } else if (themeClass.includes('theme-visual-studio')) {
     colors.background = '#1e1e1e';
     colors.gridPrimary = '#3f3f3f';
     colors.gridSecondary = '#2d2d2d';
-  } else if (themeClass.includes('theme-abyss') || themeClass.includes('theme-abyss-spaced')) {
-    colors.background = '#000c18';
-    colors.gridPrimary = '#144d77';
-    colors.gridSecondary = '#093254';
-    colors.xAxis = '#ff628c';
-    colors.yAxis = '#3ad900';
-    colors.zAxis = '#5ccfe6';
   } else if (themeClass.includes('theme-dracula')) {
     colors.background = '#282a36';
     colors.gridPrimary = '#44475a';
@@ -46,13 +42,7 @@ const getThemeColors = () => {
     colors.xAxis = '#ff5555';
     colors.yAxis = '#50fa7b';
     colors.zAxis = '#8be9fd';
-  } else if (themeClass.includes('theme-replit')) {
-    colors.background = '#f5f9fc';
-    colors.gridPrimary = '#c2c8cc';
-    colors.gridSecondary = '#dbe1e6';
-    colors.xAxis = '#e91e63';
-    colors.yAxis = '#13c2c2';
-    colors.zAxis = '#1890ff';
+    colors.robotPosition = '#ffb86c';
   }
   
   return colors;
@@ -67,6 +57,10 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
   const gridHelperRef = useRef(null);
   const axesHelperRef = useRef(null);
   const toolpathVisualizerRef = useRef(null);
+  const raycasterRef = useRef(new THREE.Raycaster());
+  const mouseRef = useRef(new THREE.Vector2());
+  const robotToolRef = useRef(null);
+  const mouseIndicatorRef = useRef(null);
 
   // Get toolpath data from the GCode context
   const { parsedToolpath, selectedLine } = useGCode();
@@ -77,6 +71,11 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
   const [showAxes, setShowAxes] = useState(initialShowAxes);
   const [themeColors, setThemeColors] = useState(getThemeColors());
   const [showToolpath, setShowToolpath] = useState(true);
+  const [showMousePosition, setShowMousePosition] = useState(true);
+  
+  // State for robot position
+  const [robotPosition, setRobotPosition] = useState({ x: 0, y: 0, z: 0, a: 0 });
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0, z: 0 });
 
   // Update when the initialShowAxes prop changes
   useEffect(() => {
@@ -161,6 +160,13 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
           axesHelperRef.current = axesGroup;
         }
       }
+      
+      // Update robot position indicator if it exists
+      if (robotToolRef.current) {
+        if (robotToolRef.current.material) {
+          robotToolRef.current.material.color = new THREE.Color(newColors.robotPosition);
+        }
+      }
     };
 
     // Create a MutationObserver to watch for class changes on document.documentElement
@@ -191,67 +197,16 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     if (showToolpath) {
       // Visualize the toolpath
       const bounds = toolpathVisualizerRef.current.visualize(parsedToolpath);
-      /*
+      
       // Focus camera on the toolpath if we have bounds
       if (bounds && controlsRef.current && cameraRef.current) {
-        centerCameraOnBounds(bounds);
+        // centerCameraOnBounds(bounds);
       }
-        */
     } else {
       // Clear the toolpath visualization
       toolpathVisualizerRef.current.clear();
     }
   }, [parsedToolpath, showToolpath]);
-
-  // Center camera on the toolpath bounds
-  const centerCameraOnBounds = (bounds) => {
-    if (!bounds || !controlsRef.current || !cameraRef.current) return;
-    
-    const center = new THREE.Vector3(
-      (bounds.min.x + bounds.max.x) / 2,
-      (bounds.min.y + bounds.max.y) / 2,
-      (bounds.min.z + bounds.max.z) / 2
-    );
-    
-    // Calculate the bounding box diagonal length
-    const size = new THREE.Vector3(
-      Math.abs(bounds.max.x - bounds.min.x),
-      Math.abs(bounds.max.y - bounds.min.y),
-      Math.abs(bounds.max.z - bounds.min.z)
-    );
-    
-    const maxSize = Math.max(size.x, size.y, size.z);
-    
-    // Position the camera to see the entire toolpath
-    if (isPerspective) {
-      const distance = maxSize * 1.5;
-      cameraRef.current.position.set(
-        center.x + distance,
-        center.y + distance,
-        center.z + distance
-      );
-    } else {
-      const orthographicCamera = cameraRef.current;
-      const aspect = mountRef.current.clientWidth / mountRef.current.clientHeight;
-      const frustumSize = maxSize * 1.5;
-      
-      orthographicCamera.left = frustumSize * aspect / -2;
-      orthographicCamera.right = frustumSize * aspect / 2;
-      orthographicCamera.top = frustumSize / 2;
-      orthographicCamera.bottom = frustumSize / -2;
-      orthographicCamera.updateProjectionMatrix();
-      
-      orthographicCamera.position.set(
-        center.x + maxSize,
-        center.y + maxSize,
-        center.z + maxSize
-      );
-    }
-    
-    // Set controls target to the center of the toolpath
-    controlsRef.current.target.copy(center);
-    controlsRef.current.update();
-  };
 
   // Highlight specific line in the toolpath
   useEffect(() => {
@@ -260,51 +215,232 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     toolpathVisualizerRef.current.highlightLine(selectedLine);
   }, [selectedLine]);
 
-  // Function to toggle axes visibility
-  const toggleAxes = useCallback(() => {
-    setShowAxes(prevShowAxes => {
-      const newShowAxes = !prevShowAxes;
-      
-      // Update the scene immediately
-      if (sceneRef.current && axesHelperRef.current) {
-        if (newShowAxes) {
-          // If we're showing axes and they already exist, just make sure they're in the scene
-          if (!sceneRef.current.getObjectByName('axes')) {
-            sceneRef.current.add(axesHelperRef.current);
+  // Subscribe to position telemetry events
+  useEffect(() => {
+    // Handler for position telemetry
+    const handlePositionTelemetry = (data) => {
+      if (typeof data.response === 'string' && data.response.startsWith('[TELEMETRY][POS]')) {
+        // Parse the telemetry data
+        const posRegex = /\[TELEMETRY\]\[POS\]\s*X:?\s*([-+]?\d+\.?\d*)\s*Y:?\s*([-+]?\d+\.?\d*)\s*Z:?\s*([-+]?\d+\.?\d*)(?:\s*A:?\s*([-+]?\d+\.?\d*))?/i;
+        const match = data.response.match(posRegex);
+        
+        if (match) {
+          // Extract the position data
+          const newPosition = {
+            x: parseFloat(match[1]),
+            y: parseFloat(match[2]),
+            z: parseFloat(match[3]),
+            a: match[4] !== undefined ? parseFloat(match[4]) : 0
+          };
+          
+          // Update the state
+          setRobotPosition(newPosition);
+          
+          // Update the robot tool position in the 3D scene
+          if (robotToolRef.current) {
+            robotToolRef.current.position.x = newPosition.x * 0.1; // Apply scale factor
+            robotToolRef.current.position.y = newPosition.y * 0.1;
+            robotToolRef.current.position.z = newPosition.z * 0.1;
+            
+            // Update rotation based on A axis
+            if (newPosition.a !== undefined) {
+              robotToolRef.current.rotation.z = newPosition.a * Math.PI / 180;
+            }
           }
-        } else {
-          // If we're hiding axes, remove them from the scene
-          sceneRef.current.remove(axesHelperRef.current);
         }
       }
-      
-      return newShowAxes;
-    });
+    };
+    
+    // Register event listener
+    communicationService.on('position-telemetry', handlePositionTelemetry);
+    
+    // Cleanup
+    return () => {
+      communicationService.removeListener('position-telemetry', handlePositionTelemetry);
+    };
   }, []);
 
-  // Toggle toolpath visibility
-  const toggleToolpath = useCallback(() => {
-    setShowToolpath(prevShowToolpath => {
-      const newShowToolpath = !prevShowToolpath;
+  // Create robot position indicator
+  const createRobotTool = useCallback(() => {
+    if (!sceneRef.current) return;
+    
+    // Remove existing tool if any
+    if (robotToolRef.current) {
+      sceneRef.current.remove(robotToolRef.current);
+    }
+    
+    // Create a group for the robot tool
+    const toolGroup = new THREE.Group();
+    toolGroup.name = 'robot-tool';
+    
+    // Create a cylindrical body
+    const bodyGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.3, 16);
+    const bodyMaterial = new THREE.MeshBasicMaterial({ color: themeColors.robotPosition });
+    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    body.rotation.x = Math.PI / 2; // Align with Z axis
+    body.position.z = 0.3; // Move up half of its height
+    
+    // Create a conical tip
+    const tipGeometry = new THREE.ConeGeometry(0.08, 0.15, 16);
+    const tipMaterial = new THREE.MeshBasicMaterial({ color: themeColors.robotPosition });
+    const tip = new THREE.Mesh(tipGeometry, tipMaterial);
+    tip.rotation.x = -Math.PI / 2; // Align with Z axis, point forward
+    tip.position.z = 0.075; // Position at the top of the body
+    
+    // Add body and tip to the group
+    toolGroup.add(body);
+    toolGroup.add(tip);
+    
+    // Set initial position
+    toolGroup.position.set(
+      robotPosition.x * 0.1, 
+      robotPosition.y * 0.1, 
+      robotPosition.z * 0.1
+    );
+    
+    // Add to the scene
+    sceneRef.current.add(toolGroup);
+    robotToolRef.current = toolGroup;
+    
+  }, [robotPosition, themeColors]);
+
+  // Handle mousemove event for position tracking
+  const handleMouseMove = useCallback((event) => {
+    if (!mountRef.current || !raycasterRef.current || !cameraRef.current || !showMousePosition) return;
+    
+    // Calculate mouse position in normalized device coordinates (-1 to +1)
+    const rect = mountRef.current.getBoundingClientRect();
+    mouseRef.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouseRef.current.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    
+    // Update the picking ray
+    raycasterRef.current.setFromCamera(mouseRef.current, cameraRef.current);
+    
+    // Calculate objects intersecting the ray - we're only interested in the grid plane
+    const gridPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0); // XY plane
+    const intersection = new THREE.Vector3();
+    
+    // Check if the ray intersects the plane
+    if (raycasterRef.current.ray.intersectPlane(gridPlane, intersection)) {
+      // Scale the intersection point back to world units
+      const scale = 10; // Assuming grid is 10x10
+      const x = intersection.x * scale;
+      const y = intersection.y * scale;
+      const z = intersection.z * scale;
       
-      // Update visualization immediately
-      if (toolpathVisualizerRef.current) {
-        if (newShowToolpath && parsedToolpath) {
-          toolpathVisualizerRef.current.visualize(parsedToolpath);
-        } else {
-          toolpathVisualizerRef.current.clear();
-        }
+      // Update position state
+      setMousePosition({ x, y, z });
+      
+      // Update the mouse indicator sphere
+      if (mouseIndicatorRef.current) {
+        mouseIndicatorRef.current.position.copy(intersection);
+        mouseIndicatorRef.current.visible = true;
       }
-      
-      return newShowToolpath;
-    });
-  }, [parsedToolpath]);
+    } else if (mouseIndicatorRef.current) {
+      // Hide the indicator if not intersecting
+      mouseIndicatorRef.current.visible = false;
+    }
+  }, [showMousePosition]);
+
+  // Handle mouseout event
+  const handleMouseOut = useCallback(() => {
+    // Clear mouse position when leaving the 3D view
+    setMousePosition({ x: 0, y: 0, z: 0 });
+    
+    // Hide the mouse indicator
+    if (mouseIndicatorRef.current) {
+      mouseIndicatorRef.current.visible = false;
+    }
+  }, []);
+
+  // Toggle mouse position display
+  const toggleMousePosition = useCallback(() => {
+    setShowMousePosition(!showMousePosition);
+  }, [showMousePosition]);
+
+  // Function to toggle perspective
+  const togglePerspective = useCallback(() => {
+    if (!cameraRef.current || !mountRef.current || !rendererRef.current) return;
+
+    const currentCamera = cameraRef.current;
+    const renderer = rendererRef.current;
+    const width = mountRef.current.clientWidth;
+    const height = mountRef.current.clientHeight;
+    const aspect = width / height;
+    
+    // Calculate distance from camera to origin
+    const distance = currentCamera.position.length();
+    
+    // Toggle between perspective and orthographic cameras
+    const newCamera = isPerspective 
+      ? new THREE.OrthographicCamera(
+          -distance * aspect, 
+          distance * aspect, 
+          distance, 
+          -distance, 
+          -10, 
+          1000
+        )
+      : new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
+
+    // Copy position and lookAt
+    newCamera.position.copy(currentCamera.position);
+    newCamera.up.set(0, 0, 1);
+    newCamera.lookAt(0, 0, 0);
+
+    // Update global window camera
+    window.parentCamera = newCamera;
+
+    // Update controls
+    const controls = new OrbitControls(newCamera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.25;
+    controls.object.up.set(0, 0, 1);
+    controls.target.set(0, 0, 0);
+    controls.update();
+
+    // Update references
+    cameraRef.current = newCamera;
+    controlsRef.current = controls;
+
+    // Toggle state
+    setIsPerspective(!isPerspective);
+  }, [isPerspective]);
+
+  // Handle view changes from gizmo
+  const handleViewChange = useCallback((view) => {
+    if (!cameraRef.current || !controlsRef.current) return;
+
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+
+    // Reset camera
+    const distance = 5;
+    
+    switch (view) {
+      case 'top':
+        camera.position.set(0, 0, distance);
+        break;
+      case 'front':
+        camera.position.set(0, -distance, 0);
+        break;
+      case 'side':
+        camera.position.set(distance, 0, 0);
+        break;
+      default:
+        break;
+    }
+
+    camera.lookAt(0, 0, 0);
+    controls.target.set(0, 0, 0);
+    controls.update();
+  }, []);
 
   // Create and set up the scene
   const initializeScene = useCallback(() => {
     if (!mountRef.current) return;
 
-    // Clean up existing scene if it exists
+    // Clean up existing scene
     if (rendererRef.current && mountRef.current.contains(rendererRef.current.domElement)) {
       mountRef.current.removeChild(rendererRef.current.domElement);
     }
@@ -349,6 +485,10 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     renderer.setPixelRatio(window.devicePixelRatio);
     mountRef.current.appendChild(renderer.domElement);
     rendererRef.current = renderer;
+
+    // Add mouse move event listener to the renderer domElement
+    renderer.domElement.addEventListener('mousemove', handleMouseMove);
+    renderer.domElement.addEventListener('mouseout', handleMouseOut);
 
     // Orbit controls
     const controls = new OrbitControls(cameraRef.current, renderer.domElement);
@@ -424,18 +564,28 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
       axesHelperRef.current = axesGroup;
     }
 
+    // Create robot position indicator
+    createRobotTool();
+    
+    // Create mouse position indicator sphere
+    const sphereGeometry = new THREE.SphereGeometry(0.03, 16, 16);
+    const sphereMaterial = new THREE.MeshBasicMaterial({ 
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.75,
+      depthTest: true
+    });
+    const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+    sphere.visible = false; // Hidden by default
+    scene.add(sphere);
+    mouseIndicatorRef.current = sphere;
+
     // Initialize toolpath visualizer
     toolpathVisualizerRef.current = new ToolpathVisualizer(scene);
     
     // If we already have a toolpath, visualize it
     if (parsedToolpath && showToolpath) {
-      const bounds = toolpathVisualizerRef.current.visualize(parsedToolpath);
-      
-      // Focus camera on the toolpath
-      if (bounds) {
-        // Adjust camera position after a short delay to ensure everything is set up
-        setTimeout(() => centerCameraOnBounds(bounds), 100);
-      }
+      toolpathVisualizerRef.current.visualize(parsedToolpath);
     }
 
     // Handle resize
@@ -484,6 +634,10 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     return () => {
       // Cleanup
       window.removeEventListener('resize', handleResize);
+      if (rendererRef.current?.domElement) {
+        rendererRef.current.domElement.removeEventListener('mousemove', handleMouseMove);
+        rendererRef.current.domElement.removeEventListener('mouseout', handleMouseOut);
+      }
       if (controlsRef.current) {
         controlsRef.current.dispose();
       }
@@ -491,91 +645,13 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
         rendererRef.current.dispose();
       }
     };
-  }, [isGridVisible, showAxes, isPerspective, themeColors, parsedToolpath, showToolpath]);
-
-  // Handle view changes from gizmo
-  const handleViewChange = useCallback((view) => {
-    if (!cameraRef.current || !controlsRef.current) return;
-
-    const camera = cameraRef.current;
-    const controls = controlsRef.current;
-
-    // Reset camera
-    const distance = 5;
-    
-    switch (view) {
-      case 'top':
-        camera.position.set(0, 0, distance);
-        break;
-      case 'front':
-        camera.position.set(0, -distance, 0);
-        break;
-      case 'side':
-        camera.position.set(distance, 0, 0);
-        break;
-      default:
-        break;
-    }
-
-    camera.lookAt(0, 0, 0);
-    controls.target.set(0, 0, 0);
-    controls.update();
-  }, []);
+  }, [isGridVisible, showAxes, isPerspective, themeColors, parsedToolpath, showToolpath, handleMouseMove, handleMouseOut, createRobotTool]);
 
   // Trigger scene initialization 
   useEffect(() => {
     const cleanup = initializeScene();
     return cleanup;
   }, [initializeScene]);
-
-  // Handle perspective toggle
-  const togglePerspective = useCallback(() => {
-    if (!cameraRef.current || !mountRef.current || !rendererRef.current) return;
-
-    const currentCamera = cameraRef.current;
-    const renderer = rendererRef.current;
-    const width = mountRef.current.clientWidth;
-    const height = mountRef.current.clientHeight;
-    const aspect = width / height;
-    
-    // Calculate distance from camera to origin
-    const distance = currentCamera.position.length();
-    
-    // Toggle between perspective and orthographic cameras
-    const newCamera = isPerspective 
-      ? new THREE.OrthographicCamera(
-          -distance * aspect, 
-          distance * aspect, 
-          distance, 
-          -distance, 
-          -10, 
-          1000
-        )
-      : new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
-
-    // Copy position and lookAt
-    newCamera.position.copy(currentCamera.position);
-    newCamera.up.set(0, 0, 1);
-    newCamera.lookAt(0, 0, 0);
-
-    // Update global window camera
-    window.parentCamera = newCamera;
-
-    // Update controls
-    const controls = new OrbitControls(newCamera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.25;
-    controls.object.up.set(0, 0, 1);
-    controls.target.set(0, 0, 0);
-    controls.update();
-
-    // Update references
-    cameraRef.current = newCamera;
-    controlsRef.current = controls;
-
-    // Toggle state
-    setIsPerspective(!isPerspective);
-  }, [isPerspective]);
 
   return (
     <div className="panel-content">
@@ -586,7 +662,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
               <input 
                 type="checkbox" 
                 checked={showAxes} 
-                onChange={toggleAxes} 
+                onChange={() => setShowAxes(!showAxes)} 
                 style={{ margin: 0 }}
               /> 
               Axes
@@ -596,7 +672,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
               <input 
                 type="checkbox" 
                 checked={isGridVisible} 
-                onChange={(e) => setIsGridVisible(e.target.checked)}
+                onChange={() => setIsGridVisible(!isGridVisible)}
                 style={{ margin: 0 }}
               /> 
               Grid
@@ -606,10 +682,20 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
               <input 
                 type="checkbox" 
                 checked={showToolpath} 
-                onChange={toggleToolpath}
+                onChange={() => setShowToolpath(!showToolpath)}
                 style={{ margin: 0 }}
               /> 
               Toolpath
+            </label>
+            
+            <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px' }}>
+              <input 
+                type="checkbox" 
+                checked={showMousePosition} 
+                onChange={toggleMousePosition}
+                style={{ margin: 0 }}
+              /> 
+              Show Coordinates
             </label>
           </div>
           
@@ -632,21 +718,79 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
             </button>
           </div>
         </div>
+        
+        <div className="robot-position-display" style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <span style={{ color: themeColors.xAxis }}>X:</span>
+            <span>{robotPosition.x.toFixed(2)}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <span style={{ color: themeColors.yAxis }}>Y:</span>
+            <span>{robotPosition.y.toFixed(2)}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <span style={{ color: themeColors.zAxis }}>Z:</span>
+            <span>{robotPosition.z.toFixed(2)}</span>
+          </div>
+          {robotPosition.a !== undefined && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <span style={{ color: themeColors.robotPosition }}>A:</span>
+              <span>{robotPosition.a.toFixed(2)}°</span>
+            </div>
+          )}
+        </div>
       </div>
       
-      <div 
-        ref={mountRef} 
-        style={{ 
-          width: '100%', 
-          height: 'calc(100% - 40px)', 
-          backgroundColor: themeColors.background,
-          borderRadius: 'var(--border-radius)',
-          overflow: 'hidden',
-          position: 'relative'
-        }} 
-      />
-      
-      <Gizmo onViewChange={handleViewChange} />
+      <div style={{ position: 'relative', height: 'calc(100% - 40px)' }}>
+        <div 
+          ref={mountRef} 
+          style={{ 
+            width: '100%', 
+            height: '100%', 
+            backgroundColor: themeColors.background,
+            borderRadius: 'var(--border-radius)',
+            overflow: 'hidden',
+            position: 'relative'
+          }} 
+        />
+        
+        {showMousePosition && (
+          <div 
+            style={{
+              position: 'absolute',
+              bottom: '10px',
+              right: '10px',
+              padding: '8px 12px',
+              backgroundColor: 'rgba(0, 0, 0, 0.7)',
+              borderRadius: 'var(--border-radius)',
+              color: 'white',
+              fontSize: '12px',
+              fontFamily: 'monospace',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '2px',
+              zIndex: 100,
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+              border: '1px solid rgba(255, 255, 255, 0.1)'
+            }}
+          >
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'space-between' }}>
+              <span style={{ color: themeColors.xAxis }}>X:</span>
+              <span>{mousePosition.x.toFixed(2)}</span>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'space-between' }}>
+              <span style={{ color: themeColors.yAxis }}>Y:</span>
+              <span>{mousePosition.y.toFixed(2)}</span>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'space-between' }}>
+              <span style={{ color: themeColors.zAxis }}>Z:</span>
+              <span>{mousePosition.z.toFixed(2)}</span>
+            </div>
+          </div>
+        )}
+        
+        <Gizmo onViewChange={handleViewChange} />
+      </div>
     </div>
   );
 };

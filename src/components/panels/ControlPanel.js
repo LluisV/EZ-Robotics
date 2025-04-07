@@ -234,84 +234,86 @@ const ControlPanel = () => {
         {/* Exact Position Input */}
         {showExactPositionInput && (
           <div className="exact-position-input">
-          <div className="exact-position-form">
-            <div className="input-row">
-              <div className="input-group">
-                <label className="axis-label x-axis">X:</label>
-                <input 
-                  type="number" 
-                  value={targetPosition.x}
-                  onChange={(e) => handleTargetPositionChange('x', e.target.value)}
-                  step="0.1"
-                />
-                <span className="unit-label">mm</span>
+            <div className="exact-position-form">
+              <div className="input-row">
+                <div className="input-group">
+                  <label className="axis-label x-axis">X:</label>
+                  <input 
+                    type="number" 
+                    value={targetPosition.x}
+                    onChange={(e) => handleTargetPositionChange('x', e.target.value)}
+                    step="0.1"
+                  />
+                  <span className="unit-label">mm</span>
+                </div>
+                
+                <div className="input-group">
+                  <label className="axis-label y-axis">Y:</label>
+                  <input 
+                    type="number" 
+                    value={targetPosition.y}
+                    onChange={(e) => handleTargetPositionChange('y', e.target.value)}
+                    step="0.1"
+                  />
+                  <span className="unit-label">mm</span>
+                </div>
               </div>
               
-              <div className="input-group">
-                <label className="axis-label y-axis">Y:</label>
-                <input 
-                  type="number" 
-                  value={targetPosition.y}
-                  onChange={(e) => handleTargetPositionChange('y', e.target.value)}
-                  step="0.1"
-                />
-                <span className="unit-label">mm</span>
-              </div>
-            </div>
-            
-            <div className="input-row">
-              <div className="input-group">
-                <label className="axis-label z-axis">Z:</label>
-                <input 
-                  type="number" 
-                  value={targetPosition.z}
-                  onChange={(e) => handleTargetPositionChange('z', e.target.value)}
-                  step="0.1"
-                />
-                <span className="unit-label">mm</span>
+              <div className="input-row">
+                <div className="input-group">
+                  <label className="axis-label z-axis">Z:</label>
+                  <input 
+                    type="number" 
+                    value={targetPosition.z}
+                    onChange={(e) => handleTargetPositionChange('z', e.target.value)}
+                    step="0.1"
+                  />
+                  <span className="unit-label">mm</span>
+                </div>
+                
+                <div className="input-group">
+                  <label className="axis-label a-axis">A:</label>
+                  <input 
+                    type="number" 
+                    value={targetPosition.a}
+                    onChange={(e) => handleTargetPositionChange('a', e.target.value)}
+                    step="0.1"
+                  />
+                  <span className="unit-label">°</span>
+                </div>
               </div>
               
-              <div className="input-group">
-                <label className="axis-label a-axis">A:</label>
-                <input 
-                  type="number" 
-                  value={targetPosition.a}
-                  onChange={(e) => handleTargetPositionChange('a', e.target.value)}
-                  step="0.1"
-                />
-                <span className="unit-label">°</span>
-              </div>
-            </div>
-            
-            <div className="move-controls">
-              <div className="move-mode-selector">
+              {/* Improved Move Controls with Enhanced Visual Feedback */}
+              <div className="move-controls">
+                <div className="move-mode-selector">
+                  <button 
+                    className={`move-mode-btn ${moveType === 'G0' ? 'active' : ''}`}
+                    onClick={() => setMoveType('G0')}
+                    aria-pressed={moveType === 'G0'}
+                  >
+                    <span className="move-mode-icon">G0</span>
+                    <span className="move-mode-label">Rapid</span>
+                  </button>
+                  <button 
+                    className={`move-mode-btn ${moveType === 'G1' ? 'active' : ''}`}
+                    onClick={() => setMoveType('G1')}
+                    aria-pressed={moveType === 'G1'}
+                  >
+                    <span className="move-mode-icon">G1</span>
+                    <span className="move-mode-label">Controlled</span>
+                  </button>
+                </div>
+                
                 <button 
-                  className={`move-mode-btn ${moveType === 'G0' ? 'active' : ''}`}
-                  onClick={() => setMoveType('G0')}
+                  className="move-to-position-btn"
+                  onClick={() => moveToExactPosition(moveType)}
                 >
-                  <span className="move-mode-icon">G0</span>
-                  <span className="move-mode-label">Rapid</span>
-                </button>
-                <button 
-                  className={`move-mode-btn ${moveType === 'G1' ? 'active' : ''}`}
-                  onClick={() => setMoveType('G1')}
-                >
-                  <span className="move-mode-icon">G1</span>
-                  <span className="move-mode-label">Controlled</span>
+                  <span className="btn-icon"></span>
+                  Move to Position
                 </button>
               </div>
-              
-              <button 
-                className="move-to-position-btn"
-                onClick={() => moveToExactPosition(moveType)}
-              >
-                <span className="btn-icon">
-                </span>
-                Move to Position
-              </button>
             </div>
           </div>
-        </div>
         )}
       
         {/* Movement Controls */}

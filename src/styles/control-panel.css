@@ -3,11 +3,13 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  height: 100%;
+  height: auto; /* Changed from 100% to auto */
+  min-height: 100%; /* Added min-height */
   overflow-y: auto;
   padding: 16px;
   font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
 }
+
 
 /* Scrollbar styling */
 .control-panel::-webkit-scrollbar {
@@ -138,7 +140,7 @@
 /* Position cards styling */
 .position-display {
   padding-bottom: 20px;
-  min-height: 620px;
+  min-height: 660px;
 }
 
 .position-cards {
@@ -810,48 +812,51 @@ input:checked + .toggle-slider .toggle-icon {
 /* Exact position input styling */
 .exact-position-input {
   margin-top: 16px;
-  padding: 16px;
+  padding: 12px; /* Reduced padding */
   background-color: rgba(0, 0, 0, 0.08);
   border-radius: var(--dv-border-radius, var(--border-radius));
   border: 1px solid var(--dv-separator-border, var(--border-color));
   animation: slideDown 0.3s ease;
-  /* Ensure content is visible */
   overflow: visible;
 }
 
 .exact-position-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px; /* Reduced gap */
 }
 
 .input-row {
   display: flex;
-  gap: 12px;
+  gap: 10px; /* Reduced gap */
+  width: 100%; /* Ensure full width */
 }
+
 
 .input-group {
   display: flex;
   align-items: center;
   flex: 1;
+  min-width: 0; /* Allow shrinking below content size */
 }
 
 .input-group label {
-  width: 25px;
+  width: 20px; /* Reduced width */
   font-weight: 600;
   text-align: center;
 }
 
 .input-group input {
   flex: 1;
-  padding: 8px 10px;
+  padding: 6px 8px; /* Reduced padding */
   background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, var(--bg-light));
   color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
   border: 1px solid var(--dv-separator-border, var(--border-color));
   border-radius: var(--dv-border-radius, var(--border-radius));
   font-family: inherit;
-  font-size: 14px;
+  font-size: 13px; /* Reduced font size */
   text-align: right;
+  width: 100%; /* Take full available width */
 }
 
 .input-group input:focus {
@@ -860,9 +865,9 @@ input:checked + .toggle-slider .toggle-icon {
 }
 
 .input-group .unit-label {
-  width: 30px;
-  padding-left: 6px;
-  font-size: 12px;
+  width: 25px; /* Reduced width */
+  padding-left: 4px; /* Reduced padding */
+  font-size: 11px; /* Reduced font size */
   color: var(--dv-inactivegroup-hiddenpanel-tab-color, var(--text-secondary));
 }
 
@@ -947,8 +952,23 @@ input:checked + .toggle-slider .toggle-icon {
 /* Responsive styling */
 @media (max-width: 600px) {
   .input-row {
-    flex-direction: column;
+    flex-direction: row; /* Keep rows on small screens */
+    flex-wrap: wrap; /* Allow wrapping */
     gap: 8px;
+  }
+
+  .input-group {
+    min-width: 120px; /* Ensure minimum width */
+    flex: 1 0 45%; /* Allow two per row on very small screens */
+  }
+
+  .input-group input {
+    min-width: 60px; /* Minimum width for input fields */
+  }
+
+  .position-cards {
+    grid-template-columns: repeat(2, 1fr); /* 2 columns instead */
+    grid-template-rows: repeat(2, 1fr);
   }
 }
 
@@ -956,8 +976,8 @@ input:checked + .toggle-slider .toggle-icon {
 .move-controls {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-top: 10px;
+  gap: 10px; /* Reduced gap */
+  margin-top: 8px; /* Reduced margin */
 }
 
 .move-mode-selector {
@@ -981,12 +1001,26 @@ input:checked + .toggle-slider .toggle-icon {
   color: var(--dv-inactivegroup-hiddenpanel-tab-color, var(--text-secondary));
   transition: all 0.2s ease;
   cursor: pointer;
+  position: relative; /* Added */
+  overflow: hidden; /* Added */
 }
 
 .move-mode-btn.active {
   background-color: var(--dv-activegroup-visiblepanel-tab-background-color, var(--bg-light));
   color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  font-weight: 600; /* Added */
+}
+
+.move-mode-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 15%;
+  right: 15%;
+  height: 2px;
+  background-color: var(--accent-blue, #0077cc);
+  border-radius: 1px;
 }
 
 .move-mode-icon {
