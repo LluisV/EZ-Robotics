@@ -103,7 +103,6 @@ class SerialAdapter extends EventEmitter {
       } else {
         port = await this.requestPort();
       }
-      
       // Open the port
       await port.open({ baudRate });
       
