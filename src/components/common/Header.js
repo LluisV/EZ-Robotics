@@ -1,9 +1,20 @@
-import React from 'react';
+import React, { useState } from 'react';
+import SerialConnection from './SerialConnection';
 
 /**
- * Application header component
+ * Application header component with added serial connection UI
  */
 const Header = ({ children }) => {
+  const [connectionStatus, setConnectionStatus] = useState({
+    connected: false,
+    port: null,
+    error: null
+  });
+
+  const handleConnectionStatusChange = (status) => {
+    setConnectionStatus(status);
+  };
+
   return (
     <header>
       <div className="logo-container">
@@ -14,21 +25,14 @@ const Header = ({ children }) => {
       <div className="header-controls">
         {children}
         
-        <select className="toolbar-select">
-          <option value="">Select Robot</option>
-          <option value="robot1">3D Printer</option>
-          <option value="robot2">CNC Machine</option>
-          <option value="robot3">Robot Arm</option>
-        </select>
+        <SerialConnection onStatusChange={handleConnectionStatusChange} />
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span className="status-indicator status-offline"></span>
-          <span>Disconnected</span>
+          <span 
+            className={`status-indicator ${connectionStatus.connected ? 'status-online' : 'status-offline'}`}
+          ></span>
+          <span>{connectionStatus.connected ? 'Connected' : 'Disconnected'}</span>
         </div>
-        
-        <button className="primary">
-          Connect
-        </button>
       </div>
     </header>
   );
