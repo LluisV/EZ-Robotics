@@ -50,6 +50,18 @@ const SerialConnection = ({ onStatusChange = () => {} }) => {
         const connectionMsg = `Connected to ${selectedPort.displayName || selectedPort.path} at ${baudRate} baud`;
         console.log(connectionMsg);
         communicationService.emit('response', { response: connectionMsg });
+        
+        // Send help message automatically after connecting
+        setTimeout(() => {
+            communicationService.sendCommand('?help')
+                .then(response => {
+                    console.log('Help response:', response);
+                    // The response will be automatically displayed in the console panel
+                })
+                .catch(err => {
+                    console.error('Error sending help command:', err);
+                });
+        }, 500); // Short delay to ensure connection is ready
       } else {
         // Get more detailed error information
         const connectionInfo = communicationService.getConnectionInfo();
