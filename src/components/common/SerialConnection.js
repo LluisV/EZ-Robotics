@@ -45,6 +45,36 @@ const SerialConnection = ({ onStatusChange = () => {} }) => {
       communicationService.emit('error', { error: errorMsg });
     }
   };
+
+  // Request new ports from user
+  const requestNewPorts = async () => {
+    try {
+      const availablePorts = await communicationService.requestPorts();
+      
+      // Enhanced port naming with more information
+      const formattedPorts = availablePorts.map((port, index) => ({
+        ...port,
+        displayName: port.displayName || `Serial Device COM${index + 1}`,
+        id: port.path || `port-${index + 1}`
+      }));
+      
+      console.log('Newly requested ports:', formattedPorts);
+      communicationService.emit('response', { 
+        response: `Requested ${formattedPorts.length} new port(s)` 
+      });
+      
+      setPorts(formattedPorts);
+      
+      // If we have ports but none selected, select the first one
+      if (formattedPorts.length > 0 && !selectedPort) {
+        setSelectedPort(formattedPorts[0].id);
+      }
+    } catch (err) {
+      const errorMsg = `Failed to request ports: ${err.message}`;
+      console.error(errorMsg);
+      communicationService.emit('error', { error: errorMsg });
+    }
+  };
   
   // Connect to selected port
   const connect = async () => {
@@ -191,7 +221,7 @@ const SerialConnection = ({ onStatusChange = () => {} }) => {
         
         <button 
           className={`toolbar-button ${isConnecting ? 'disabled' : ''} ${!isConnected ? 'primary' : ''}`}
-          onClick={refreshPorts}
+          onClick={requestNewPorts}
           disabled={isConnecting}
           title="Refresh port list"
         >

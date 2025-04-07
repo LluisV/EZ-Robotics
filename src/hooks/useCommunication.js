@@ -37,11 +37,14 @@ const useCommunication = () => {
       
       // Set default port if available and none selected
       if (ports.length > 0 && !selectedPort) {
-        setSelectedPort(ports[0].port);
+        setSelectedPort(ports[0].path);
       }
+      
+      addLogEntry('info', `Refreshed ports: ${ports.length} found`);
     } catch (err) {
-      setError(`Error refreshing ports: ${err.message}`);
-      addLogEntry('error', `Error refreshing ports: ${err.message}`);
+      const errorMsg = `Error refreshing ports: ${err.message}`;
+      setError(errorMsg);
+      addLogEntry('error', errorMsg);
     } finally {
       setIsLoading(false);
     }
@@ -85,6 +88,29 @@ const useCommunication = () => {
       setIsLoading(false);
     }
   }, [connectionType, selectedPort, baudRate]);
+
+  const requestPorts = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const ports = await communicationService.requestPorts();
+      setAvailablePorts(ports);
+      
+      // Set default port if available and none selected
+      if (ports.length > 0 && !selectedPort) {
+        setSelectedPort(ports[0].path);
+      }
+      
+      addLogEntry('info', `Requested ports: ${ports.length} found`);
+    } catch (err) {
+      const errorMsg = `Error requesting ports: ${err.message}`;
+      setError(errorMsg);
+      addLogEntry('error', errorMsg);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedPort]);
   
   /**
    * Disconnect from the device

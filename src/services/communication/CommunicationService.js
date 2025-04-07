@@ -36,6 +36,7 @@ class CommunicationService extends EventEmitter {
     this._setupAdapterListeners();
   }
   
+  
   /**
    * Get available serial ports
    * @returns {Promise<Array>} List of available ports
@@ -375,6 +376,32 @@ class CommunicationService extends EventEmitter {
     }
     
     this.isProcessingQueue = false;
+  }
+
+  /**
+   * Request ports from the user
+   * @returns {Promise<Array>} List of newly requested ports
+   */
+  async requestPorts() {
+    try {
+      // Attempt to request new ports from the user
+      const requestedPort = await this.serialAdapter.requestPort();
+      
+      // Refresh the available ports list
+      await this.getAvailablePorts();
+      
+      // Emit an event about the new port request
+      this.emit('response', { 
+        response: `Port request completed. New ports available.` 
+      });
+      
+      return this.availablePorts;
+    } catch (error) {
+      const errorMsg = `Port request error: ${error.message}`;
+      console.error(errorMsg);
+      this.emit('error', { error: errorMsg });
+      throw error;
+    }
   }
 }
 
