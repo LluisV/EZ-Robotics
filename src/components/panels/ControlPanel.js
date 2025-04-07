@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 
 import '../../styles/control-panel.css';
 import communicationService from '../../services/communication/CommunicationService';
-
+import EventEmitter from 'events';
 
 /**
  * Modern Control Panel component for robot positioning and control with exact position input.
@@ -11,32 +11,13 @@ const ControlPanel = () => {
   const [speed, setSpeed] = useState(25);
   const [stepSize, setStepSize] = useState(1.0);
   const [activeTool, setActiveTool] = useState(null);
-  const [isConnected, setIsConnected] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0, z: 0, a: 0 });
   const [targetPosition, setTargetPosition] = useState({ x: 0, y: 0, z: 0, a: 0 });
   const [showExactPositionInput, setShowExactPositionInput] = useState(true);
-  const [moveType, setMoveType] = useState('G1');
-  const [pollingEnabled, setPollingEnabled] = useState(true);
-  const pollingIntervalRef = useRef(null);
-  const POLLING_RATE = 500; // 500ms (2Hz) - adjust based on your requirements
+  const [moveType, setMoveType] = useState('G1')
   
   const logToConsole = (type, message) => {
-    switch(type) {
-      case 'command':
-        communicationService.emit('command', { command: message, sent: true });
-        break;
-      case 'response':
-        communicationService.emit('response', { response: message });
-        break;
-      case 'error':
-        communicationService.emit('error', { error: message });
-        break;
-      case 'info':
-        communicationService.emit('response', { response: `[INFO] ${message}` });
-        break;
-      default:
-        communicationService.emit('response', { response: message });
-    }
+    
   };
 
   // Function to simulate sending a movement command
@@ -44,7 +25,7 @@ const ControlPanel = () => {
     // Get connection status
   const connectionInfo = communicationService.getConnectionInfo();
   if (connectionInfo.status !== 'connected') {
-    console.log('Not connected. Connection status:', connectionInfo.status);
+    logToConsole('error', 'Not connected. Connection status: ' + connectionInfo.status);
     return;
   }
 
@@ -53,30 +34,12 @@ const ControlPanel = () => {
   // Create G-code command for movement
   const gcode = `G1 ${axis}${distance} F${speed * 60}`; // Convert speed percentage to mm/min feed rate
   
-  console.log(`Sending command: ${gcode}`);
+  logToConsole('command', `Sending command: ${gcode}`);
   
   // Send the command
   communicationService.sendCommand(gcode)
-    .then(() => {
-      // Request current position after movement
-      return communicationService.sendCommand('?POS', { immediate: true });
-    })
-    .then(response => {
-      // Parse position from response
-      const posRegex = /X:(-?\d+\.?\d*)\s+Y:(-?\d+\.?\d*)\s+Z:(-?\d+\.?\d*)(?:\s+A:(-?\d+\.?\d*))?/i;
-      const match = response.match(posRegex);
-      
-      if (match) {
-        setPosition({
-          x: parseFloat(match[1]),
-          y: parseFloat(match[2]),
-          z: parseFloat(match[3]),
-          a: match[4] ? parseFloat(match[4]) : position.a // Keep the current value for A if not reported
-        });
-      }
-    })
     .catch(err => {
-      console.error('Error sending movement command:', err);
+      logToConsole('error', 'Error sending movement command: ' + err);
     });
   };
   
@@ -90,7 +53,7 @@ const ControlPanel = () => {
     // Get connection status
     const connectionInfo = communicationService.getConnectionInfo();
     if (connectionInfo.status !== 'connected') {
-      console.log('Not connected. Connection status:', connectionInfo.status);
+      logToConsole('error', 'Not connected. Connection status: '+ connectionInfo.status);
       return;
     }
   
@@ -98,35 +61,17 @@ const ControlPanel = () => {
     
     if (axes === 'all') {
       gcode = 'G28';
-      console.log('Sending home all axes command: G28');
+      logToConsole('command', 'Sending home all axes command: G28');
     } else {
       // Format: G28 X Y Z for specific axes
       gcode = `G28 ${axes.toUpperCase()}`;
-      console.log(`Sending home command: ${gcode}`);
+      logToConsole('command', `Sending home command: ${gcode}`);
     }
     
     // Send the command
     communicationService.sendCommand(gcode)
-      .then(() => {
-        // Request current position after homing
-        return communicationService.sendCommand('?POS', { immediate: true });
-      })
-      .then(response => {
-        // Parse position from response
-        const posRegex = /X:(-?\d+\.?\d*)\s+Y:(-?\d+\.?\d*)\s+Z:(-?\d+\.?\d*)(?:\s+A:(-?\d+\.?\d*))?/i;
-        const match = response.match(posRegex);
-        
-        if (match) {
-          setPosition({
-            x: parseFloat(match[1]),
-            y: parseFloat(match[2]),
-            z: parseFloat(match[3]),
-            a: match[4] ? parseFloat(match[4]) : position.a // Keep the current value for A if not reported
-          });
-        }
-      })
       .catch(err => {
-        console.error('Error sending home command:', err);
+         logToConsole('error', 'Error sending home command: ' + err);
       });
   };
   
@@ -141,16 +86,16 @@ const ControlPanel = () => {
   const handleStop = () => {
     const connectionInfo = communicationService.getConnectionInfo();
     if (connectionInfo.status !== 'connected') {
-      console.log('Not connected. Connection status:', connectionInfo.status);
+       logToConsole('error', 'Not connected. Connection status:' + connectionInfo.status);
       return;
     }
   
-    console.log('Sending stop command');
+    logToConsole('command', 'Sending stop command');
     
     // Send the command
     communicationService.sendSpecialCommand('STOP')
       .catch(err => {
-        console.error('Error sending stop command:', err);
+         logToConsole('error', 'Error sending stop command: ' + err);
       });
   };
   
@@ -159,133 +104,88 @@ const ControlPanel = () => {
     // Get connection status
     const connectionInfo = communicationService.getConnectionInfo();
     if (connectionInfo.status !== 'connected') {
-      console.log('Not connected. Connection status:', connectionInfo.status);
+       logToConsole('error', 'Not connected. Connection status:' + connectionInfo.status);
       return;
     }
   
     // Create G-code command for movement
     const gcode = `${moveType} X${targetPosition.x} Y${targetPosition.y} Z${targetPosition.z} A${targetPosition.a} F${speed * 60}`; // Convert speed percentage to mm/min feed rate
     
-    console.log(`Sending command: ${gcode}`);
+     logToConsole('command', `Sending command: ${gcode}`);
     
     // Send the command
     communicationService.sendCommand(gcode)
-      .then(() => {
-        // Request current position after movement
-        return communicationService.sendCommand('?POS', { immediate: true });
-      })
-      .then(response => {
-        // Parse position from response
-        const posRegex = /X:(-?\d+\.?\d*)\s+Y:(-?\d+\.?\d*)\s+Z:(-?\d+\.?\d*)(?:\s+A:(-?\d+\.?\d*))?/i;
-        const match = response.match(posRegex);
-        
-        if (match) {
-          setPosition({
-            x: parseFloat(match[1]),
-            y: parseFloat(match[2]),
-            z: parseFloat(match[3]),
-            a: match[4] ? parseFloat(match[4]) : position.a // Keep the current value for A if not reported
-          });
-        }
-      })
       .catch(err => {
-        console.error('Error sending movement command:', err);
+         logToConsole('error', 'Error sending movement command: '+ err);
       });
   };
-
-  const queryPosition = useCallback(async () => {
-    if (!isConnected) return;
-    
-    try {
-      const response = await communicationService.sendCommand('?POS', { 
-        immediate: true,
-        expectResponse: true,
-        silent: true // Don't log the command itself
-      });
-      
-      // Parse position from response
-      const posRegex = /X:(-?\d+\.?\d*)\s+Y:(-?\d+\.?\d*)\s+Z:(-?\d+\.?\d*)(?:\s+A:(-?\d+\.?\d*))?/i;
-      const match = response.match(posRegex);
-      
-      if (match) {
-        setPosition({
-          x: parseFloat(match[1]),
-          y: parseFloat(match[2]),
-          z: parseFloat(match[3]),
-          a: match[4] ? parseFloat(match[4]) : position.a // Keep current A value if not reported
-        });
-      }
-    } catch (err) {
-      // Silent failure for polling - no need to show errors for routine position checks
-      console.error('Position polling error:', err);
-    }
-  }, [isConnected, position.a]);
   
+  // Helper function to parse telemetry position message
+  const parseTelemetryPosition = (message) => {
+    console.log('Parsing telemetry message:', message); // Debugging log
+  
+    const match = message.match(/\[TELEMETRY\]\[POS\]\s*X:?\s*([-+]?\d+\.?\d*)\s*Y:?\s*([-+]?\d+\.?\d*)\s*Z:?\s*([-+]?\d+\.?\d*)(?:\s*A:?\s*([-+]?\d+\.?\d*))?/i);
+    
+    if (!match) {
+      console.log('No match found for telemetry message'); // Debugging log
+      return null;
+    }
+    
+    const position = { x: 0, y: 0, z: 0, a: 0 };
+    
+    // X, Y, Z are always present
+    position.x = parseFloat(match[1]);
+    position.y = parseFloat(match[2]);
+    position.z = parseFloat(match[3]);
+    
+    // A is optional
+    if (match[4] !== undefined) {
+      position.a = parseFloat(match[4]);
+    }
+    
+    console.log('Parsed position:', position); // Debugging log
+    return position;
+  };
+
   // Initialize target position from current position
   useEffect(() => {
     setTargetPosition({...position});
   }, [showExactPositionInput]);
   
-// Setup and cleanup for position polling
-useEffect(() => {
-  // Check connection status initially
-  const connectionInfo = communicationService.getConnectionInfo();
-  setIsConnected(connectionInfo.status === 'connected');
+  // Specific useEffect for telemetry position
+  useEffect(() => {
+    const handlePositionTelemetry = (data) => {
+      console.log('Position telemetry received:', data); // Debugging log
+      
+      if (typeof data.response === 'string' && data.response.startsWith('[TELEMETRY][POS]')) {
+        const newPosition = parseTelemetryPosition(data.response);
+        
+        if (newPosition) {
+          setPosition(prevPosition => {
+            console.log('Updating position from:', prevPosition, 'to:', newPosition); // Debugging log
+            return {
+              x: newPosition.x,
+              y: newPosition.y,
+              z: newPosition.z,
+              a: newPosition.a
+            };
+          });
+        }
+      }
+    };
 
-  // Setup connection status listener
-  const handleConnection = (data) => {
-    setIsConnected(data.status === 'connected');
-    
-    if (data.status === 'connected') {
-      logToConsole('info', 'Connection established - starting position monitoring');
-    } else {
-      logToConsole('info', 'Connection lost - position monitoring paused');
-    }
-  };
+  // Add debug log for event listener setup
+  console.log('Setting up position telemetry listener');
   
-  communicationService.on('connection', handleConnection);
-  
-  // Start position polling if connected
-  if (isConnected && pollingEnabled) {
-    logToConsole('info', 'Starting position monitoring');
-    pollingIntervalRef.current = setInterval(queryPosition, POLLING_RATE);
-  }
-  
-  // Cleanup function
+  // Add event listener
+  communicationService.on('position-telemetry', handlePositionTelemetry);
+
+  // Cleanup listener on unmount
   return () => {
-    communicationService.removeListener('connection', handleConnection);
-    
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
+    console.log('Removing position telemetry listener');
+    communicationService.off('position-telemetry', handlePositionTelemetry);
   };
-}, [isConnected, pollingEnabled, queryPosition]);
-
-// Effect to manage the polling interval when connection state changes
-useEffect(() => {
-  // Clear existing interval
-  if (pollingIntervalRef.current) {
-    clearInterval(pollingIntervalRef.current);
-    pollingIntervalRef.current = null;
-  }
-  
-  // Start new interval if connected and polling is enabled
-  if (isConnected && pollingEnabled) {
-    pollingIntervalRef.current = setInterval(queryPosition, POLLING_RATE);
-    
-    // Immediately query position on connection
-    queryPosition();
-  }
-  
-  return () => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
-  };
-}, [isConnected, pollingEnabled, queryPosition]);
-
+}, []); // Empty dependency array to run only once on mount
 
 
   return (
@@ -406,9 +306,6 @@ useEffect(() => {
                 onClick={() => moveToExactPosition(moveType)}
               >
                 <span className="btn-icon">
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M5 12h14M12 5l7 7-7 7"/>
-                  </svg>
                 </span>
                 Move to Position
               </button>

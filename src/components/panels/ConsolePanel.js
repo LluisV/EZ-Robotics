@@ -18,7 +18,8 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
     DEBUG: true,    // DEBUG_VERBOSE (3)
     COMMAND: true,  // User commands
     RESPONSE: true, // General responses
-    SYSTEM: true    // System messages
+    SYSTEM: true,   // System messages
+    TELEMETRY: false // New telemetry filter, OFF by default
   });
   
   const consoleEndRef = useRef(null);
@@ -35,6 +36,9 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
 
   // Parse message level from robot message format
   const parseMessageLevel = (message) => {
+    if (message.includes('[TELEMETRY]')) {
+      return 'TELEMETRY';
+    }
     // Message format: [timestamp][CORE #][LEVEL][Module] Message
     const levelMatch = message.match(/\[\d+:\d+:\d+\.\d+\]\[CORE \d+\]\[([A-Z]+)\s*\]/);
     if (levelMatch) {
@@ -62,6 +66,8 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
         return 'console-error';
       case 'system':
         return 'console-system';
+      case 'TELEMETRY':
+        return 'console-telemetry';
       default:
         return '';
     }
@@ -178,7 +184,7 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
   const isMessageVisible = (entry) => {
     // Map entry types/levels to filter keys
     let filterKey;
-    
+
     if (entry.type === 'command') {
       filterKey = 'COMMAND';
     } else if (entry.type === 'error') {
@@ -187,7 +193,7 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
       filterKey = 'SYSTEM';
     } else if (entry.level) {
       // Use parsed level for responses
-      if (['ERROR', 'WARN', 'INFO', 'DEBUG'].includes(entry.level)) {
+      if (['ERROR', 'WARN', 'INFO', 'DEBUG', 'TELEMETRY'].includes(entry.level)) {
         filterKey = entry.level;
         // Normalize WARN to WARNING for filter
         if (filterKey === 'WARN') filterKey = 'WARNING';
@@ -244,6 +250,7 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
       setAutoScroll(isScrolledToBottom);
     }
   };
+  
 
   return (
     <div className="console-container">
@@ -319,6 +326,15 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
             >
               <span className="filter-indicator system"></span>
               <span className="filter-label">SYS</span>
+            </div>
+
+            <div 
+              className={`filter-option ${debugLevels.TELEMETRY ? 'active' : ''}`}
+              onClick={() => toggleDebugLevel('TELEMETRY')}
+              title="Show TELEMETRY messages"
+            >
+              <span className="filter-indicator telemetry"></span>
+              <span className="filter-label">TELEM</span>
             </div>
           </div>
         </div>

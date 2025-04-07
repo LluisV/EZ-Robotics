@@ -158,7 +158,7 @@ class CommunicationService extends EventEmitter {
    * @returns {Promise<string>} Command response (if expectResponse=true)
    */
   async sendCommand(command, options = {}) {
-    const { immediate = false, expectResponse = true } = options;
+    const { immediate = false, expectResponse = false } = options;
     
     if (!this.activeAdapter || this.connectionStatus !== ConnectionStatus.CONNECTED) {
       throw new Error('Not connected to robot');
@@ -277,6 +277,12 @@ class CommunicationService extends EventEmitter {
       
       // Skip empty lines
       if (!line) continue;
+      
+      // Check for position telemetry
+      if (line.startsWith('[TELEMETRY][POS]')) {
+        console.log('Emitting position telemetry:', line); // Added debug log
+        this.emit('position-telemetry', { response: line });
+      }
       
       // Emit the received line
       this.emit('response', { response: line });
