@@ -11,39 +11,42 @@ const ControlPanel = () => {
   const [speed, setSpeed] = useState(25);
   const [stepSize, setStepSize] = useState(1.0);
   const [activeTool, setActiveTool] = useState(null);
-  const [position, setPosition] = useState({ x: 0, y: 0, z: 0, a: 0 });
+  const [position, setPosition] = useState({
+    work: { x: 0, y: 0, z: 0, a: 0 },
+    world: { x: 0, y: 0, z: 0, a: 0 }
+  });
   const [targetPosition, setTargetPosition] = useState({ x: 0, y: 0, z: 0, a: 0 });
   const [showExactPositionInput, setShowExactPositionInput] = useState(true);
-  const [moveType, setMoveType] = useState('G1')
+  const [moveType, setMoveType] = useState('G1');
+  const [positionView, setPositionView] = useState('work'); // 'work' or 'world'
   
   const logToConsole = (type, message) => {
     
   };
 
   // Function to simulate sending a movement command
-  // Function to simulate sending a movement command
-const sendMovementCommand = (axis, direction) => {
-  // Get connection status
-  const connectionInfo = communicationService.getConnectionInfo();
-  if (connectionInfo.status !== 'connected') {
-    logToConsole('error', 'Not connected. Connection status: ' + connectionInfo.status);
-    return;
-  }
+  const sendMovementCommand = (axis, direction) => {
+    // Get connection status
+    const connectionInfo = communicationService.getConnectionInfo();
+    if (connectionInfo.status !== 'connected') {
+      logToConsole('error', 'Not connected. Connection status: ' + connectionInfo.status);
+      return;
+    }
 
-  const distance = direction * stepSize;
-  
-  // Create G-code command for INCREMENTAL movement
-  // Add a relative positioning command first
-  const gcode = `G91\nG1 ${axis}${distance} F${speed * 60}\nG90`; // Switch to relative, move, then back to absolute
-  
-  logToConsole('command', `Sending command: ${gcode}`);
-  
-  // Send the command
-  communicationService.sendCommand(gcode)
-    .catch(err => {
-      logToConsole('error', 'Error sending movement command: ' + err);
-    });
-};
+    const distance = direction * stepSize;
+    
+    // Create G-code command for INCREMENTAL movement
+    // Add a relative positioning command first
+    const gcode = `G91\nG1 ${axis}${distance} F${speed * 60}\nG90`; // Switch to relative, move, then back to absolute
+    
+    logToConsole('command', `Sending command: ${gcode}`);
+    
+    // Send the command
+    communicationService.sendCommand(gcode)
+      .catch(err => {
+        logToConsole('error', 'Error sending movement command: ' + err);
+      });
+  };
   
   // Function to handle tool control
   const handleToolToggle = () => {
@@ -122,73 +125,81 @@ const sendMovementCommand = (axis, direction) => {
       });
   };
   
-  // Helper function to parse telemetry position message
+  // Helper function to parse telemetry position message with the new format
   const parseTelemetryPosition = (message) => {
     console.log('Parsing telemetry message:', message); // Debugging log
-  
-    const match = message.match(/\[TELEMETRY\]\[POS\]\s*X:?\s*([-+]?\d+\.?\d*)\s*Y:?\s*([-+]?\d+\.?\d*)\s*Z:?\s*([-+]?\d+\.?\d*)(?:\s*A:?\s*([-+]?\d+\.?\d*))?/i);
     
-    if (!match) {
-      console.log('No match found for telemetry message'); // Debugging log
+    try {
+      // Extract the JSON part from the message
+      const jsonStart = message.indexOf('{');
+      if (jsonStart === -1) return null;
+      
+      const jsonString = message.substring(jsonStart);
+      const data = JSON.parse(jsonString);
+      
+      // Check if the expected structure exists
+      if (!data.work || !data.world) {
+        console.log("Missing expected work/world properties");
+        return null;
+      }
+      
+      return {
+        work: {
+          x: parseFloat(data.work.X) || 0,
+          y: parseFloat(data.work.Y) || 0,
+          z: parseFloat(data.work.Z) || 0,
+          a: parseFloat(data.work.A) || 0
+        },
+        world: {
+          x: parseFloat(data.world.X) || 0,
+          y: parseFloat(data.world.Y) || 0,
+          z: parseFloat(data.world.Z) || 0,
+          a: parseFloat(data.world.A) || 0
+        }
+      };
+    } catch (error) {
+      console.error("Error parsing telemetry:", error);
       return null;
     }
-    
-    const position = { x: 0, y: 0, z: 0, a: 0 };
-    
-    // X, Y, Z are always present
-    position.x = parseFloat(match[1]);
-    position.y = parseFloat(match[2]);
-    position.z = parseFloat(match[3]);
-    
-    // A is optional
-    if (match[4] !== undefined) {
-      position.a = parseFloat(match[4]);
-    }
-    
-    console.log('Parsed position:', position); // Debugging log
-    return position;
   };
 
   // Initialize target position from current position
   useEffect(() => {
-    setTargetPosition({...position});
-  }, [showExactPositionInput]);
+    setTargetPosition({...position[positionView]});
+  }, [showExactPositionInput, positionView]);
   
   // Specific useEffect for telemetry position
   useEffect(() => {
     const handlePositionTelemetry = (data) => {
       console.log('Position telemetry received:', data); // Debugging log
       
-      if (typeof data.response === 'string' && data.response.startsWith('[TELEMETRY][POS]')) {
+      if (typeof data.response === 'string' && data.response.startsWith('[TELEMETRY]')) {
         const newPosition = parseTelemetryPosition(data.response);
         
         if (newPosition) {
           setPosition(prevPosition => {
             console.log('Updating position from:', prevPosition, 'to:', newPosition); // Debugging log
-            return {
-              x: newPosition.x,
-              y: newPosition.y,
-              z: newPosition.z,
-              a: newPosition.a
-            };
+            return newPosition;
           });
         }
       }
     };
 
-  // Add debug log for event listener setup
-  console.log('Setting up position telemetry listener');
-  
-  // Add event listener
-  communicationService.on('position-telemetry', handlePositionTelemetry);
+    // Add debug log for event listener setup
+    console.log('Setting up position telemetry listener');
+    
+    // Add event listener
+    communicationService.on('position-telemetry', handlePositionTelemetry);
 
-  // Cleanup listener on unmount
-  return () => {
-    console.log('Removing position telemetry listener');
-    communicationService.off('position-telemetry', handlePositionTelemetry);
-  };
-}, []); // Empty dependency array to run only once on mount
+    // Cleanup listener on unmount
+    return () => {
+      console.log('Removing position telemetry listener');
+      communicationService.off('position-telemetry', handlePositionTelemetry);
+    };
+  }, []); // Empty dependency array to run only once on mount
 
+  // Get the active position object based on current view
+  const activePosition = position[positionView];
 
   return (
     <div className="control-panel">
@@ -198,38 +209,80 @@ const sendMovementCommand = (axis, direction) => {
           <h3>Position Control</h3>
         </div>
         
+        {/* Position View Selector */}
+        <div className="position-view-selector">
+          <div className="move-mode-selector">
+            <button 
+              className={`move-mode-btn ${positionView === 'work' ? 'active' : ''}`}
+              onClick={() => setPositionView('work')}
+              aria-pressed={positionView === 'work'}
+            >
+              <span className="move-mode-icon">Work</span>
+              <span className="move-mode-label">Coordinate</span>
+            </button>
+            <button 
+              className={`move-mode-btn ${positionView === 'world' ? 'active' : ''}`}
+              onClick={() => setPositionView('world')}
+              aria-pressed={positionView === 'world'}
+            >
+              <span className="move-mode-icon">World</span>
+              <span className="move-mode-label">Coordinate</span>
+            </button>
+          </div>
+        </div>
+        
         {/* Enhanced Position Cards */}
         <div className="position-cards">
           <div className="position-card x-position">
             <div className="position-card-header">
               <div className="axis-label">X</div>
-              <div className="axis-value">{position.x.toFixed(2)}</div>
+              <div className="axis-value">{activePosition.x.toFixed(2)}</div>
             </div>
             <div className="unit">mm</div>
+            <div className="secondary-position">
+              {positionView === 'work' ? 
+                `World: ${position.world.x.toFixed(2)}` : 
+                `Work: ${position.work.x.toFixed(2)}`}
+            </div>
           </div>
           
           <div className="position-card y-position">
             <div className="position-card-header">
               <div className="axis-label">Y</div>
-              <div className="axis-value">{position.y.toFixed(2)}</div>
+              <div className="axis-value">{activePosition.y.toFixed(2)}</div>
             </div>
             <div className="unit">mm</div>
+            <div className="secondary-position">
+              {positionView === 'work' ? 
+                `World: ${position.world.y.toFixed(2)}` : 
+                `Work: ${position.work.y.toFixed(2)}`}
+            </div>
           </div>
           
           <div className="position-card z-position">
             <div className="position-card-header">
               <div className="axis-label">Z</div>
-              <div className="axis-value">{position.z.toFixed(2)}</div>
+              <div className="axis-value">{activePosition.z.toFixed(2)}</div>
             </div>
             <div className="unit">mm</div>
+            <div className="secondary-position">
+              {positionView === 'work' ? 
+                `World: ${position.world.z.toFixed(2)}` : 
+                `Work: ${position.work.z.toFixed(2)}`}
+            </div>
           </div>
 
           <div className="position-card a-orientation">
             <div className="position-card-header">
               <div className="axis-label">A</div>
-              <div className="axis-value">{position.a.toFixed(2)}</div>
+              <div className="axis-value">{activePosition.a.toFixed(2)}</div>
             </div>
             <div className="unit">deg</div>
+            <div className="secondary-position">
+              {positionView === 'work' ? 
+                `World: ${position.world.a.toFixed(2)}` : 
+                `Work: ${position.work.a.toFixed(2)}`}
+            </div>
           </div>
         </div>
 
@@ -285,7 +338,7 @@ const sendMovementCommand = (axis, direction) => {
                 </div>
               </div>
               
-              {/* Improved Move Controls with Enhanced Visual Feedback */}
+              {/* Move Type Selector */}
               <div className="move-controls">
                 <div className="move-mode-selector">
                   <button 
@@ -502,14 +555,14 @@ const sendMovementCommand = (axis, direction) => {
           </button>
           
           <button 
-  className="global-btn stop-btn" 
-  onClick={handleStop}
->
-  <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none">
-    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-  </svg>
-  STOP
-</button>
+            className="global-btn stop-btn" 
+            onClick={handleStop}
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            </svg>
+            STOP
+          </button>
         </div>
       </div>
       

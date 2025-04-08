@@ -279,7 +279,7 @@ class CommunicationService extends EventEmitter {
       if (!line) continue;
       
       // Check for position telemetry
-      if (line.startsWith('[TELEMETRY][POS]')) {
+      if (line.startsWith('[TELEMETRY]')) {
         console.log('Emitting position telemetry:', line); // Added debug log
         this.emit('position-telemetry', { response: line });
       }

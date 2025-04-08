@@ -278,34 +278,73 @@ useEffect(() => {
   useEffect(() => {
     // Handler for position telemetry
     const handlePositionTelemetry = (data) => {
-      if (typeof data.response === 'string' && data.response.startsWith('[TELEMETRY][POS]')) {
-        // Parse the telemetry data
-        const posRegex = /\[TELEMETRY\]\[POS\]\s*X:?\s*([-+]?\d+\.?\d*)\s*Y:?\s*([-+]?\d+\.?\d*)\s*Z:?\s*([-+]?\d+\.?\d*)(?:\s*A:?\s*([-+]?\d+\.?\d*))?/i;
-        const match = data.response.match(posRegex);
-        
-        if (match) {
-          // Extract the position data
-          const newPosition = {
-            x: parseFloat(match[1]),
-            y: parseFloat(match[2]),
-            z: parseFloat(match[3]),
-            a: match[4] !== undefined ? parseFloat(match[4]) : 0
-          };
-          
-          // Update the state
-          setRobotPosition(newPosition);
-          
-          // Update the robot tool position in the 3D scene
-          if (robotToolRef.current) {
-            robotToolRef.current.position.x = newPosition.x * 0.1; // Apply scale factor
-            robotToolRef.current.position.y = newPosition.y * 0.1;
-            robotToolRef.current.position.z = newPosition.z * 0.1;
+      if (typeof data.response === 'string' && data.response.startsWith('[TELEMETRY]')) {
+        try {
+          // Check if it's the new JSON format
+          if (data.response.includes('{"work":') || data.response.includes('{"world":')) {
+            // Extract the JSON part
+            const jsonStart = data.response.indexOf('{');
+            if (jsonStart === -1) return;
             
-            // Update rotation based on A axis
-            if (newPosition.a !== undefined) {
-              robotToolRef.current.rotation.z = newPosition.a * Math.PI / 180;
+            const jsonString = data.response.substring(jsonStart);
+            const parsedData = JSON.parse(jsonString);
+            
+            // Use work coordinates by default
+            if (parsedData.work) {
+              const newPosition = {
+                x: parseFloat(parsedData.work.X) || 0,
+                y: parseFloat(parsedData.work.Y) || 0,
+                z: parseFloat(parsedData.work.Z) || 0,
+                a: parseFloat(parsedData.work.A) || 0
+              };
+              
+              // Update the state
+              setRobotPosition(newPosition);
+              
+              // Update the robot tool position in the 3D scene
+              if (robotToolRef.current) {
+                robotToolRef.current.position.x = newPosition.x * 0.1; // Apply scale factor
+                robotToolRef.current.position.y = newPosition.y * 0.1;
+                robotToolRef.current.position.z = newPosition.z * 0.1;
+                
+                // Update rotation based on A axis
+                if (newPosition.a !== undefined) {
+                  robotToolRef.current.rotation.z = newPosition.a * Math.PI / 180;
+                }
+              }
+            }
+          } else {
+            // Handle old format with regex
+            const posRegex = /\[TELEMETRY\]\[POS\]\s*X:?\s*([-+]?\d+\.?\d*)\s*Y:?\s*([-+]?\d+\.?\d*)\s*Z:?\s*([-+]?\d+\.?\d*)(?:\s*A:?\s*([-+]?\d+\.?\d*))?/i;
+            const match = data.response.match(posRegex);
+            
+            if (match) {
+              // Extract the position data
+              const newPosition = {
+                x: parseFloat(match[1]),
+                y: parseFloat(match[2]),
+                z: parseFloat(match[3]),
+                a: match[4] !== undefined ? parseFloat(match[4]) : 0
+              };
+              
+              // Update the state
+              setRobotPosition(newPosition);
+              
+              // Update the robot tool position in the 3D scene
+              if (robotToolRef.current) {
+                robotToolRef.current.position.x = newPosition.x * 0.1; // Apply scale factor
+                robotToolRef.current.position.y = newPosition.y * 0.1;
+                robotToolRef.current.position.z = newPosition.z * 0.1;
+                
+                // Update rotation based on A axis
+                if (newPosition.a !== undefined) {
+                  robotToolRef.current.rotation.z = newPosition.a * Math.PI / 180;
+                }
+              }
             }
           }
+        } catch (error) {
+          console.error("Error parsing position telemetry:", error);
         }
       }
     };
