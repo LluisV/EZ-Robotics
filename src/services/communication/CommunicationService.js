@@ -165,7 +165,7 @@ class CommunicationService extends EventEmitter {
     }
     
     // Normalize command (ensure it ends with newline)
-    const normalizedCommand = command.trim() + '\n';
+    const normalizedCommand = command.trim() + '\n\r';
     
     // Log the command for debugging
     console.log(`Sending command: ${normalizedCommand.trim()}`);

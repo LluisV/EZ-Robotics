@@ -11,21 +11,34 @@ class ToolpathVisualizer {
     this.toolpathGroup.name = 'toolpath';
     this.scene.add(this.toolpathGroup);
     
+    // Default transformation values
+    this.transformValues = {
+      scaleX: 1.0,
+      scaleY: 1.0,
+      scaleZ: 1.0,
+      moveX: 0,
+      moveY: 0,
+      moveZ: 0,
+      rotateAngle: 0,
+      centerX: 0,
+      centerY: 0
+    };
+    
     // Materials for different move types
     this.materials = {
-        rapid: new THREE.LineDashedMaterial({ 
-            color: 0x00AAFF, 
-            linewidth: 1,
-            transparent: true,
-            opacity: 0.6,
-            dashSize: 1,
-            gapSize: 1
-            }),
-            cut: new THREE.LineBasicMaterial({ 
-                color: 0xFFAA00, 
-                linewidth: 2, 
-                opacity: 0.9
-              }),
+      rapid: new THREE.LineDashedMaterial({ 
+        color: 0x00AAFF, 
+        linewidth: 1,
+        transparent: true,
+        opacity: 0.6,
+        dashSize: 1,
+        gapSize: 1
+      }),
+      cut: new THREE.LineBasicMaterial({ 
+        color: 0xFFAA00, 
+        linewidth: 2, 
+        opacity: 0.9
+      }),
       plunge: new THREE.LineBasicMaterial({ 
         color: 0xFF0000, 
         linewidth: 2,
@@ -61,6 +74,59 @@ class ToolpathVisualizer {
   }
 
   /**
+   * Set transformation values
+   * @param {Object} values - The transformation values
+   */
+  setTransformValues(values) {
+    this.transformValues = {...this.transformValues, ...values};
+    // Visualize again if we have a current toolpath
+    if (this.currentToolpath) {
+      this.visualize(this.currentToolpath);
+    }
+  }
+
+  /**
+   * Apply transformations to a point
+   * @param {Object} point - The point {x, y, z} to transform
+   * @returns {Object} - The transformed point
+   */
+  applyTransformations(point) {
+    let x = point.x;
+    let y = point.y;
+    let z = point.z;
+    
+    // Apply scale relative to center
+    x = (x - this.transformValues.centerX) * this.transformValues.scaleX + this.transformValues.centerX;
+    y = (y - this.transformValues.centerY) * this.transformValues.scaleY + this.transformValues.centerY;
+    z = z * this.transformValues.scaleZ;
+    
+    // Apply rotation around center
+    if (this.transformValues.rotateAngle !== 0) {
+      const relX = x - this.transformValues.centerX;
+      const relY = y - this.transformValues.centerY;
+      const angleRad = (this.transformValues.rotateAngle * Math.PI) / 180;
+      
+      const rotatedX = relX * Math.cos(angleRad) - relY * Math.sin(angleRad) + this.transformValues.centerX;
+      const rotatedY = relX * Math.sin(angleRad) + relY * Math.cos(angleRad) + this.transformValues.centerY;
+      
+      x = rotatedX;
+      y = rotatedY;
+    }
+    
+    // Apply translation
+    x += this.transformValues.moveX;
+    y += this.transformValues.moveY;
+    z += this.transformValues.moveZ;
+    
+    // Apply display scale
+    return {
+      x: x * this.scale,
+      y: y * this.scale,
+      z: z * this.scale
+    };
+  }
+
+  /**
    * Clear all toolpath visualizations
    */
   clear() {
@@ -86,7 +152,7 @@ class ToolpathVisualizer {
   visualize(toolpath) {
     // Check if we actually need to update
     if (!this.needsUpdate(toolpath)) {
-        return;
+      return;
     }
     
     // Store the current toolpath for comparison later
@@ -114,23 +180,7 @@ class ToolpathVisualizer {
       this.toolpathGroup.add(pathLine);
     }
     
-    return null; 
-    // Scale the bounds before returning them
-    /*const scaledBounds = {
-      min: {
-        x: toolpath.bounds.min.x * this.scale,
-        y: toolpath.bounds.min.y * this.scale,
-        z: toolpath.bounds.min.z * this.scale
-      },
-      max: {
-        x: toolpath.bounds.max.x * this.scale,
-        y: toolpath.bounds.max.y * this.scale,
-        z: toolpath.bounds.max.z * this.scale
-      }
-    };
-    
-    // Return the scaled bounds for camera adjustment
-    return scaledBounds;*/
+    return null;
   }
 
   /**
@@ -140,10 +190,14 @@ class ToolpathVisualizer {
   addLineSegment(segment) {
     const { start, end, rapid, toolOn } = segment;
     
+    // Apply transformations
+    const transformedStart = this.applyTransformations(start);
+    const transformedEnd = this.applyTransformations(end);
+    
     // Create points for the line
     const points = [
-        new THREE.Vector3(start.x * this.scale, start.y * this.scale, start.z * this.scale),
-        new THREE.Vector3(end.x * this.scale, end.y * this.scale, end.z * this.scale)
+      new THREE.Vector3(transformedStart.x, transformedStart.y, transformedStart.z),
+      new THREE.Vector3(transformedEnd.x, transformedEnd.y, transformedEnd.z)
     ];
     
     // Add to the overall path
@@ -184,8 +238,8 @@ class ToolpathVisualizer {
     line.name = `segment-${this.toolpathGroup.children.length}`;
 
     if (material === this.materials.rapid) {
-        line.computeLineDistances();
-      }
+      line.computeLineDistances();
+    }
       
     // Set userData for potential interaction
     line.userData = {
@@ -203,19 +257,24 @@ class ToolpathVisualizer {
   addArcSegment(segment) {
     const { start, end, center, clockwise, toolOn } = segment;
     
+    // Apply transformations
+    const transformedStart = this.applyTransformations(start);
+    const transformedEnd = this.applyTransformations(end);
+    const transformedCenter = this.applyTransformations(center);
+    
     // Calculate radius
     const radius = Math.sqrt(
-        Math.pow(start.x - center.x, 2) + 
-        Math.pow(start.y - center.y, 2)
-      ) * this.scale;
+      Math.pow(transformedStart.x - transformedCenter.x, 2) + 
+      Math.pow(transformedStart.y - transformedCenter.y, 2)
+    );
     
     // Calculate start and end angles
-    const startAngle = Math.atan2(start.y - center.y, start.x - center.x);
-    const endAngle = Math.atan2(end.y - center.y, end.x - center.x);
+    const startAngle = Math.atan2(transformedStart.y - transformedCenter.y, transformedStart.x - transformedCenter.x);
+    const endAngle = Math.atan2(transformedEnd.y - transformedCenter.y, transformedEnd.x - transformedCenter.x);
     
     // Create an arc curve
     const curve = new THREE.EllipseCurve(
-      center.x * this.scale, center.y * this.scale, // center
+      transformedCenter.x, transformedCenter.y, // center
       radius, radius,                 // xRadius, yRadius
       startAngle, endAngle,           // startAngle, endAngle
       clockwise,                      // clockwise
@@ -231,12 +290,12 @@ class ToolpathVisualizer {
       const progress = i / (curvePoints.length - 1);
       
       // Interpolate Z value
-      const z = start.z + (end.z - start.z) * progress;
+      const z = transformedStart.z + (transformedEnd.z - transformedStart.z) * progress;
       
       return new THREE.Vector3(
         pt.x, 
-        z * this.scale,
-        pt.y
+        pt.y,
+        z
       );
     });
     
@@ -286,10 +345,11 @@ class ToolpathVisualizer {
    */
   showToolPosition(position) {
     if (position) {
+      // Position is already transformed if coming from highlightLine
       this.toolPositionSphere.position.set(
-        position.x * this.scale, 
-        position.y * this.scale, 
-        position.z * this.scale
+        position.x, 
+        position.y, 
+        position.z
       );
       this.toolPositionSphere.visible = true;
     } else {
@@ -331,7 +391,8 @@ class ToolpathVisualizer {
           });
           
           // Also show the tool position at the end of this segment
-          this.showToolPosition(segment.end);
+          const transformedEnd = this.applyTransformations(segment.end);
+          this.showToolPosition(transformedEnd);
         }
       }
     });
@@ -339,7 +400,7 @@ class ToolpathVisualizer {
 
   /**
    * Check if the visualizer needs to update
-   * @param {string} gcode - The current G-code
+   * @param {Object} parsedToolpath - The parsed toolpath
    * @returns {boolean} Whether the visualizer needs to update
    */
   needsUpdate(parsedToolpath) {

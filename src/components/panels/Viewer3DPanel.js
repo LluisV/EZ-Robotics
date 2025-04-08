@@ -71,9 +71,9 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
   const robotToolRef = useRef(null);
   const mouseIndicatorRef = useRef(null);
   const fileInputRef = useRef(null);
-
+  
   // Get toolpath data from the GCode context
-  const { parsedToolpath, selectedLine } = useGCode();
+  const { parsedToolpath, selectedLine, transformValues } = useGCode();
 
   // State for view and projection
   const [isPerspective, setIsPerspective] = useState(true);
@@ -82,7 +82,8 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
   const [themeColors, setThemeColors] = useState(getThemeColors());
   const [showToolpath, setShowToolpath] = useState(true);
   const [showMousePosition, setShowMousePosition] = useState(true);
-  
+  const [panelDimensions, setPanelDimensions] = useState({ width: 0, height: 0 });
+
   // State for robot position
   const [robotPosition, setRobotPosition] = useState({ x: 0, y: 0, z: 0, a: 0 });
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0, z: 0 });
@@ -92,6 +93,54 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
   const [hoveredStl, setHoveredStl] = useState(null);
   const stlObjectsRef = useRef({});
 
+// Fix the flex layout for the main container and STL panel
+const viewerContainerStyle = {
+  position: 'relative', 
+  display: 'flex',
+  height: 'calc(100% - 40px)',
+  overflow: 'hidden'
+};
+
+// Style for main 3D viewport - should shrink when panel appears
+const viewportStyle = {
+  position: 'relative',
+  flex: '1 1 auto',
+  height: '100%',
+  minWidth: 0 // Important to allow shrinking below content size
+};
+
+// Style for STL panel
+const stlPanelStyle = {
+  width: '250px',
+  minWidth: '250px',
+  flex: '0 0 250px',
+  borderLeft: '1px solid var(--border-color)',
+  overflow: 'auto',
+  backgroundColor: 'var(--panel-bg-color)',
+  borderRadius: 'var(--border-radius)',
+  marginLeft: '8px',
+  display: 'flex',
+  flexDirection: 'column',
+  transition: 'all 0.3s ease' // Smooth transition
+};
+
+useEffect(() => {
+  if (!mountRef.current) return;
+  
+  const observer = new ResizeObserver(entries => {
+    for (const entry of entries) {
+      const { width, height } = entry.contentRect;
+      setPanelDimensions({ width, height });
+    }
+  });
+  
+  observer.observe(mountRef.current);
+  
+  return () => {
+    observer.disconnect();
+  };
+}, []);
+
   // Update when the initialShowAxes prop changes
   useEffect(() => {
     setShowAxes(initialShowAxes);
@@ -99,141 +148,93 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
 
   // Theme change observer
   useEffect(() => {
-    // Function to update colors when theme changes
-    const updateThemeColors = () => {
-      const newColors = getThemeColors();
-      setThemeColors(newColors);
+    if (!sceneRef.current) return;
+    
+    // Update grid visibility
+    if (gridHelperRef.current) {
+      sceneRef.current.remove(gridHelperRef.current);
+      gridHelperRef.current = null;
+    }
+    
+    if (isGridVisible) {
+      const gridHelper = new THREE.GridHelper(10, 10, 
+        new THREE.Color(themeColors.gridPrimary), 
+        new THREE.Color(themeColors.gridSecondary)
+      );
+      gridHelper.rotation.x = Math.PI / 2; // Rotate to XY plane
+      gridHelper.name = 'grid';
+      sceneRef.current.add(gridHelper);
+      gridHelperRef.current = gridHelper;
+    }
+    
+    // Update axes visibility
+    if (axesHelperRef.current) {
+      sceneRef.current.remove(axesHelperRef.current);
+      axesHelperRef.current = null;
+    }
+    
+    if (showAxes) {
+      // Create custom axes with themed colors
+      const origin = new THREE.Vector3(0, 0, 0);
+      const length = 5;
       
-      // Update scene background if it exists
-      if (sceneRef.current) {
-        sceneRef.current.background = new THREE.Color(newColors.background);
-      }
+      const axesGroup = new THREE.Group();
+      axesGroup.name = 'axes';
       
-      // Update grid helper if it exists
-      if (gridHelperRef.current && sceneRef.current) {
-        sceneRef.current.remove(gridHelperRef.current);
-        
-        if (isGridVisible) {
-          const gridHelper = new THREE.GridHelper(10, 10, 
-            new THREE.Color(newColors.gridPrimary), 
-            new THREE.Color(newColors.gridSecondary)
-          );
-          gridHelper.rotation.x = Math.PI / 2; // Rotate to XY plane
-          gridHelper.name = 'grid';
-          sceneRef.current.add(gridHelper);
-          gridHelperRef.current = gridHelper;
-        }
-      }
+      // X axis (red)
+      const xAxis = new THREE.ArrowHelper(
+        new THREE.Vector3(1, 0, 0),
+        origin,
+        length,
+        new THREE.Color(themeColors.xAxis),
+        0.2,
+        0.1
+      );
       
-      // Update axes helper if it exists
-      if (axesHelperRef.current && sceneRef.current) {
-        sceneRef.current.remove(axesHelperRef.current);
-        
-        if (showAxes) {
-          // Create custom axes with themed colors
-          const origin = new THREE.Vector3(0, 0, 0);
-          const length = 5;
-          
-          const axesGroup = new THREE.Group();
-          axesGroup.name = 'axes';
-          
-          // X axis (red)
-          const xAxis = new THREE.ArrowHelper(
-            new THREE.Vector3(1, 0, 0),
-            origin,
-            length,
-            new THREE.Color(newColors.xAxis),
-            0.2,
-            0.1
-          );
-          
-          // Y axis (green)
-          const yAxis = new THREE.ArrowHelper(
-            new THREE.Vector3(0, 1, 0),
-            origin,
-            length,
-            new THREE.Color(newColors.yAxis),
-            0.2,
-            0.1
-          );
-          
-          // Z axis (blue)
-          const zAxis = new THREE.ArrowHelper(
-            new THREE.Vector3(0, 0, 1),
-            origin,
-            length,
-            new THREE.Color(newColors.zAxis),
-            0.2,
-            0.1
-          );
-          
-          axesGroup.add(xAxis);
-          axesGroup.add(yAxis);
-          axesGroup.add(zAxis);
-          
-          sceneRef.current.add(axesGroup);
-          axesHelperRef.current = axesGroup;
-        }
-      }
+      // Y axis (green)
+      const yAxis = new THREE.ArrowHelper(
+        new THREE.Vector3(0, 1, 0),
+        origin,
+        length,
+        new THREE.Color(themeColors.yAxis),
+        0.2,
+        0.1
+      );
       
-      // Update robot position indicator if it exists
-      if (robotToolRef.current) {
-        if (robotToolRef.current.material) {
-          robotToolRef.current.material.color = new THREE.Color(newColors.robotPosition);
-        }
-      }
+      // Z axis (blue)
+      const zAxis = new THREE.ArrowHelper(
+        new THREE.Vector3(0, 0, 1),
+        origin,
+        length,
+        new THREE.Color(themeColors.zAxis),
+        0.2,
+        0.1
+      );
       
-      // Update STL object colors
-      Object.keys(stlObjectsRef.current).forEach(id => {
-        const stlObject = stlObjectsRef.current[id];
-        if (stlObject && stlObject.material) {
-          if (id === hoveredStl) {
-            stlObject.material.color = new THREE.Color(newColors.stlSelected);
-          } else {
-            stlObject.material.color = new THREE.Color(newColors.stlDefault);
-          }
-        }
-      });
-    };
-
-    // Create a MutationObserver to watch for class changes on document.documentElement
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.attributeName === 'class' || mutation.attributeName === 'style') {
-          updateThemeColors();
-        }
-      });
-    });
-
-    // Start observing the document with the configured parameters
-    observer.observe(document.documentElement, { attributes: true });
-
-    // Initial update
-    updateThemeColors();
-
-    // Cleanup
-    return () => {
-      observer.disconnect();
-    };
-  }, [isGridVisible, showAxes, hoveredStl]);
+      axesGroup.add(xAxis);
+      axesGroup.add(yAxis);
+      axesGroup.add(zAxis);
+      
+      sceneRef.current.add(axesGroup);
+      axesHelperRef.current = axesGroup;
+    }
+  }, [isGridVisible, showAxes, themeColors]);
 
   // Update toolpath visualization when parsedToolpath changes
   useEffect(() => {
     if (!toolpathVisualizerRef.current || !sceneRef.current || !parsedToolpath) return;
     
     if (showToolpath) {
-      // Visualize the toolpath
-      const bounds = toolpathVisualizerRef.current.visualize(parsedToolpath);
+      // Set transformation values to the visualizer
+      toolpathVisualizerRef.current.setTransformValues(transformValues);
       
-      // Focus camera on the toolpath if we have bounds
-      if (bounds && controlsRef.current && cameraRef.current) {
-        // centerCameraOnBounds(bounds);
-      }
+      // Visualize the toolpath
+      toolpathVisualizerRef.current.visualize(parsedToolpath);
     } else {
       // Clear the toolpath visualization
       toolpathVisualizerRef.current.clear();
     }
-  }, [parsedToolpath, showToolpath]);
+  }, [parsedToolpath, showToolpath, transformValues]); // Add transformValues to dependencies
   
   // Sync mesh positions and rotations with state
   useEffect(() => {
@@ -412,6 +413,16 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
       // Parse the STL file
       const geometry = loader.parse(fileContent);
       
+      // Calculate original bounds before any transformations
+      geometry.computeBoundingBox();
+      const originalBoundingBox = geometry.boundingBox.clone();
+      const size = originalBoundingBox.getSize(new THREE.Vector3());
+      
+      // Center the geometry at origin by calculating and applying center offset
+      const center = new THREE.Vector3();
+      originalBoundingBox.getCenter(center);
+      geometry.translate(-center.x, -center.y, -center.z);
+      
       // Create material for the STL model
       const material = new THREE.MeshStandardMaterial({
         color: themeColors.stlDefault,
@@ -420,12 +431,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
         flatShading: true
       });
       
-      // Calculate original bounds before any transformations
-      geometry.computeBoundingBox();
-      const originalBoundingBox = geometry.boundingBox.clone();
-      const size = originalBoundingBox.getSize(new THREE.Vector3());
-      
-      // Create mesh from geometry and material - don't center it yet
+      // Create mesh from geometry and material
       const mesh = new THREE.Mesh(geometry, material);
       
       // Scale the model to fit in scene if needed
@@ -441,18 +447,21 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
       mesh.userData.fileName = fileName;
       mesh.userData.originalSize = size.clone();
       
+      // Position at origin since we've already centered the geometry
+      mesh.position.set(0, 0, 0);
+      
       // Add the mesh to the scene
       sceneRef.current.add(mesh);
       
       // Store reference to the mesh
       stlObjectsRef.current[fileId] = mesh;
       
-      // Update the state with the new STL file info - use actual mesh position and rotation
+      // Update the state with the new STL file info
       const newFile = {
         id: fileId, 
         name: fileName, 
         visible: true,
-        position: [mesh.position.x, mesh.position.y, mesh.position.z],
+        position: [0, 0, 0], // Centered at origin
         rotation: [0, 0, 0], // Euler angles in degrees
         dimensions: size.toArray(),
         scale: maxDim > 5 ? 5 / maxDim : 1,
@@ -462,7 +471,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
         }
       };
       
-      // Force state update immediately
+      // Update state with new file
       setStlFiles(prevFiles => [...prevFiles, newFile]);
       
       console.log(`Added STL file: ${fileName} with ID: ${fileId}`);
@@ -739,7 +748,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
         mouseIndicatorRef.current.visible = false;
       }
     }
-  }, [showMousePosition, hoveredStl, themeColors]);
+  }, [showMousePosition, hoveredStl, themeColors, panelDimensions]);
 
   // Handle mouseout event
   const handleMouseOut = useCallback(() => {
@@ -859,31 +868,61 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     controls.update();
   }, []);
 
-  // Create and set up the scene
-  const initializeScene = useCallback(() => {
-    if (!mountRef.current) return;
+  useEffect(() => {
+    // Trigger a resize event whenever stlFiles changes
+    if (rendererRef.current && mountRef.current) {
+      const width = mountRef.current.clientWidth;
+      const height = mountRef.current.clientHeight;
+      
+      // Update renderer size
+      rendererRef.current.setSize(width, height);
+      
+      // Update camera aspect ratio
+      if (cameraRef.current) {
+        if (isPerspective) {
+          cameraRef.current.aspect = width / height;
+        } else {
+          // For orthographic camera
+          const frustumSize = 10;
+          cameraRef.current.left = frustumSize * (width / height) / -2;
+          cameraRef.current.right = frustumSize * (width / height) / 2;
+          cameraRef.current.top = frustumSize / 2;
+          cameraRef.current.bottom = frustumSize / -2;
+        }
+        cameraRef.current.updateProjectionMatrix();
+      }
+      
+      // Force a window resize event to help Three.js recalculate
+      window.dispatchEvent(new Event('resize'));
+    }
+  }, [stlFiles, isPerspective]);
 
+  
+  // Create and set up the scene
+  const createScene = () => {
+    if (!mountRef.current) return;
+  
     // Clean up existing scene
     if (rendererRef.current && mountRef.current.contains(rendererRef.current.domElement)) {
       mountRef.current.removeChild(rendererRef.current.domElement);
     }
-
+  
     // Scene setup
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(themeColors.background);
     sceneRef.current = scene;
-
+  
     // Calculate dimensions
     const width = mountRef.current.clientWidth;
     const height = mountRef.current.clientHeight;
     const aspect = width / height;
-
+  
     // Create perspective camera
     const perspectiveCamera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
     perspectiveCamera.position.set(5, 5, 5);
     perspectiveCamera.up.set(0, 0, 1); // Z is up
     perspectiveCamera.lookAt(0, 0, 0);
-
+  
     // Create orthographic camera
     const frustumSize = 10;
     const orthographicCamera = new THREE.OrthographicCamera(
@@ -897,18 +936,18 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     orthographicCamera.position.set(5, 5, 5);
     orthographicCamera.up.set(0, 0, 1); // Z is up
     orthographicCamera.lookAt(0, 0, 0);
-
+  
     // Set initial camera based on projection type
     cameraRef.current = isPerspective ? perspectiveCamera : orthographicCamera;
     window.parentCamera = cameraRef.current;
-
+  
     // Renderer setup
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(width, height);
     renderer.setPixelRatio(window.devicePixelRatio);
     mountRef.current.appendChild(renderer.domElement);
     rendererRef.current = renderer;
-
+  
     // Add mouse event listeners to the renderer domElement
     renderer.domElement.addEventListener('mousemove', handleMouseMove);
     renderer.domElement.addEventListener('mouseout', handleMouseOut);
@@ -916,22 +955,22 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     
     // Add clear highlight on click
     renderer.domElement.addEventListener('click', clearAllHighlights);
-
+  
     // Orbit controls
     const controls = new OrbitControls(cameraRef.current, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.25;
     controls.object.up.set(0, 0, 1);
     controlsRef.current = controls;
-
+  
     // Lights
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
     scene.add(ambientLight);
-
+  
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
     directionalLight.position.set(5, 10, 7.5);
     scene.add(directionalLight);
-
+  
     // Add grid
     if (isGridVisible) {
       const gridHelper = new THREE.GridHelper(10, 10, 
@@ -943,7 +982,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
       scene.add(gridHelper);
       gridHelperRef.current = gridHelper;
     }
-
+  
     // Add axes helper
     if (showAxes) {
       // Create custom axes with themed colors
@@ -990,7 +1029,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
       scene.add(axesGroup);
       axesHelperRef.current = axesGroup;
     }
-
+  
     // Create robot position indicator
     createRobotTool();
     
@@ -1006,7 +1045,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     sphere.visible = false; // Hidden by default
     scene.add(sphere);
     mouseIndicatorRef.current = sphere;
-
+  
     // Initialize toolpath visualizer
     toolpathVisualizerRef.current = new ToolpathVisualizer(scene);
     
@@ -1014,7 +1053,16 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     if (parsedToolpath && showToolpath) {
       toolpathVisualizerRef.current.visualize(parsedToolpath);
     }
+    
+    return scene;
+  };
+  
 
+
+  const initializeScene = useCallback(() => {
+    const scene = createScene();
+    if (!scene || !mountRef.current) return;
+  
     // Handle resize
     const handleResize = () => {
       if (!mountRef.current || !cameraRef.current || !rendererRef.current) return;
@@ -1041,23 +1089,23 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     };
     
     window.addEventListener('resize', handleResize);
-
+  
     // Animation loop
     const animate = () => {
       requestAnimationFrame(animate);
-
+  
       // Update controls
       if (controlsRef.current) {
         controlsRef.current.update();
       }
-
+  
       // Render scene
       if (rendererRef.current && sceneRef.current && cameraRef.current) {
         rendererRef.current.render(sceneRef.current, cameraRef.current);
       }
     };
     animate();
-
+  
     return () => {
       // Cleanup
       window.removeEventListener('resize', handleResize);
@@ -1074,27 +1122,27 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
         rendererRef.current.dispose();
       }
     };
-  }, [isGridVisible, showAxes, isPerspective, themeColors, parsedToolpath, showToolpath, handleMouseMove, handleMouseOut, createRobotTool]);
+  }, [isPerspective, handleMouseMove, handleMouseOut, createRobotTool, clearAllHighlights]);
 
   // Trigger scene initialization only once on mount
   useEffect(() => {
-    const cleanup = initializeScene();
-    
-    // Add a click handler to document to clear highlights when clicking outside
-    const handleDocumentClick = (e) => {
-      // If click is outside the 3D canvas
-      if (mountRef.current && !mountRef.current.contains(e.target)) {
-        clearAllHighlights();
-      }
-    };
-    
-    document.addEventListener('click', handleDocumentClick);
-    
-    return () => {
-      cleanup();
-      document.removeEventListener('click', handleDocumentClick);
-    };
-  }, [initializeScene, clearAllHighlights]);
+  const cleanup = initializeScene();
+  
+  // Add a click handler to document to clear highlights when clicking outside
+  const handleDocumentClick = (e) => {
+    // If click is outside the 3D canvas
+    if (mountRef.current && !mountRef.current.contains(e.target)) {
+      clearAllHighlights();
+    }
+  };
+  
+  document.addEventListener('click', handleDocumentClick);
+  
+  return () => {
+    if (cleanup) cleanup();
+    document.removeEventListener('click', handleDocumentClick);
+  };
+}, []); // Empty dependency array to only run once on mount
 
   return (
     <div className="panel-content">
@@ -1200,9 +1248,9 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
         </div>
       </div>
       
-      <div style={{ position: 'relative', display: 'flex', height: 'calc(100% - 40px)', overflow: 'hidden' }}>
+      <div style={viewerContainerStyle}>
         {/* Main 3D viewport */}
-        <div style={{ position: 'relative', flex: '1 1 auto', height: '100%' }}>
+        <div style={viewportStyle}>
           <div 
             ref={mountRef} 
             style={{ 
@@ -1255,20 +1303,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
         
         {/* STL Files Panel - Only visible when files exist */}
         {stlFiles.length > 0 && (
-          <div 
-            style={{ 
-              width: '250px',
-              minWidth: '250px', 
-              flex: '0 0 250px',
-              borderLeft: '1px solid var(--border-color)', 
-              overflow: 'auto',
-              backgroundColor: 'var(--panel-bg-color)',
-              borderRadius: 'var(--border-radius)',
-              marginLeft: '8px',
-              display: 'flex',
-              flexDirection: 'column'
-            }}
-          >
+          <div style={stlPanelStyle}>
             <div style={{ padding: '10px', borderBottom: '1px solid var(--border-color)' }}>
               <h3 style={{ margin: 0, fontSize: '14px' }}>Imported STL Files</h3>
             </div>

@@ -9,6 +9,18 @@ const GCodeContext = createContext({
   selectedLine: -1,
   setSelectedLine: () => {},
   highlightLine: () => {},
+  transformValues: {
+    scaleX: 1.0,
+    scaleY: 1.0,
+    scaleZ: 1.0,
+    moveX: 0,
+    moveY: 0,
+    moveZ: 0,
+    rotateAngle: 0,
+    centerX: 0,
+    centerY: 0
+  },
+  setTransformValues: () => {},
 });
 
 /**
@@ -19,6 +31,17 @@ export const GCodeProvider = ({ children }) => {
   const [parsedToolpath, setParsedToolpath] = useState(null);
   const [selectedLine, setSelectedLine] = useState(-1);
   const [parser] = useState(() => new GCodeParser());
+  const [transformValues, setTransformValues] = useState({
+    scaleX: 1.0,
+    scaleY: 1.0,
+    scaleZ: 1.0,
+    moveX: 0,
+    moveY: 0,
+    moveZ: 0,
+    rotateAngle: 0,
+    centerX: 0,
+    centerY: 0
+  });
   
   // Update parsed toolpath when gcode changes
   useEffect(() => {
@@ -45,6 +68,8 @@ export const GCodeProvider = ({ children }) => {
     selectedLine,
     setSelectedLine,
     highlightLine,
+    transformValues,
+    setTransformValues,
   };
   
   return (
