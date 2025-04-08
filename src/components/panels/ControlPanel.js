@@ -21,8 +21,9 @@ const ControlPanel = () => {
   };
 
   // Function to simulate sending a movement command
-  const sendMovementCommand = (axis, direction) => {
-    // Get connection status
+  // Function to simulate sending a movement command
+const sendMovementCommand = (axis, direction) => {
+  // Get connection status
   const connectionInfo = communicationService.getConnectionInfo();
   if (connectionInfo.status !== 'connected') {
     logToConsole('error', 'Not connected. Connection status: ' + connectionInfo.status);
@@ -31,8 +32,9 @@ const ControlPanel = () => {
 
   const distance = direction * stepSize;
   
-  // Create G-code command for movement
-  const gcode = `G1 ${axis}${distance} F${speed * 60}`; // Convert speed percentage to mm/min feed rate
+  // Create G-code command for INCREMENTAL movement
+  // Add a relative positioning command first
+  const gcode = `G91\nG1 ${axis}${distance} F${speed * 60}\nG90`; // Switch to relative, move, then back to absolute
   
   logToConsole('command', `Sending command: ${gcode}`);
   
@@ -41,7 +43,7 @@ const ControlPanel = () => {
     .catch(err => {
       logToConsole('error', 'Error sending movement command: ' + err);
     });
-  };
+};
   
   // Function to handle tool control
   const handleToolToggle = () => {

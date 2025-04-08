@@ -45,7 +45,7 @@ const CodeEditorPanel = () => {
   const handleCodeChange = (newCode) => {
     setCode(newCode);
     setOriginalCode(newCode);  // Update the original code
-    setGCode(newCode);
+    setGCode(newCode);         // Update the global context immediately
     setModified(true);
     
     // Debounced validation
@@ -421,7 +421,9 @@ const CodeEditorPanel = () => {
       return formattedLine;
     });
     
-    setCode(formattedLines.join('\n'));
+    const formattedCode = formattedLines.join('\n');
+    setCode(formattedCode);
+    setGCode(formattedCode); // Update context immediately
     setModified(true);
   };
 
@@ -458,7 +460,7 @@ const CodeEditorPanel = () => {
       const content = event.target.result;
       setCode(content);
       setOriginalCode(content);  // Store the original code
-      setGCode(content);
+      setGCode(content);         // Update the global context immediately
       setModified(false);
       validateCode(content);
       
@@ -628,7 +630,7 @@ const CodeEditorPanel = () => {
   const previewTransformation = () => {
     const transformedCode = generateTransformedGCode();
     setCode(transformedCode);
-    setGCode(transformedCode);
+    setGCode(transformedCode); // Update context immediately
     setModified(true);
   };
   
@@ -648,7 +650,7 @@ const CodeEditorPanel = () => {
     
     // Restore original code
     setCode(originalCode);
-    setGCode(originalCode);
+    setGCode(originalCode); // Update context immediately
     setModified(false);
   };
 
@@ -660,8 +662,13 @@ const CodeEditorPanel = () => {
       [name]: parseFloat(value)
     };
     
-    // Just call this once to update the context
+    // Update the context with new transform values
     setTransformValues(newValues);
+    
+    // Generate preview code without updating the editor
+    // This allows the toolpath to update immediately
+    const previewCode = generateTransformedGCode();
+    setGCode(previewCode);
   };
 
   // Cancel transformation
@@ -674,7 +681,7 @@ const CodeEditorPanel = () => {
     const transformedCode = generateTransformedGCode();
     setCode(transformedCode);
     setOriginalCode(transformedCode);  // This becomes the new original code
-    setGCode(transformedCode);
+    setGCode(transformedCode);        // Update context immediately
     
     // Reset transformations since they're now part of the code
     setTransformValues({

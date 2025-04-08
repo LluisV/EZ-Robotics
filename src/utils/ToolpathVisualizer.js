@@ -150,14 +150,11 @@ class ToolpathVisualizer {
    * @param {Object} toolpath - Parsed toolpath data from GCodeParser
    */
   visualize(toolpath) {
-    // Check if we actually need to update
-    if (!this.needsUpdate(toolpath)) {
-      return;
-    }
-    
-    // Store the current toolpath for comparison later
-    this.currentToolpath = toolpath;
+    // Always clear and redraw when visualization is requested
     this.clear();
+    
+    // Store the current toolpath for reference
+    this.currentToolpath = toolpath;
     
     if (!toolpath || !toolpath.segments || toolpath.segments.length === 0) {
       return;
@@ -179,8 +176,6 @@ class ToolpathVisualizer {
       pathLine.name = 'path-overview';
       this.toolpathGroup.add(pathLine);
     }
-    
-    return null;
   }
 
   /**
@@ -396,27 +391,6 @@ class ToolpathVisualizer {
         }
       }
     });
-  }
-
-  /**
-   * Check if the visualizer needs to update
-   * @param {Object} parsedToolpath - The parsed toolpath
-   * @returns {boolean} Whether the visualizer needs to update
-   */
-  needsUpdate(parsedToolpath) {
-    // Compare the current toolpath with the new one
-    if (!this.currentToolpath || !parsedToolpath) {
-      return true;
-    }
-    
-    // Simple check: compare number of segments
-    if (this.currentToolpath.segments?.length !== parsedToolpath.segments?.length) {
-      return true;
-    }
-    
-    // More thorough check could be implemented if needed
-    
-    return false;
   }
 
   /**
