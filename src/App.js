@@ -31,6 +31,7 @@ import MonitorPanel from './components/panels/MonitorPanel';
 import Viewer3DPanel from './components/panels/Viewer3DPanel';
 import CodeEditorPanel from './components/panels/CodeEditorPanel';
 import ConsolePanel from './components/panels/ConsolePanel';
+import AccelerationPanel from './components/panels/AccelerationPanel';
 
 /**
  * Main application component
@@ -135,13 +136,23 @@ function App() {
     );
   });
 
+  const AccelerationPanelWrapper = React.memo(props => {
+    const params = props?.params || {};
+    return (
+      <div className="panel-container">
+        <AccelerationPanel {...params} />
+      </div>
+    );
+  });
+
   // Define components for dockview
   const components = {
     controlPanel: ControlPanelWrapper,
     monitor: MonitorPanelWrapper,
     viewer3D: Viewer3DPanelWrapper,
     codeEditor: CodeEditorPanelWrapper,
-    console: ConsolePanelWrapper
+    console: ConsolePanelWrapper,
+    acceleration: AccelerationPanelWrapper
   };
 
   // Handle ready event

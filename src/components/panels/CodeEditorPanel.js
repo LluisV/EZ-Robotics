@@ -606,15 +606,12 @@ const CodeEditorPanel = () => {
         })
         .then(() => {
           // Send the actual transformed file content
+          console.log(normalizedCode);
           return communicationService.sendCommand(normalizedCode);
         })
         .then(() => {
           // Run the uploaded file
           return communicationService.sendCommand(`@RUN ${filename}`);
-        })
-        .then(() => {
-          // Indicate successful file transfer and job start
-          alert(`Transformed G-code sent and running: ${filename}`);
         })
         .catch(error => {
           console.error('Error sending G-code:', error);

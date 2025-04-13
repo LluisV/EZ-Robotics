@@ -5,7 +5,7 @@ import * as THREE from 'three';
 
 class ToolpathVisualizer {
   constructor(scene) {
-    this.scale = 0.1;
+    this.scale = 0.1; // Scale factor for visualization (0.1 means 10mm = 1 unit)
     this.scene = scene;
     this.toolpathGroup = new THREE.Group();
     this.toolpathGroup.name = 'toolpath';
@@ -22,6 +22,13 @@ class ToolpathVisualizer {
       rotateAngle: 0,
       centerX: 0,
       centerY: 0
+    };
+    
+    // Default work offset
+    this.workOffset = {
+      x: 0,
+      y: 0,
+      z: 0
     };
     
     // Materials for different move types
@@ -86,14 +93,27 @@ class ToolpathVisualizer {
   }
 
   /**
+   * Set work offset
+   * @param {Object} offset - The work offset {x, y, z}
+   */
+  setWorkOffset(offset) {
+    this.workOffset = {...offset};
+    // Visualize again if we have a current toolpath
+    if (this.currentToolpath) {
+      this.visualize(this.currentToolpath);
+    }
+  }
+
+  /**
    * Apply transformations to a point
    * @param {Object} point - The point {x, y, z} to transform
    * @returns {Object} - The transformed point
    */
   applyTransformations(point) {
-    let x = point.x;
-    let y = point.y;
-    let z = point.z;
+    // First apply work offset to convert from work coordinates to world coordinates
+    let x = point.x + this.workOffset.x;
+    let y = point.y + this.workOffset.y;
+    let z = point.z + this.workOffset.z;
     
     // Apply scale relative to center
     x = (x - this.transformValues.centerX) * this.transformValues.scaleX + this.transformValues.centerX;
@@ -120,7 +140,7 @@ class ToolpathVisualizer {
     
     // Apply display scale
     return {
-      x: x * this.scale,
+      x: -x * this.scale,
       y: y * this.scale,
       z: z * this.scale
     };

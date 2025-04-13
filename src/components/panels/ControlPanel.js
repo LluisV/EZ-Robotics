@@ -113,13 +113,24 @@ const ControlPanel = () => {
       return;
     }
   
-    // Create G-code command for movement
-    const gcode = `${moveType} X${targetPosition.x} Y${targetPosition.y} Z${targetPosition.z} A${targetPosition.a} F${speed * 60}`; // Convert speed percentage to mm/min feed rate
+    // Use the correct coordinate values based on the current view
+    let coordsToSend = {...targetPosition};
     
-     logToConsole('command', `Sending command: ${gcode}`);
+    // If we're in World view, use those coordinates directly
+    // If we're in Work view, we'll use the input coordinates as is (they're already work coordinates)
+    
+    // Create G-code command for movement
+    const gcode = `${moveType} X${coordsToSend.x} Y${coordsToSend.y} Z${coordsToSend.z} A${coordsToSend.a} F${speed * 60}`;
+    
+    // When in world view, we need to explicitly specify that we're using machine coordinates (G53)
+    const fullCommand = positionView === 'world' 
+      ? `G53 ${gcode}` // Use G53 prefix for machine coordinates
+      : gcode;         // Use work coordinates by default
+    
+    logToConsole('command', `Sending command: ${fullCommand}`);
     
     // Send the command
-    communicationService.sendCommand(gcode)
+    communicationService.sendCommand(fullCommand)
       .catch(err => {
          logToConsole('error', 'Error sending movement command: '+ err);
       });

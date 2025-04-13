@@ -1,6 +1,6 @@
 import React from 'react';
 // Import panel components with validation
-let ControlPanel, MonitorPanel, Viewer3DPanel, CodeEditorPanel, ConsolePanel;
+let ControlPanel, MonitorPanel, Viewer3DPanel, CodeEditorPanel, ConsolePanel, AccelerationPanel;
 
 try {
   ControlPanel = require('../../components/panels/ControlPanel').default;
@@ -35,6 +35,13 @@ try {
 } catch (e) {
   console.error('Failed to import ConsolePanel:', e);
   ConsolePanel = () => <div>Console Panel (Import Error)</div>;
+}
+
+try {
+  AccelerationPanel = require('../../components/panels/AccelerationPanel').default;
+} catch (e) {
+  console.error('Failed to import AccelerationPanel:', e);
+  AccelerationPanel = () => <div>Acceleration Panel (Import Error)</div>;
 }
 
 /**
@@ -91,6 +98,16 @@ export const panelComponents = {
       </div>
     );
   },
+
+  acceleration: (props) => {
+    console.log('Rendering acceleration panel with props:', props);
+    const params = props?.params || {};
+    return (
+      <div className="panel-container">
+        <AccelerationPanel {...params} />
+      </div>
+    );
+  },
 };
 
 /**
@@ -132,5 +149,12 @@ export const panelDefinitions = [
     component: 'console',
     params: {},
     defaultLocation: 'bottom'
+  },
+  {
+    id: 'acceleration',
+    title: 'Acceleration Profile',
+    component: 'acceleration',
+    params: { showAdvanced: false },
+    defaultLocation: 'right'
   }
 ];

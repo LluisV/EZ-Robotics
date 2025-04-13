@@ -69,6 +69,7 @@ const Toolbar = ({ dockviewApi }) => {
           <option value="codeEditor">G-Code Editor</option>
           <option value="taskManager">Task Manager</option>
           <option value="pluginPanel">Plugin Panel</option>
+          <option value="acceleration">Acceleration Profile</option>
         </select>
         <button 
           className="toolbar-button"
