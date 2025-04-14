@@ -2,6 +2,25 @@ import React, { useState, useEffect, useRef } from 'react';
 import '../../styles/monitor-panel.css';
 import communicationService from '../../services/communication/CommunicationService';
 
+// Add this CSS to your monitor-panel.css file or inline styling
+// .velocity-legend {
+//   display: flex;
+//   justify-content: space-between;
+//   margin-top: 4px;
+// }
+// .legend-item {
+//   display: flex;
+//   align-items: center;
+//   font-size: 12px;
+// }
+// .color-indicator {
+//   display: inline-block;
+//   width: 8px;
+//   height: 8px;
+//   margin-right: 4px;
+//   border-radius: 2px;
+// }
+
 const MonitorPanel = ({ refreshRate = 1000 }) => {
   const [statusData, setStatusData] = useState({
     connected: false,
@@ -11,6 +30,7 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
     utilization: 0,
     acceleration: 0,
     jerk: 0,
+    velocityVector: { x: 0, y: 0, z: 0 }
   });
   
   const [timeElapsed, setTimeElapsed] = useState(0);
@@ -18,7 +38,12 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
     speedHistory: [],
     tempHistory: [],
     accelerationHistory: [],
-    jerkHistory: []
+    jerkHistory: [],
+    velocityVectorHistory: {
+      x: [],
+      y: [],
+      z: []
+    }
   });
   
   // References for the mini charts
@@ -27,38 +52,27 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
   const jerkCanvasRef = useRef(null);
   const tempCanvasRef = useRef(null);
   
-  // Position history to calculate velocity, acceleration, and jerk
+  // Position history to calculate acceleration and jerk
   const positionHistoryRef = useRef([]);
+  const velocityHistoryRef = useRef([]);
   const timeHistoryRef = useRef([]);
   const maxDataPoints = 100; // Increased from 30 to 100 for more history
 
-  // Function to calculate velocity, acceleration, and jerk from position history
-  const calculateKinematics = (positions, times) => {
-    if (positions.length < 2 || times.length < 2) {
-      return { velocity: 0, acceleration: 0, jerk: 0 };
+  // Function to calculate acceleration and jerk from velocity history
+  // Note: If velocity is now in mm/min, we need to convert to mm/s for these calculations
+  const calculateKinematics = (velocities, times) => {
+    if (velocities.length < 2 || times.length < 2) {
+      return { acceleration: 0, jerk: 0 };
     }
 
-    // Calculate velocities (first derivative of position)
-    const velocities = [];
-    for (let i = 1; i < positions.length; i++) {
-      const deltaPos = Math.sqrt(
-        Math.pow(positions[i].x - positions[i-1].x, 2) +
-        Math.pow(positions[i].y - positions[i-1].y, 2) +
-        Math.pow(positions[i].z - positions[i-1].z, 2)
-      );
-      const deltaTime = (times[i] - times[i-1]) / 1000; // convert to seconds
-      if (deltaTime > 0) {
-        velocities.push(deltaPos / deltaTime);
-      } else {
-        velocities.push(0);
-      }
-    }
+    // Convert velocities from mm/min to mm/s for calculations
+    const velocitiesInMmPerSec = velocities.map(v => v / 60);
 
     // Calculate accelerations (first derivative of velocity)
     const accelerations = [];
-    for (let i = 1; i < velocities.length; i++) {
-      const deltaVel = velocities[i] - velocities[i-1];
-      const deltaTime = (times[i+1] - times[i]) / 1000; // convert to seconds
+    for (let i = 1; i < velocitiesInMmPerSec.length; i++) {
+      const deltaVel = velocitiesInMmPerSec[i] - velocitiesInMmPerSec[i-1];
+      const deltaTime = (times[i] - times[i-1]) / 1000; // convert to seconds
       if (deltaTime > 0) {
         accelerations.push(deltaVel / deltaTime);
       } else {
@@ -70,7 +84,7 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
     const jerks = [];
     for (let i = 1; i < accelerations.length; i++) {
       const deltaAcc = accelerations[i] - accelerations[i-1];
-      const deltaTime = (times[i+2] - times[i+1]) / 1000; // convert to seconds
+      const deltaTime = (times[i] - times[i-1]) / 1000; // convert to seconds
       if (deltaTime > 0) {
         jerks.push(deltaAcc / deltaTime);
       } else {
@@ -80,7 +94,6 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
 
     // Return the most recent values, or 0 if not enough data
     return {
-      velocity: velocities.length > 0 ? velocities[velocities.length - 1] : 0,
       acceleration: accelerations.length > 0 ? accelerations[accelerations.length - 1] : 0,
       jerk: jerks.length > 0 ? jerks[jerks.length - 1] : 0
     };
@@ -105,42 +118,59 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
             x: parseFloat(parsedData.work.X) || 0,
             y: parseFloat(parsedData.work.Y) || 0,
             z: parseFloat(parsedData.work.Z) || 0,
-            a: parseFloat(parsedData.work.A) || 0
+            a: 0 // Default to 0 if not present
           };
 
-          // Add to position and time history
+          // Get velocity directly from telemetry (now in mm/min)
+          const velocity = parseFloat(parsedData.velocity) || 0;
+          
+          // Get velocity vector if available (assuming also in mm/min)
+          const velocityVector = {
+            x: parseFloat(parsedData.velocityVector?.X) || 0,
+            y: parseFloat(parsedData.velocityVector?.Y) || 0,
+            z: parseFloat(parsedData.velocityVector?.Z) || 0
+          };
+
+          // Add to position, velocity and time history
           const timestamp = Date.now();
           positionHistoryRef.current.push(newPosition);
+          velocityHistoryRef.current.push(velocity);
           timeHistoryRef.current.push(timestamp);
 
           // Limit history size - keep enough points for extended graph visualization
-          // and derivatives calculation (we need +3 for all derivatives)
+          // and derivatives calculation
           if (positionHistoryRef.current.length > maxDataPoints + 3) {
             positionHistoryRef.current.shift();
+            velocityHistoryRef.current.shift();
             timeHistoryRef.current.shift();
           }
 
-          // Calculate kinematics
-          const kinematics = calculateKinematics(positionHistoryRef.current, timeHistoryRef.current);
+          // Calculate acceleration and jerk from velocity history
+          // Note: calculateKinematics handles mm/min to mm/s conversion internally
+          const kinematics = calculateKinematics(velocityHistoryRef.current, timeHistoryRef.current);
 
           // Update state with new position and calculated values
           setStatusData(prev => ({
             ...prev,
             connected: true,
             position: newPosition,
-            speed: kinematics.velocity,
+            speed: velocity,
+            velocityVector: velocityVector,
             acceleration: kinematics.acceleration,
             jerk: kinematics.jerk
           }));
 
-          // Add to history data for charts - store more points for a longer time scale
-          // For velocity, acceleration and jerk we use the latest calculated values
-          // Note: We maintain the full history (maxDataPoints) for better visualization 
+          // Add to history data for charts
           setHistoryData(prev => ({
-            speedHistory: [...prev.speedHistory, kinematics.velocity].slice(-maxDataPoints),
+            speedHistory: [...prev.speedHistory, velocity].slice(-maxDataPoints),
             accelerationHistory: [...prev.accelerationHistory, kinematics.acceleration].slice(-maxDataPoints),
             jerkHistory: [...prev.jerkHistory, kinematics.jerk].slice(-maxDataPoints),
-            tempHistory: [...prev.tempHistory].slice(-maxDataPoints)
+            tempHistory: [...prev.tempHistory].slice(-maxDataPoints),
+            velocityVectorHistory: {
+              x: [...prev.velocityVectorHistory.x, velocityVector.x].slice(-maxDataPoints),
+              y: [...prev.velocityVectorHistory.y, velocityVector.y].slice(-maxDataPoints),
+              z: [...prev.velocityVectorHistory.z, velocityVector.z].slice(-maxDataPoints)
+            }
           }));
         } catch (error) {
           console.error("Error parsing telemetry:", error);
@@ -343,9 +373,146 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
     }
   };
 
-  // Draw the mini charts when data changes
+  // New function to draw multi-line velocity chart
+  const drawVelocityChart = (canvasRef, data) => {
+    if (!canvasRef.current || !data || !data.velocityVectorHistory) return;
+    
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    
+    // Adjust for high-resolution displays
+    const pixelRatio = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    
+    // Set canvas size considering the devicePixelRatio
+    canvas.width = rect.width * pixelRatio;
+    canvas.height = rect.height * pixelRatio;
+    
+    // Scale the context
+    ctx.scale(pixelRatio, pixelRatio);
+    
+    // Adjust style to maintain visual size
+    canvas.style.width = `${rect.width}px`;
+    canvas.style.height = `${rect.height}px`;
+    
+    // Now work with logical dimensions
+    const width = rect.width;
+    const height = rect.height;
+    
+    ctx.clearRect(0, 0, width, height);
+    
+    const padding = 2;
+    
+    // Get all data arrays
+    const xData = data.velocityVectorHistory.x;
+    const yData = data.velocityVectorHistory.y;
+    const zData = data.velocityVectorHistory.z;
+    const totalData = data.speedHistory;
+    
+    if (xData.length < 2 || yData.length < 2 || zData.length < 2 || totalData.length < 2) return;
+    
+    // Find the global min and max across all datasets
+    const allValues = [...xData, ...yData, ...zData, ...totalData];
+    const max = Math.max(...allValues.filter(v => isFinite(v)));
+    const min = Math.min(...allValues.filter(v => isFinite(v)));
+    const range = max - min || 1;
+    
+    // Helper function to draw a line with given color
+    const drawLine = (dataArray, color, drawPoints = false) => {
+      // Filter out any NaN or Infinity values
+      const filteredData = dataArray.filter(value => 
+        typeof value === 'number' && isFinite(value)
+      );
+      
+      if (filteredData.length < 2) return;
+      
+      // Optimize data for visualization if too many points
+      const pixelsPerPoint = width / filteredData.length;
+      let displayData = filteredData;
+      
+      // If we have more than 1 point per pixel, thin the data
+      if (pixelsPerPoint < 1) {
+        const downsampleFactor = Math.ceil(filteredData.length / width);
+        displayData = [];
+        
+        for (let i = 0; i < filteredData.length; i += downsampleFactor) {
+          const chunk = filteredData.slice(i, i + downsampleFactor);
+          if (chunk.length > 0) {
+            // For each chunk, keep min and max values to preserve shape
+            const minVal = Math.min(...chunk);
+            const maxVal = Math.max(...chunk);
+            
+            if (minVal !== maxVal) {
+              displayData.push(minVal);
+              displayData.push(maxVal);
+            } else {
+              displayData.push(minVal);
+            }
+          }
+        }
+      }
+      
+      // Draw the line
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      
+      displayData.forEach((value, index) => {
+        const x = padding + (index / (displayData.length - 1)) * (width - padding * 2);
+        const y = height - padding - ((value - min) / range) * (height - padding * 2);
+        
+        if (index === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          // Use bezier curves for smoothing with adjusted control points
+          const prevX = padding + ((index - 1) / (displayData.length - 1)) * (width - padding * 2);
+          const prevY = height - padding - ((displayData[index - 1] - min) / range) * (height - padding * 2);
+          
+          const cpX1 = prevX + (x - prevX) / 4;
+          const cpX2 = prevX + 3 * (x - prevX) / 4;
+          
+          ctx.bezierCurveTo(cpX1, prevY, cpX2, y, x, y);
+        }
+      });
+      ctx.stroke();
+      
+      // Draw end point if requested
+      if (drawPoints && displayData.length > 0) {
+        const lastValue = displayData[displayData.length - 1];
+        const x = width - padding;
+        const y = height - padding - ((lastValue - min) / range) * (height - padding * 2);
+        
+        // Outer halo
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.fill();
+        
+        // Center point
+        ctx.beginPath();
+        ctx.arc(x, y, 3, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+      }
+    };
+    
+    // Draw all lines with their respective colors
+    drawLine(xData, '#00aa55'); // X axis - Green
+    drawLine(yData, '#ff5555'); // Y axis - Red
+    drawLine(zData, '#5555ff'); // Z axis - Blue
+    drawLine(totalData, '#aa55cc', true); // Total velocity - Purple (with endpoint)
+    
+    // No in-chart legend - moved to card-details section
+  };
+
+  // Draw the charts when data changes
   useEffect(() => {
-    drawSparkline(speedCanvasRef, historyData.speedHistory, '#aa55cc', 'rgba(170, 85, 204, 0.3)');
+    // Use the new multi-line chart for velocity
+    drawVelocityChart(speedCanvasRef, historyData);
+    
+    // Keep original charts for other metrics
     drawSparkline(accelerationCanvasRef, historyData.accelerationHistory, '#00aa55', 'rgba(0, 170, 85, 0.3)');
     drawSparkline(jerkCanvasRef, historyData.jerkHistory, '#ff7700', 'rgba(255, 119, 0, 0.3)');
     drawSparkline(tempCanvasRef, historyData.tempHistory, '#ff5555', 'rgba(255, 85, 85, 0.3)');
@@ -362,6 +529,9 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
   const connectionStatus = statusData.connected ? 'Connected' : 'Disconnected';
   const connectionStatusClass = statusData.connected ? 'status-online' : 'status-offline';
   const utilizationPercent = statusData.utilization + '%';
+
+  // Format velocity vector for display
+  const velocityMagnitude = statusData.speed.toFixed(1);
 
   return (
     <div className="panel-content monitor-panel">
@@ -390,11 +560,17 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
             </div>
             <div className="card-content">
               <div className="card-value-container">
-                <div className="card-value">{statusData.speed.toFixed(1)}</div>
-                <div className="card-unit">mm/s</div>
+                <div className="card-value">{velocityMagnitude}</div>
+                <div className="card-unit">mm/min</div>
               </div>
               <div className="sparkline-container">
                 <canvas ref={speedCanvasRef} width="100" height="40" className="sparkline"></canvas>
+              </div>
+              <div className="card-details velocity-legend">
+                <span className="legend-item"><span className="color-indicator" style={{backgroundColor: '#00aa55'}}></span>X</span>
+                <span className="legend-item"><span className="color-indicator" style={{backgroundColor: '#ff5555'}}></span>Y</span>
+                <span className="legend-item"><span className="color-indicator" style={{backgroundColor: '#5555ff'}}></span>Z</span>
+                <span className="legend-item"><span className="color-indicator" style={{backgroundColor: '#aa55cc'}}></span>Total</span>
               </div>
             </div>
           </div>
