@@ -588,40 +588,110 @@ const CodeEditorPanel = () => {
     return transformedLines.join('\n');
   };
 
+  const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
   // Send G-code to robot
-  const sendToRobot = () => {
-    // Generate transformed G-code and normalize line breaks
-    const transformedCode = generateTransformedGCode();
-    const normalizedCode = transformedCode.replace(/\r\n/g, '\n').replace(/\n{2,}/g, '\n').trim();
-    
-    // Generate a filename based on the current filename or a default
-    const filename = fileName || 'current_code.gcode';
-    
+  const sendToRobot = async () => {
     try {
-      // First, delete the file if it exists
-      communicationService.sendCommand(`@DELETE ${filename}`)
-        .then(() => {
-          // Send the file receive command
-          return communicationService.sendCommand(`@RECEIVE ${filename} ${normalizedCode.length}`);
-        })
-        .then(() => {
-          // Send the actual transformed file content
-          console.log(normalizedCode);
-          return communicationService.sendCommand(normalizedCode);
-        })
-        .then(() => {
-          // Run the uploaded file
-          return communicationService.sendCommand(`@RUN ${filename}`);
-        })
-        .catch(error => {
-          console.error('Error sending G-code:', error);
-          alert(`Error sending G-code: ${error.message}`);
-        });
+      // Check connection
+      const connectionInfo = communicationService.getConnectionInfo();
+      if (connectionInfo.status !== 'connected') {
+        setStatusMessage('Error: Not connected to robot. Please connect first.');
+        return;
+      }
+  
+      // Generate and normalize code
+      const transformedCode = generateTransformedGCode();
+      const normalizedCode = transformedCode.replace(/\r\n/g, '\n').replace(/\n{2,}/g, '\n').trim();
+      
+      // Use a simpler filename with extension
+      const simpleFilename = '/test.gcode';
+      
+      setStatusMessage(`Debug: Sending commands manually step by step...`);
+      
+      // Step 1: Delete existing file (ignore errors)
+      try {
+        await communicationService.sendCommand(`@DELETE ${simpleFilename}`);
+        setStatusMessage(`Debug: Delete command sent`);
+      } catch (e) {
+        setStatusMessage(`Debug: Delete command error (expected): ${e.message}`);
+      }
+      
+      // Step 2: Send debug command to check filesystem
+      const fsResponse = await communicationService.sendCommand(`?DEBUG SPIFFS`);
+      setStatusMessage(`Debug: SPIFFS info: ${fsResponse}`);
+      
+      // Step 3: Send the receive command
+      const receiveResponse = await communicationService.sendCommand(
+        `@RECEIVE ${simpleFilename} ${normalizedCode.length}`
+      );
+      setStatusMessage(`Debug: Receive response: ${receiveResponse}`);
+      
+      // Step 4: Wait a moment before sending content
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Step 5: Send content directly
+      await communicationService.sendCommand(normalizedCode);
+      setStatusMessage(`Debug: Content sent`);
+      
+      // Step 6: Send direct run command
+      const runResponse = await communicationService.sendCommand(`@RUN ${simpleFilename}`);
+      setStatusMessage(`Debug: Run response: ${runResponse}`);
+      
     } catch (error) {
-      console.error('Error sending G-code:', error);
-      alert(`Error sending G-code: ${error.message}`);
+      console.error('Error during debug sequence:', error);
+      setStatusMessage(`Debug failed: ${error.message}`);
     }
   };
+
+  const [isTransferring, setIsTransferring] = useState(false);
+  const [transferProgress, setTransferProgress] = useState(0);
+  const [transferError, setTransferError] = useState(null);
+  
+  const formatBytes = (bytes, decimals = 2) => {
+    if (bytes === 0) return '0 B';
+    
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+  };
+
+  const retryTransfer = () => {
+    if (!isTransferring && transferError) {
+      sendToRobot();
+    }
+  };
+
+  // Handler for file transfer progress events
+  const handleFileTransferProgress = (data) => {
+    switch (data.status) {
+      case 'started':
+        setStatusMessage(`Starting transfer of ${data.fileName}...`);
+        setTransferProgress(0);
+        break;
+      
+      case 'progress':
+        setStatusMessage(`Transferring: ${data.progress}% (${formatBytes(data.bytesTransferred)} / ${formatBytes(data.bytesTotal)})`);
+        setTransferProgress(data.progress);
+        break;
+      
+      case 'completed':
+        setStatusMessage(`Transfer completed: ${data.fileName}`);
+        setTransferProgress(100);
+        break;
+      
+      case 'error':
+      case 'cancelled':
+        setTransferError(data.error || data.reason || 'Unknown error');
+        setStatusMessage(`Transfer failed: ${data.error || data.reason || 'Unknown error'}`);
+        break;
+    }
+  };
+  
 
   // Preview transformation - shows what the transformed G-code would look like
   const previewTransformation = () => {
@@ -795,6 +865,31 @@ const CodeEditorPanel = () => {
           </div>
         </div>
       </div>
+
+      {/* File Transfer Progress UI */}
+      {isTransferring && (
+  <div className="transfer-progress-container">
+    <div className="transfer-status">
+      <div className="status-indicator"></div>
+      <span>{statusMessage || `Transferring: ${fileName}`}</span>
+    </div>
+    <div className="progress-bar">
+      <div 
+        className="progress-fill" 
+        style={{ width: `${transferProgress}%` }}
+      ></div>
+    </div>
+    <div className="progress-text">
+      {`${transferProgress.toFixed(1)}% completed`}
+    </div>
+    {transferError && (
+      <div className="transfer-error">
+        <div className="error-message">{transferError}</div>
+        <button onClick={retryTransfer} className="retry-btn">Retry</button>
+      </div>
+    )}
+  </div>
+)}
       
       {/* Transformation panel */}
       {transformMode && (

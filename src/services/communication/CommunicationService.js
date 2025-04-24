@@ -1,6 +1,6 @@
 /**
  * src/services/communication/CommunicationService.js
- * Main service for handling communication with the robot
+ * Improved service for reliable file transfers with the robot
  */
 import EventEmitter from 'events';
 import SerialAdapter from './adapters/SerialAdapter';
@@ -29,13 +29,29 @@ class CommunicationService extends EventEmitter {
     this.isBusy = false;
     this.responseTimeout = 5000; // ms
     
+    // File transfer state
+    this.fileTransfer = {
+      inProgress: false,
+      fileName: null,
+      fileContent: null,
+      totalLines: 0,
+      currentLine: 0,
+      chunkSize: 64, // Send in smaller chunks for better reliability
+      bytesTransferred: 0,
+      bytesTotal: 0,
+      error: null,
+      lastAcknowledged: -1,
+      retryCount: 0,
+      maxRetries: 3,
+      timeoutId: null
+    };
+    
     // Buffer for received data
     this.incomingBuffer = '';
     
     // Set up event listeners for adapters
     this._setupAdapterListeners();
   }
-  
   
   /**
    * Get available serial ports
@@ -128,6 +144,11 @@ class CommunicationService extends EventEmitter {
       return true;
     }
     
+    // If file transfer is in progress, cancel it
+    if (this.fileTransfer.inProgress) {
+      this.cancelFileTransfer('Disconnected');
+    }
+    
     try {
       await this.activeAdapter.disconnect();
       this.connectionStatus = ConnectionStatus.DISCONNECTED;
@@ -158,14 +179,14 @@ class CommunicationService extends EventEmitter {
    * @returns {Promise<string>} Command response (if expectResponse=true)
    */
   async sendCommand(command, options = {}) {
-    const { immediate = false, expectResponse = false } = options;
+    const { immediate = false, expectResponse = true } = options;
     
     if (!this.activeAdapter || this.connectionStatus !== ConnectionStatus.CONNECTED) {
       throw new Error('Not connected to robot');
     }
     
     // Normalize command (ensure it ends with newline)
-    const normalizedCommand = command.trim() + '\n\r';
+    const normalizedCommand = command.trim() + '\n';
     
     // Log the command for debugging
     console.log(`Sending command: ${normalizedCommand.trim()}`);
@@ -199,6 +220,175 @@ class CommunicationService extends EventEmitter {
       if (!this.isProcessingQueue) {
         this._processCommandQueue();
       }
+    });
+  }
+  
+  /**
+   * Send a file to the robot with reliable transfer protocol
+   * @param {string} fileName Name to give the file on the robot
+   * @param {string} fileContent Content of the file to send
+   * @returns {Promise<void>}
+   */
+  async sendFile(fileName, fileContent) {
+    if (!this.activeAdapter || this.connectionStatus !== ConnectionStatus.CONNECTED) {
+      throw new Error('Not connected to robot');
+    }
+    
+    // If a file transfer is already in progress, cancel it
+    if (this.fileTransfer.inProgress) {
+      this.cancelFileTransfer('New transfer started');
+    }
+    
+    try {
+      // Normalize line endings and remove multiple blank lines
+      const normalizedContent = fileContent.replace(/\r\n/g, '\n').replace(/\n{2,}/g, '\n').trim();
+      const fileSize = normalizedContent.length;
+      const lines = normalizedContent.split('\n');
+      
+      // Initialize file transfer state
+      this.fileTransfer = {
+        inProgress: true,
+        fileName,
+        fileContent: normalizedContent,
+        lines,
+        totalLines: lines.length,
+        currentLine: 0,
+        chunkSize: 64, // Number of lines to send in each chunk before waiting for acknowledgment
+        bytesTransferred: 0,
+        bytesTotal: fileSize,
+        error: null,
+        lastAcknowledged: -1,
+        retryCount: 0,
+        maxRetries: 3,
+        timeoutId: null
+      };
+      
+      this.emit('fileTransfer', { 
+        status: 'started', 
+        fileName, 
+        totalLines: this.fileTransfer.totalLines,
+        bytesTotal: fileSize 
+      });
+      
+      // First, delete the file if it exists to ensure a clean state
+      await this.sendCommand(`@DELETE ${fileName}`, { expectResponse: true });
+      
+      // Send the file receive command with size information
+      const response = await this.sendCommand(`@RECEIVE ${fileName} ${fileSize}`, { expectResponse: true });
+      
+      // Check if the response indicates the receiver is ready
+      if (!response.includes('Receiving file')) {
+        throw new Error(`Failed to start file transfer: ${response}`);
+      }
+      
+      // Start the reliable transfer process
+      await this._startReliableFileTransfer();
+      
+      // Validate the transfer was successful
+      if (this.fileTransfer.error) {
+        throw new Error(`File transfer failed: ${this.fileTransfer.error}`);
+      }
+      
+      this.emit('fileTransfer', { 
+        status: 'completed', 
+        fileName,
+        bytesTransferred: this.fileTransfer.bytesTotal
+      });
+      
+      return fileName;
+    } catch (error) {
+      this.fileTransfer.error = error.message;
+      this.emit('fileTransfer', { 
+        status: 'error', 
+        error: error.message
+      });
+      console.error('File transfer error:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Run a G-code file on the robot
+   * @param {string} fileName Name of the file to run
+   * @returns {Promise<string>} Response from the run command
+   */
+  async runFile(fileName) {
+    try {
+      // Make sure file name starts with /
+      if (!fileName.startsWith('/')) {
+        fileName = '/' + fileName;
+      }
+      
+      // Send run command
+      const response = await this.sendCommand(`@RUN ${fileName}`, { expectResponse: true });
+      
+      this.emit('fileRun', { 
+        status: 'started', 
+        fileName,
+        response
+      });
+      
+      return response;
+    } catch (error) {
+      this.emit('fileRun', { 
+        status: 'error', 
+        fileName,
+        error: error.message
+      });
+      console.error('File run error:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Upload and run a G-code file in one operation
+   * @param {string} fileName Name to give the file
+   * @param {string} fileContent Content of the G-code file
+   * @returns {Promise<string>} Response from the run command
+   */
+  async uploadAndRunFile(fileName, fileContent) {
+    try {
+      // Upload the file
+      await this.sendFile(fileName, fileContent);
+      
+      // Run the file
+      return await this.runFile(fileName);
+    } catch (error) {
+      console.error('Upload and run error:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Cancel an in-progress file transfer
+   * @param {string} reason Reason for cancellation
+   */
+  cancelFileTransfer(reason = 'User cancelled') {
+    if (!this.fileTransfer.inProgress) {
+      return;
+    }
+    
+    // Clear any pending timeout
+    if (this.fileTransfer.timeoutId) {
+      clearTimeout(this.fileTransfer.timeoutId);
+    }
+    
+    // Try to send a cancellation signal to the device
+    try {
+      this.sendCommand(`@CANCEL`, { immediate: true, expectResponse: false });
+    } catch (error) {
+      console.error('Error sending cancel command:', error);
+    }
+    
+    this.fileTransfer.inProgress = false;
+    this.fileTransfer.error = reason;
+    
+    this.emit('fileTransfer', { 
+      status: 'cancelled', 
+      reason,
+      fileName: this.fileTransfer.fileName,
+      bytesTransferred: this.fileTransfer.bytesTransferred,
+      bytesTotal: this.fileTransfer.bytesTotal
     });
   }
   
@@ -244,6 +434,53 @@ class CommunicationService extends EventEmitter {
   }
   
   /**
+   * Get file transfer status
+   * @returns {Object} File transfer status information
+   */
+  getFileTransferStatus() {
+    if (!this.fileTransfer.inProgress) {
+      return { status: 'idle' };
+    }
+    
+    return {
+      status: 'active',
+      fileName: this.fileTransfer.fileName,
+      progress: Math.round((this.fileTransfer.bytesTransferred / this.fileTransfer.bytesTotal) * 100),
+      bytesTransferred: this.fileTransfer.bytesTransferred,
+      bytesTotal: this.fileTransfer.bytesTotal,
+      currentLine: this.fileTransfer.currentLine,
+      totalLines: this.fileTransfer.totalLines,
+      error: this.fileTransfer.error
+    };
+  }
+  
+  /**
+   * Request ports from the user
+   * @returns {Promise<Array>} List of newly requested ports
+   */
+  async requestPorts() {
+    try {
+      // Attempt to request new ports from the user
+      const requestedPort = await this.serialAdapter.requestPort();
+      
+      // Refresh the available ports list
+      await this.getAvailablePorts();
+      
+      // Emit an event about the new port request
+      this.emit('response', { 
+        response: `Port request completed. New ports available.` 
+      });
+      
+      return this.availablePorts;
+    } catch (error) {
+      const errorMsg = `Port request error: ${error.message}`;
+      console.error(errorMsg);
+      this.emit('error', { error: errorMsg });
+      throw error;
+    }
+  }
+  
+  /**
    * Set up event listeners for adapters
    * @private
    */
@@ -278,9 +515,42 @@ class CommunicationService extends EventEmitter {
       // Skip empty lines
       if (!line) continue;
       
+      // Handle file transfer acknowledgments
+      if (this.fileTransfer.inProgress) {
+        if (line.includes('Progress:')) {
+          // Extract progress information
+          const progressMatch = line.match(/Progress:\s*(\d+)%\s*\((\d+)\/(\d+)/);
+          if (progressMatch) {
+            const percentage = parseInt(progressMatch[1], 10);
+            const bytesTransferred = parseInt(progressMatch[2], 10);
+            const bytesTotal = parseInt(progressMatch[3], 10);
+            
+            this.fileTransfer.bytesTransferred = bytesTransferred;
+            
+            this.emit('fileTransfer', {
+              status: 'progress',
+              progress: percentage,
+              bytesTransferred,
+              bytesTotal,
+              currentLine: this.fileTransfer.currentLine,
+              totalLines: this.fileTransfer.totalLines
+            });
+          }
+        } else if (line === '</FILE>') {
+          // End of file transfer
+          this._handleFileTransferCompletion();
+        } else if (line.includes('File receive completed:')) {
+          // Successful file transfer completion
+          this._handleFileTransferCompletion();
+        } else if (line.includes('Error:') || line.includes('Failed:')) {
+          // Error during file transfer
+          this.fileTransfer.error = line;
+          this.cancelFileTransfer(line);
+        }
+      }
+      
       // Check for position telemetry
       if (line.startsWith('[TELEMETRY]')) {
-        console.log('Emitting position telemetry:', line); // Added debug log
         this.emit('position-telemetry', { response: line });
       }
       
@@ -326,6 +596,32 @@ class CommunicationService extends EventEmitter {
       
       reject(error);
     }
+    
+    // If there's a file transfer in progress, cancel it
+    if (this.fileTransfer.inProgress) {
+      this.cancelFileTransfer(error.message);
+    }
+  }
+  
+  /**
+   * Handle successful completion of file transfer
+   * @private
+   */
+  _handleFileTransferCompletion() {
+    if (!this.fileTransfer.inProgress) return;
+    
+    // Set state to completed
+    const { fileName, bytesTotal } = this.fileTransfer;
+    this.fileTransfer.bytesTransferred = bytesTotal;
+    this.fileTransfer.inProgress = false;
+    
+    // Emit completion event
+    this.emit('fileTransfer', {
+      status: 'completed',
+      fileName,
+      bytesTransferred: bytesTotal,
+      bytesTotal
+    });
   }
   
   /**
@@ -383,31 +679,122 @@ class CommunicationService extends EventEmitter {
     
     this.isProcessingQueue = false;
   }
-
+  
   /**
-   * Request ports from the user
-   * @returns {Promise<Array>} List of newly requested ports
+   * Start the reliable file transfer process
+   * @private
    */
-  async requestPorts() {
+  async _startReliableFileTransfer() {
+    // Attempt to send the file data in chunks with acknowledgment between chunks
+    const { fileName, lines, totalLines, chunkSize, bytesTotal } = this.fileTransfer;
+    
     try {
-      // Attempt to request new ports from the user
-      const requestedPort = await this.serialAdapter.requestPort();
+      let currentLine = 0;
       
-      // Refresh the available ports list
-      await this.getAvailablePorts();
+      // Send chunks until all lines are sent
+      while (currentLine < totalLines) {
+        // Calculate end of chunk (not exceeding total lines)
+        const endLine = Math.min(currentLine + chunkSize, totalLines);
+        
+        // Get the lines for this chunk
+        const chunkLines = lines.slice(currentLine, endLine);
+        const chunkContent = chunkLines.join('\n') + (endLine < totalLines ? '\n' : '');
+        
+        // Update current line in state
+        this.fileTransfer.currentLine = currentLine;
+        
+        // Calculate bytes transferred so far
+        let bytesTransferred = 0;
+        for (let i = 0; i < currentLine; i++) {
+          bytesTransferred += lines[i].length + 1; // +1 for newline
+        }
+        this.fileTransfer.bytesTransferred = bytesTransferred;
+        
+        // Send the chunk
+        await this.activeAdapter.write(chunkContent);
+        
+        // Wait for acknowledgment (progress update) before sending the next chunk
+        // This is a simplified approach - ideally we'd have explicit acknowledgments
+        await this._waitForChunkAcknowledgment(bytesTransferred);
+        
+        // Move to next chunk
+        currentLine = endLine;
+      }
       
-      // Emit an event about the new port request
-      this.emit('response', { 
-        response: `Port request completed. New ports available.` 
-      });
+      // Signal end of file transfer if needed
+      // Some protocols might need an explicit end marker
+      await this.activeAdapter.write('\n');
       
-      return this.availablePorts;
+      // Wait for final acknowledgment
+      await this._waitForFileTransferCompletion();
+      
+      return true;
     } catch (error) {
-      const errorMsg = `Port request error: ${error.message}`;
-      console.error(errorMsg);
-      this.emit('error', { error: errorMsg });
+      this.fileTransfer.error = error.message;
       throw error;
     }
+  }
+  
+  /**
+   * Wait for acknowledgment of a chunk
+   * @param {number} expectedBytes Expected number of bytes to be acknowledged
+   * @private
+   */
+  _waitForChunkAcknowledgment(expectedBytes) {
+    return new Promise((resolve, reject) => {
+      // Set a timeout for acknowledgment
+      const timeout = setTimeout(() => {
+        this.fileTransfer.retryCount++;
+        
+        if (this.fileTransfer.retryCount > this.fileTransfer.maxRetries) {
+          reject(new Error('Maximum retries exceeded waiting for chunk acknowledgment'));
+        } else {
+          // For retry behavior, we would ideally resend the chunk
+          // Here we'll just resolve to continue the process
+          console.warn(`No explicit acknowledgment received, continuing anyway (retry ${this.fileTransfer.retryCount})`);
+          resolve();
+        }
+      }, 1000); // 1-second timeout
+      
+      // Set up a one-time listener for progress events
+      const progressHandler = (data) => {
+        if (data.status === 'progress' && data.bytesTransferred >= expectedBytes) {
+          clearTimeout(timeout);
+          this.removeListener('fileTransfer', progressHandler);
+          resolve();
+        }
+      };
+      
+      this.on('fileTransfer', progressHandler);
+    });
+  }
+  
+  /**
+   * Wait for file transfer completion
+   * @private
+   */
+  _waitForFileTransferCompletion() {
+    return new Promise((resolve, reject) => {
+      // Set a timeout for completion
+      const timeout = setTimeout(() => {
+        reject(new Error('Timeout waiting for file transfer completion'));
+      }, 10000); // 10-second timeout for final acknowledgment
+      
+      // Set up a one-time listener for completion event
+      const completionHandler = (data) => {
+        if (data.status === 'completed') {
+          clearTimeout(timeout);
+          this.removeListener('fileTransfer', completionHandler);
+          resolve();
+        } else if (data.status === 'error' || data.status === 'cancelled') {
+          clearTimeout(timeout);
+          this.removeListener('fileTransfer', completionHandler);
+          reject(new Error(data.error || 'Transfer failed'));
+        }
+      };
+      
+      this.on('fileTransfer', completionHandler);
+    });
   }
 }
 

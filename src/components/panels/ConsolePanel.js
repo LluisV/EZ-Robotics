@@ -1,10 +1,131 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import communicationService from '../../services/communication/CommunicationService';
 import '../../styles/console.css';
 
+// Maximum number of messages to keep in history
+const MAX_HISTORY_SIZE = 1000;
+
+/**
+ * Memoized console entry component to prevent unnecessary re-renders
+ */
+const ConsoleEntry = memo(({ index, entry, getLevelStyle }) => {
+  const levelClass = getLevelStyle(entry.type === 'response' ? entry.level : entry.type);
+  
+  // Pre-parse the content instead of using dangerouslySetInnerHTML
+  const renderContent = () => {
+    if (entry.type === 'command') {
+      return (
+        <span className="entry-content">
+          <span className="console-prompt">&gt;</span> {entry.content}
+        </span>
+      );
+    }
+    
+    // Only parse robot messages with the expected format
+    if (entry.type === 'response' && entry.content.match(/\[\d+:\d+:\d+\.\d+\]\[CORE \d+\]\[[A-Z]+\s*\]/)) {
+      const parts = entry.content.match(/(\[\d+:\d+:\d+\.\d+\])(\[CORE \d+\])(\[[A-Z]+\s*\])(\[[^\]]+\])(.*)/);
+      
+      if (parts) {
+        return (
+          <span className="entry-content">
+            <span className="timestamp">{parts[1]}</span>
+            <span className="core">{parts[2]}</span>
+            <span className="level">{parts[3]}</span>
+            <span className="module">{parts[4]}</span>
+            {parts[5]}
+          </span>
+        );
+      }
+    }
+    
+    // Default rendering for other message types
+    return <span className="entry-content">{entry.content}</span>;
+  };
+  
+  return (
+    <div className={`console-entry ${levelClass}`}>
+      <span className="entry-line-number">{index + 1}</span>
+      {renderContent()}
+    </div>
+  );
+});
+
+/**
+ * Virtualized list component for rendering only visible entries
+ */
+const VirtualizedConsoleOutput = memo(({ entries, getLevelStyle, containerRef }) => {
+  const [visibleRange, setVisibleRange] = useState({ start: 0, end: 50 });
+  const [scrollTop, setScrollTop] = useState(0);
+  const [clientHeight, setClientHeight] = useState(0);
+  
+  // Approximate row height - could be improved with dynamic measurement
+  const ROW_HEIGHT = 24;
+  const BUFFER_SIZE = 20; // Extra rows to render above/below visible area
+  
+  // Update visible range when scrolling
+  const handleScroll = useCallback(() => {
+    if (!containerRef.current) return;
+    
+    const { scrollTop, clientHeight } = containerRef.current;
+    setScrollTop(scrollTop);
+    setClientHeight(clientHeight);
+  }, [containerRef]);
+  
+  // Calculate visible range based on scroll position
+  useEffect(() => {
+    const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - BUFFER_SIZE);
+    const end = Math.min(
+      entries.length, 
+      Math.ceil((scrollTop + clientHeight) / ROW_HEIGHT) + BUFFER_SIZE
+    );
+    
+    setVisibleRange({ start, end });
+  }, [scrollTop, clientHeight, entries.length]);
+  
+  // Add scroll event listener
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
+    
+    // Use passive listener for better scroll performance
+    element.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll(); // Initial calculation
+    
+    return () => {
+      element.removeEventListener('scroll', handleScroll);
+    };
+  }, [handleScroll, containerRef]);
+  
+  // Total scroll height of all entries
+  const totalHeight = entries.length * ROW_HEIGHT;
+  
+  // Only render visible entries
+  const visibleEntries = entries.slice(visibleRange.start, visibleRange.end);
+  
+  return (
+    <>
+      {/* Spacer for entries above visible range */}
+      <div style={{ height: visibleRange.start * ROW_HEIGHT }} />
+      
+      {/* Only render visible entries */}
+      {visibleEntries.map((entry, index) => (
+        <ConsoleEntry
+          key={visibleRange.start + index}
+          index={visibleRange.start + index}
+          entry={entry}
+          getLevelStyle={getLevelStyle}
+        />
+      ))}
+      
+      {/* Spacer for entries below visible range */}
+      <div style={{ height: Math.max(0, (entries.length - visibleRange.end) * ROW_HEIGHT) }} />
+    </>
+  );
+});
+
 /**
  * Enhanced Console Panel component for sending commands and viewing filtered messages.
- * Features debug level filtering and styled message output.
+ * Features debug level filtering, styled message output, and performance optimizations.
  */
 const ConsolePanel = ({ onSendCommand = () => {} }) => {
   const [commandHistory, setCommandHistory] = useState([]);
@@ -24,6 +145,8 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
   
   const consoleEndRef = useRef(null);
   const consoleOutputRef = useRef(null);
+  const isScrollingRef = useRef(false);
+  const lastScrollTime = useRef(0);
 
   // Sample commands that a user might send to a robot
   const sampleCommands = [
@@ -34,8 +157,8 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
     { command: 'M106 S255', description: 'Set fan speed to maximum' },
   ];
 
-  // Parse message level from robot message format
-  const parseMessageLevel = (message) => {
+  // Parse message level from robot message format - memoized
+  const parseMessageLevel = useCallback((message) => {
     if (message.includes('[TELEMETRY]')) {
       return 'TELEMETRY';
     }
@@ -45,10 +168,10 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
       return levelMatch[1].trim();
     }
     return null;
-  };
+  }, []);
 
-  // Get level-specific styles
-  const getLevelStyle = (level) => {
+  // Get level-specific styles - memoized
+  const getLevelStyle = useCallback((level) => {
     switch(level) {
       case 'ERROR':
         return 'console-error';
@@ -71,10 +194,10 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
       default:
         return '';
     }
-  };
+  }, []);
 
-  // Add a command or response to the history
-  const addEntry = (type, content) => {
+  // Add a command or response to the history with size limiting
+  const addEntry = useCallback((type, content) => {
     const timestamp = new Date().toLocaleTimeString();
     let level = type;
     
@@ -86,19 +209,28 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
       }
     }
     
-    setCommandHistory(prev => [
-      ...prev, 
-      {
-        type,
-        level,
-        content,
-        timestamp
+    setCommandHistory(prev => {
+      const newHistory = [
+        ...prev, 
+        {
+          type,
+          level,
+          content,
+          timestamp
+        }
+      ];
+      
+      // Limit history size to prevent memory issues
+      if (newHistory.length > MAX_HISTORY_SIZE) {
+        return newHistory.slice(-MAX_HISTORY_SIZE);
       }
-    ]);
-  };
+      
+      return newHistory;
+    });
+  }, [parseMessageLevel]);
 
-  // Send a command
-  const sendCommand = () => {
+  // Send a command - memoized
+  const sendCommand = useCallback(() => {
     if (!currentCommand.trim()) return;
 
     // Special command handling
@@ -137,10 +269,10 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
     // Clear current command
     setCurrentCommand('');
     setHistoryIndex(-1);
-  };
+  }, [currentCommand, addEntry, onSendCommand]);
 
-  // Handle key press
-  const handleKeyPress = (e) => {
+  // Handle key press - memoized
+  const handleKeyPress = useCallback((e) => {
     if (e.key === 'Enter') {
       sendCommand();
     } else if (e.key === 'ArrowUp') {
@@ -150,10 +282,10 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
       e.preventDefault();
       navigateHistory(1);
     }
-  };
+  }, [sendCommand]);
 
-  // Navigate through command history
-  const navigateHistory = (direction) => {
+  // Navigate through command history - memoized
+  const navigateHistory = useCallback((direction) => {
     const commandsOnly = commandHistory.filter(item => item.type === 'command').map(item => item.content);
     
     if (commandsOnly.length === 0) return;
@@ -170,49 +302,87 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
     } else {
       setCurrentCommand(commandsOnly[commandsOnly.length - 1 - newIndex]);
     }
-  };
+  }, [commandHistory, historyIndex]);
 
-  // Toggle a debug level filter
-  const toggleDebugLevel = (level) => {
+  // Toggle a debug level filter - memoized
+  const toggleDebugLevel = useCallback((level) => {
     setDebugLevels(prev => ({
       ...prev,
       [level]: !prev[level]
     }));
-  };
+  }, []);
 
-  // Check if a message should be visible based on current filters
-  const isMessageVisible = (entry) => {
+  // Check if a message should be visible based on current filters - memoized
+  const getMessageFilterKey = useCallback((entry) => {
     // Map entry types/levels to filter keys
-    let filterKey;
-
     if (entry.type === 'command') {
-      filterKey = 'COMMAND';
+      return 'COMMAND';
     } else if (entry.type === 'error') {
-      filterKey = 'ERROR';
+      return 'ERROR';
     } else if (entry.type === 'system') {
-      filterKey = 'SYSTEM';
+      return 'SYSTEM';
     } else if (entry.level) {
       // Use parsed level for responses
       if (['ERROR', 'WARN', 'INFO', 'DEBUG', 'TELEMETRY'].includes(entry.level)) {
-        filterKey = entry.level;
+        let filterKey = entry.level;
         // Normalize WARN to WARNING for filter
         if (filterKey === 'WARN') filterKey = 'WARNING';
+        return filterKey;
       } else {
-        filterKey = 'RESPONSE';
+        return 'RESPONSE';
       }
     } else {
-      filterKey = 'RESPONSE';
+      return 'RESPONSE';
+    }
+  }, []);
+  
+  // Filter visible messages - memoized to prevent recalculation on every render
+  const visibleMessages = useMemo(() => {
+    return commandHistory.filter(entry => {
+      const filterKey = getMessageFilterKey(entry);
+      return debugLevels[filterKey];
+    });
+  }, [commandHistory, debugLevels, getMessageFilterKey]);
+
+  // Throttled scroll handler to improve performance
+  const handleScroll = useCallback(() => {
+    if (!consoleOutputRef.current || isScrollingRef.current) return;
+    
+    const now = Date.now();
+    if (now - lastScrollTime.current < 100) {
+      // Throttle scroll events to max 10 per second
+      return;
     }
     
-    return debugLevels[filterKey];
-  };
+    lastScrollTime.current = now;
+    isScrollingRef.current = true;
+    
+    requestAnimationFrame(() => {
+      if (!consoleOutputRef.current) {
+        isScrollingRef.current = false;
+        return;
+      }
+      
+      const { scrollTop, scrollHeight, clientHeight } = consoleOutputRef.current;
+      const isScrolledToBottom = scrollHeight - scrollTop - clientHeight < 10;
+      
+      if (isScrolledToBottom !== autoScroll) {
+        setAutoScroll(isScrolledToBottom);
+      }
+      
+      isScrollingRef.current = false;
+    });
+  }, [autoScroll]);
 
   // Auto-scroll to the bottom when command history changes
   useEffect(() => {
-    if (autoScroll && consoleEndRef.current) {
-      consoleEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (autoScroll && consoleEndRef.current && !isScrollingRef.current) {
+      // Use requestAnimationFrame to make scrolling smoother
+      requestAnimationFrame(() => {
+        consoleEndRef.current?.scrollIntoView({ behavior: 'auto' });
+      });
     }
-  }, [commandHistory, autoScroll]);
+  }, [visibleMessages.length, autoScroll]);
 
   // Listen for messages from the communication service
   useEffect(() => {
@@ -237,20 +407,7 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
       communicationService.removeListener('response', handleResponse);
       communicationService.removeListener('error', handleError);
     };
-  }, []);
-
-  // Handle scroll to detect if user has scrolled up manually
-  const handleScroll = () => {
-    if (!consoleOutputRef.current) return;
-    
-    const { scrollTop, scrollHeight, clientHeight } = consoleOutputRef.current;
-    const isScrolledToBottom = scrollHeight - scrollTop - clientHeight < 10;
-    
-    if (isScrolledToBottom !== autoScroll) {
-      setAutoScroll(isScrolledToBottom);
-    }
-  };
-  
+  }, [addEntry]);
 
   return (
     <div className="console-container">
@@ -346,7 +503,7 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
             className="toolbar-button"
             onClick={() => {
               setAutoScroll(true);
-              consoleEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+              consoleEndRef.current?.scrollIntoView({ behavior: 'auto' });
             }}
             title="Scroll to bottom"
           >
@@ -385,37 +542,13 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
           </div>
         )}
         
-        {commandHistory.filter(isMessageVisible).map((entry, index) => {
-          const levelClass = getLevelStyle(entry.type === 'response' ? entry.level : entry.type);
-          
-          // Format robot messages with syntax highlighting
-          const formattedContent = entry.type === 'response' && entry.content.match(/\[\d+:\d+:\d+\.\d+\]\[CORE \d+\]\[[A-Z]+\s*\]/) 
-            ? entry.content.replace(
-                /(\[\d+:\d+:\d+\.\d+\])(\[CORE \d+\])(\[[A-Z]+\s*\])(\[[^\]]+\])(.*)/g, 
-                '<span class="timestamp">$1</span><span class="core">$2</span><span class="level">$3</span><span class="module">$4</span>$5'
-              )
-            : entry.content;
-          
-          return (
-            <div 
-              key={index} 
-              className={`console-entry ${levelClass}`}
-            >
-              <span className="entry-line-number">{index + 1}</span>
-              
-              {entry.type === 'command' ? (
-                <span className="entry-content">
-                  <span className="console-prompt">&gt;</span> {entry.content}
-                </span>
-              ) : (
-                <span 
-                  className="entry-content"
-                  dangerouslySetInnerHTML={{ __html: formattedContent }}
-                />
-              )}
-            </div>
-          );
-        })}
+        {commandHistory.length > 0 && (
+          <VirtualizedConsoleOutput 
+            entries={visibleMessages}
+            getLevelStyle={getLevelStyle}
+            containerRef={consoleOutputRef}
+          />
+        )}
         
         <div ref={consoleEndRef} />
       </div>
@@ -442,12 +575,9 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
             </span>
           </div>
           <div className="status-item">
-            <span className="status-label">Debug Level:</span>
+            <span className="status-label">Messages:</span>
             <span className="status-value">
-              {Object.entries(debugLevels)
-                .filter(([_, enabled]) => enabled)
-                .map(([level]) => level.charAt(0))
-                .join('')}
+              {visibleMessages.length}/{commandHistory.length}
             </span>
           </div>
           <div className="status-indicator-wrapper">

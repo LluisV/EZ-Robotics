@@ -562,61 +562,29 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
                 }
               }
             }
-            
-            // If we have both world and work coordinates, calculate the work offset
-            if (parsedData.world && parsedData.work) {
-              const newWorkOffset = {
-                x: parseFloat(parsedData.world.X) - parseFloat(parsedData.work.X) || 0,
-                y: parseFloat(parsedData.world.Y) - parseFloat(parsedData.work.Y) || 0,
-                z: parseFloat(parsedData.world.Z) - parseFloat(parsedData.work.Z) || 0
-              };
-              
-              // Only update if work offset has changed
-              const hasWorkOffsetChanged = 
-                newWorkOffset.x !== workOffset.x ||
-                newWorkOffset.y !== workOffset.y ||
-                newWorkOffset.z !== workOffset.z;
-              
-              if (hasWorkOffsetChanged) {
-                setWorkOffset(newWorkOffset);
+
+            if(parsedData.work)
+              {
+                const newWorkOffset = {
+                  x: parseFloat(parsedData.world.X) - parseFloat(parsedData.work.X) || 0,
+                  y: parseFloat(parsedData.world.Y) - parseFloat(parsedData.work.Y) || 0,
+                  z: parseFloat(parsedData.world.Z) - parseFloat(parsedData.work.Z) || 0
+                };
                 
-                // Update work axes position
-                updateAxesAndGrid();
-              }
-            }
-          } else {
-            // Handle old format with regex
-            const posRegex = /\[TELEMETRY\]\[POS\]\s*X:?\s*([-+]?\d+\.?\d*)\s*Y:?\s*([-+]?\d+\.?\d*)\s*Z:?\s*([-+]?\d+\.?\d*)(?:\s*A:?\s*([-+]?\d+\.?\d*))?/i;
-            const match = data.response.match(posRegex);
-            
-            if (match) {
-              // Extract the position data - assume these are world coordinates
-              const newWorldPosition = {
-                x: parseFloat(match[1]),
-                y: parseFloat(match[2]),
-                z: parseFloat(match[3]),
-                a: match[4] !== undefined ? parseFloat(match[4]) : 0
-              };
-              
-              // Only update if position has changed
-              const hasPositionChanged = 
-                newWorldPosition.x !== robotPosition.x ||
-                newWorldPosition.y !== robotPosition.y ||
-                newWorldPosition.z !== robotPosition.z ||
-                newWorldPosition.a !== robotPosition.a;
-              
-              if (hasPositionChanged) {
-                // Update the state
-                setRobotPosition(newWorldPosition);
+                // Only update if work offset has changed
+                const hasWorkOffsetChanged = 
+                  newWorkOffset.x !== workOffset.x ||
+                  newWorkOffset.y !== workOffset.y ||
+                  newWorkOffset.z !== workOffset.z;
                 
-                // Update the robot tool position in the 3D scene using WORLD coordinates
-                if (robotToolRef.current) {
-                  updateRobotToolPosition(newWorldPosition);
-                } else {
-                  createRobotTool();
+                if (hasWorkOffsetChanged) {
+                  setWorkOffset(newWorkOffset);
+                  
+                  // Update work axes position
+                  updateAxesAndGrid();
                 }
               }
-            }
+
           }
         } catch (error) {
           console.error("Error parsing position telemetry:", error);

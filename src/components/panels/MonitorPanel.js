@@ -2,25 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import '../../styles/monitor-panel.css';
 import communicationService from '../../services/communication/CommunicationService';
 
-// Add this CSS to your monitor-panel.css file or inline styling
-// .velocity-legend {
-//   display: flex;
-//   justify-content: space-between;
-//   margin-top: 4px;
-// }
-// .legend-item {
-//   display: flex;
-//   align-items: center;
-//   font-size: 12px;
-// }
-// .color-indicator {
-//   display: inline-block;
-//   width: 8px;
-//   height: 8px;
-//   margin-right: 4px;
-//   border-radius: 2px;
-// }
-
 const MonitorPanel = ({ refreshRate = 1000 }) => {
   const [statusData, setStatusData] = useState({
     connected: false,
@@ -99,46 +80,79 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
     };
   };
 
+  // Parse telemetry data from message
+  const parseTelemetryData = (message) => {
+    try {
+      // Extract the JSON part from the message
+      const jsonStart = message.indexOf('{');
+      if (jsonStart === -1) return null;
+      
+      const jsonString = message.substring(jsonStart);
+      const parsedData = JSON.parse(jsonString);
+      
+      // Create the result object with all available telemetry data
+      const result = {
+        position: {
+          x: 0, y: 0, z: 0, a: 0
+        },
+        velocity: 0,
+        velocityVector: { x: 0, y: 0, z: 0 },
+        temperature: parsedData.temperature || 0
+      };
+      
+      // Extract position if available
+      if (parsedData.work) {
+        result.position = {
+          x: parseFloat(parsedData.work.X) || 0,
+          y: parseFloat(parsedData.work.Y) || 0,
+          z: parseFloat(parsedData.work.Z) || 0,
+          a: 0 // Default to 0 if not present
+        };
+      }
+      
+      // Extract velocity if available
+      if (parsedData.velocity !== undefined) {
+        result.velocity = parseFloat(parsedData.velocity) || 0;
+      }
+      
+      // Extract velocity vector if available
+      if (parsedData.velocityVector) {
+        result.velocityVector = {
+          x: parseFloat(parsedData.velocityVector.X) || 0,
+          y: parseFloat(parsedData.velocityVector.Y) || 0,
+          z: parseFloat(parsedData.velocityVector.Z) || 0
+        };
+      }
+      
+      return result;
+    } catch (error) {
+      console.error("Error parsing telemetry data:", error);
+      return null;
+    }
+  };
+
   // Handle position telemetry from robot
   useEffect(() => {
     const handlePositionTelemetry = (data) => {
       if (typeof data.response === 'string' && data.response.startsWith('[TELEMETRY]')) {
         try {
-          // Extract the JSON part from the message
-          const jsonStart = data.response.indexOf('{');
-          if (jsonStart === -1) return;
+          const telemetryData = parseTelemetryData(data.response);
+          if (!telemetryData) return;
           
-          const jsonString = data.response.substring(jsonStart);
-          const parsedData = JSON.parse(jsonString);
-          
-          // Check if the expected structure exists
-          if (!parsedData.work) return;
-          
-          const newPosition = {
-            x: parseFloat(parsedData.work.X) || 0,
-            y: parseFloat(parsedData.work.Y) || 0,
-            z: parseFloat(parsedData.work.Z) || 0,
-            a: 0 // Default to 0 if not present
-          };
-
-          // Get velocity directly from telemetry (now in mm/min)
-          const velocity = parseFloat(parsedData.velocity) || 0;
-          
-          // Get velocity vector if available (assuming also in mm/min)
-          const velocityVector = {
-            x: parseFloat(parsedData.velocityVector?.X) || 0,
-            y: parseFloat(parsedData.velocityVector?.Y) || 0,
-            z: parseFloat(parsedData.velocityVector?.Z) || 0
-          };
-
-          // Add to position, velocity and time history
+          // Update position, velocity, and temperature data
           const timestamp = Date.now();
-          positionHistoryRef.current.push(newPosition);
-          velocityHistoryRef.current.push(velocity);
-          timeHistoryRef.current.push(timestamp);
+          
+          // Add to position, velocity and time history
+          if (telemetryData.position) {
+            positionHistoryRef.current.push(telemetryData.position);
+          }
+          
+          if (telemetryData.velocity !== undefined) {
+            velocityHistoryRef.current.push(telemetryData.velocity);
+            timeHistoryRef.current.push(timestamp);
+          }
 
-          // Limit history size - keep enough points for extended graph visualization
-          // and derivatives calculation
+          // Limit history size
           if (positionHistoryRef.current.length > maxDataPoints + 3) {
             positionHistoryRef.current.shift();
             velocityHistoryRef.current.shift();
@@ -146,34 +160,34 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
           }
 
           // Calculate acceleration and jerk from velocity history
-          // Note: calculateKinematics handles mm/min to mm/s conversion internally
           const kinematics = calculateKinematics(velocityHistoryRef.current, timeHistoryRef.current);
 
           // Update state with new position and calculated values
           setStatusData(prev => ({
             ...prev,
             connected: true,
-            position: newPosition,
-            speed: velocity,
-            velocityVector: velocityVector,
+            position: telemetryData.position || prev.position,
+            speed: telemetryData.velocity || prev.speed,
+            velocityVector: telemetryData.velocityVector || prev.velocityVector,
             acceleration: kinematics.acceleration,
-            jerk: kinematics.jerk
+            jerk: kinematics.jerk,
+            temperature: telemetryData.temperature !== undefined ? telemetryData.temperature : prev.temperature
           }));
 
           // Add to history data for charts
           setHistoryData(prev => ({
-            speedHistory: [...prev.speedHistory, velocity].slice(-maxDataPoints),
+            speedHistory: [...prev.speedHistory, telemetryData.velocity || 0].slice(-maxDataPoints),
             accelerationHistory: [...prev.accelerationHistory, kinematics.acceleration].slice(-maxDataPoints),
             jerkHistory: [...prev.jerkHistory, kinematics.jerk].slice(-maxDataPoints),
-            tempHistory: [...prev.tempHistory].slice(-maxDataPoints),
+            tempHistory: [...prev.tempHistory, telemetryData.temperature || prev.tempHistory[prev.tempHistory.length - 1] || 0].slice(-maxDataPoints),
             velocityVectorHistory: {
-              x: [...prev.velocityVectorHistory.x, velocityVector.x].slice(-maxDataPoints),
-              y: [...prev.velocityVectorHistory.y, velocityVector.y].slice(-maxDataPoints),
-              z: [...prev.velocityVectorHistory.z, velocityVector.z].slice(-maxDataPoints)
+              x: [...prev.velocityVectorHistory.x, telemetryData.velocityVector?.x || 0].slice(-maxDataPoints),
+              y: [...prev.velocityVectorHistory.y, telemetryData.velocityVector?.y || 0].slice(-maxDataPoints),
+              z: [...prev.velocityVectorHistory.z, telemetryData.velocityVector?.z || 0].slice(-maxDataPoints)
             }
           }));
         } catch (error) {
-          console.error("Error parsing telemetry:", error);
+          console.error("Error processing telemetry:", error);
         }
       }
     };
@@ -181,28 +195,21 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
     // Add event listener
     communicationService.on('position-telemetry', handlePositionTelemetry);
     
-    // Cleanup on unmount
+    // Cleanup
     return () => {
       communicationService.removeListener('position-telemetry', handlePositionTelemetry);
     };
   }, []);
 
-  // Simulation for temperature and utilization (since these aren't in telemetry)
+  // Simulation for utilization (since it isn't in telemetry)
   useEffect(() => {
     const interval = setInterval(() => {
-      const newTemp = 45 + Math.random() * 5;
       const newUtilization = 10 + Math.random() * 20;
       
       setStatusData(prev => ({
         ...prev,
-        temperature: newTemp,
         utilization: newUtilization,
         connected: true,
-      }));
-      
-      setHistoryData(prev => ({
-        ...prev,
-        tempHistory: [...prev.tempHistory, newTemp].slice(-maxDataPoints),
       }));
       
       setTimeElapsed(prev => prev + refreshRate / 1000);

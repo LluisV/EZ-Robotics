@@ -331,10 +331,11 @@
   font-weight: 600;
 }
 
+/* Updated Global Controls Styling */
 .global-controls {
   display: flex;
-  gap: 16px;
-  margin-top: 16px;
+  gap: 8px;
+  margin-top: 22px;
 }
 
 .global-btn {
@@ -342,8 +343,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 12px;
+  gap: 6px;
+  padding: 8px;
   background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, var(--bg-medium));
   color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
   border: 1px solid var(--dv-separator-border, var(--border-color));
@@ -351,6 +352,7 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
+  font-size: 12px;
 }
 
 .global-btn:hover {
@@ -362,16 +364,47 @@
   transform: translateY(1px);
 }
 
-.global-btn.home-all {
-  background-color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+/* Standard Button Style for Home All, Set Zero, and Go To Zero */
+.global-btn.home-all,
+.global-btn.set-zero,
+.global-btn.move-to-zero {
+  background: linear-gradient(135deg, rgba(0, 119, 204, 0.8) 0%, rgba(0, 90, 180, 0.9) 100%);
   color: white;
+  border-color: rgba(0, 119, 204, 0.4);
+  box-shadow: 0 2px 4px rgba(0, 119, 204, 0.3);
 }
 
+.global-btn.home-all:hover,
+.global-btn.set-zero:hover,
+.global-btn.move-to-zero:hover {
+  background: linear-gradient(135deg, rgba(0, 119, 204, 0.9) 0%, rgba(0, 90, 180, 1) 100%);
+  box-shadow: 0 3px 6px rgba(0, 119, 204, 0.4);
+}
+
+/* Stop Button - Red theme with improved contrast */
 .global-btn.stop-btn {
-  background-color: var(--accent-red, #cc3333);
+  background: linear-gradient(135deg, rgba(204, 51, 51, 0.8) 0%, rgba(180, 40, 40, 0.9) 100%);
   color: white;
   font-weight: bold;
   letter-spacing: 0.5px;
+  border-color: rgba(204, 51, 51, 0.4);
+  box-shadow: 0 2px 4px rgba(204, 51, 51, 0.3);
+}
+
+.global-btn.stop-btn:hover {
+  background: linear-gradient(135deg, rgba(204, 51, 51, 0.9) 0%, rgba(180, 40, 40, 1) 100%);
+  box-shadow: 0 3px 6px rgba(204, 51, 51, 0.4);
+}
+
+/* Style for move-to-position button */
+.move-to-position-btn {
+  background: linear-gradient(135deg, rgba(0, 119, 204, 0.8) 0%, rgba(0, 90, 180, 0.9) 100%);
+  border-color: rgba(0, 119, 204, 0.4);
+  color: white;
+}
+
+.move-to-position-btn:hover {
+  background: linear-gradient(135deg, rgba(0, 119, 204, 0.9) 0%, rgba(0, 90, 180, 1) 100%);
 }
 
 /* Step size controls */
@@ -1098,4 +1131,88 @@ input:checked + .toggle-slider .toggle-icon {
 /* Increase height of position card to accommodate secondary position */
 .position-card {
   min-height: 75px;
+}
+
+/* Toast notification styles */
+.success-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  animation: slideInRight 0.3s ease, fadeOut 0.5s ease 2.5s forwards;
+  max-width: 300px;
+}
+
+.toast-content {
+  background-color: rgba(0, 170, 85, 0.9);
+  color: white;
+  padding: 12px 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(4px);
+}
+
+.toast-icon {
+  background-color: rgba(255, 255, 255, 0.2);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+}
+
+.toast-message {
+  font-weight: 500;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Responsive styling */
+@media (max-width: 600px) {
+  .work-position-controls {
+    flex-direction: column;
+  }
+}
+
+.global-btn.go-to-zero,
+.move-to-position-btn {
+  background: linear-gradient(135deg, rgba(0, 119, 204, 0.2) 0%, rgba(0, 90, 180, 0.3) 100%);
+  border-color: rgba(0, 119, 204, 0.1);
+  color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
+}
+
+.global-btn.go-to-zero:hover,
+.move-to-position-btn:hover {
+  background: linear-gradient(135deg, rgba(0, 119, 204, 0.3) 0%, rgba(0, 90, 180, 0.4) 100%);
+}
+
+
+.global-btn.stop-btn {
+  background-color: var(--accent-red, #cc3333);
+  color: white;
+  font-weight: bold;
+  letter-spacing: 0.5px;
 }

@@ -19,9 +19,11 @@ const ControlPanel = () => {
   const [showExactPositionInput, setShowExactPositionInput] = useState(true);
   const [moveType, setMoveType] = useState('G1');
   const [positionView, setPositionView] = useState('work'); // 'work' or 'world'
-  
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+
   const logToConsole = (type, message) => {
-    
+
   };
 
   // Function to simulate sending a movement command
@@ -34,36 +36,36 @@ const ControlPanel = () => {
     }
 
     const distance = direction * stepSize;
-    
+
     // Create G-code command for INCREMENTAL movement
     // Add a relative positioning command first
     const gcode = `G91\nG1 ${axis}${distance} F${speed * 60}\nG90`; // Switch to relative, move, then back to absolute
-    
+
     logToConsole('command', `Sending command: ${gcode}`);
-    
+
     // Send the command
     communicationService.sendCommand(gcode)
       .catch(err => {
         logToConsole('error', 'Error sending movement command: ' + err);
       });
   };
-  
+
   // Function to handle tool control
   const handleToolToggle = () => {
     setActiveTool(!activeTool);
   };
-  
+
   // Function to home axes
   const homeAxes = (axes = 'all') => {
     // Get connection status
     const connectionInfo = communicationService.getConnectionInfo();
     if (connectionInfo.status !== 'connected') {
-      logToConsole('error', 'Not connected. Connection status: '+ connectionInfo.status);
+      logToConsole('error', 'Not connected. Connection status: ' + connectionInfo.status);
       return;
     }
-  
+
     let gcode = '';
-    
+
     if (axes === 'all') {
       gcode = 'G28';
       logToConsole('command', 'Sending home all axes command: G28');
@@ -72,14 +74,14 @@ const ControlPanel = () => {
       gcode = `G28 ${axes.toUpperCase()}`;
       logToConsole('command', `Sending home command: ${gcode}`);
     }
-    
+
     // Send the command
     communicationService.sendCommand(gcode)
       .catch(err => {
-         logToConsole('error', 'Error sending home command: ' + err);
+        logToConsole('error', 'Error sending home command: ' + err);
       });
   };
-  
+
   // Handle target position input changes
   const handleTargetPositionChange = (axis, value) => {
     setTargetPosition(prev => ({
@@ -91,69 +93,168 @@ const ControlPanel = () => {
   const handleStop = () => {
     const connectionInfo = communicationService.getConnectionInfo();
     if (connectionInfo.status !== 'connected') {
-       logToConsole('error', 'Not connected. Connection status:' + connectionInfo.status);
+      logToConsole('error', 'Not connected. Connection status:' + connectionInfo.status);
       return;
     }
-  
+
     logToConsole('command', 'Sending stop command');
-    
+
     // Send the command
     communicationService.sendSpecialCommand('STOP')
       .catch(err => {
-         logToConsole('error', 'Error sending stop command: ' + err);
+        logToConsole('error', 'Error sending stop command: ' + err);
       });
   };
-  
+
+  // Function to set current position as work zero
+  const setWorkZero = (axes = 'all') => {
+    const connectionInfo = communicationService.getConnectionInfo();
+    if (connectionInfo.status !== 'connected') {
+      logToConsole('error', 'Not connected. Connection status: ' + connectionInfo.status);
+      return;
+    }
+
+    let gcode = '';
+    if (axes === 'all') {
+      // G92 X0 Y0 Z0 sets work offset for all axes to current position
+      gcode = 'G92 X0 Y0 Z0 A0';
+      logToConsole('command', 'Setting current position as work zero for all axes');
+    } else {
+      // Set zero only for specified axes
+      const axesArray = axes.split('');
+      gcode = `G92 ${axesArray.map(axis => `${axis.toUpperCase()}0`).join(' ')}`;
+      logToConsole('command', `Setting current position as work zero for ${axes.toUpperCase()} axes`);
+    }
+
+    // Send the command
+    communicationService.sendCommand(gcode)
+      .then(() => {
+        showToast('Work zero position set successfully');
+        // Update local position state
+        setPosition(prev => ({
+          ...prev,
+          work: {
+            ...prev.work,
+            x: 0,
+            y: 0,
+            z: 0,
+            a: 0
+          }
+        }));
+      })
+      .catch(err => {
+        logToConsole('error', 'Error setting work zero: ' + err);
+      });
+  };
+
+  // Function to move to work zero position
+  const moveToWorkZero = () => {
+    const connectionInfo = communicationService.getConnectionInfo();
+    if (connectionInfo.status !== 'connected') {
+      logToConsole('error', 'Not connected. Connection status: ' + connectionInfo.status);
+      return;
+    }
+
+    // First move Z to a safe height to avoid collisions
+    const safeHeight = 5; // 5mm above work zero
+    const gcode = `G1 Z${safeHeight} F${speed * 60}\nG1 X0 Y0 F${speed * 60}\nG1 Z0 F${speed * 30}`;
+
+    logToConsole('command', 'Moving to work zero position');
+
+    // Send the command
+    communicationService.sendCommand(gcode)
+      .then(() => {
+        showToast('Moved to work zero position');
+      })
+      .catch(err => {
+        logToConsole('error', 'Error moving to work zero: ' + err);
+      });
+  };
+
+  // Function to reset the machine
+  const resetMachine = () => {
+    const connectionInfo = communicationService.getConnectionInfo();
+    if (connectionInfo.status !== 'connected') {
+      logToConsole('error', 'Not connected. Connection status: ' + connectionInfo.status);
+      return;
+    }
+
+    // Confirm before resetting
+    if (window.confirm('Are you sure you want to reset the machine? This will clear all errors and restart the controller.')) {
+      logToConsole('command', 'Resetting machine');
+
+      // Send the command - M999 is a common reset command
+      communicationService.sendCommand('M999')
+        .then(() => {
+          showToast('Machine reset successful');
+        })
+        .catch(err => {
+          logToConsole('error', 'Error resetting machine: ' + err);
+        });
+    }
+  };
+
+  // Show a toast message
+  const showToast = (message) => {
+    setToastMessage(message);
+    setShowSuccessToast(true);
+
+    // Hide after 3 seconds
+    setTimeout(() => {
+      setShowSuccessToast(false);
+    }, 3000);
+  };
+
   // Function to move to exact position
   const moveToExactPosition = (moveType = 'G1') => {
     // Get connection status
     const connectionInfo = communicationService.getConnectionInfo();
     if (connectionInfo.status !== 'connected') {
-       logToConsole('error', 'Not connected. Connection status:' + connectionInfo.status);
+      logToConsole('error', 'Not connected. Connection status:' + connectionInfo.status);
       return;
     }
-  
+
     // Use the correct coordinate values based on the current view
-    let coordsToSend = {...targetPosition};
-    
+    let coordsToSend = { ...targetPosition };
+
     // If we're in World view, use those coordinates directly
     // If we're in Work view, we'll use the input coordinates as is (they're already work coordinates)
-    
+
     // Create G-code command for movement
     const gcode = `${moveType} X${coordsToSend.x} Y${coordsToSend.y} Z${coordsToSend.z} A${coordsToSend.a} F${speed * 60}`;
-    
+
     // When in world view, we need to explicitly specify that we're using machine coordinates (G53)
-    const fullCommand = positionView === 'world' 
+    const fullCommand = positionView === 'world'
       ? `G53 ${gcode}` // Use G53 prefix for machine coordinates
       : gcode;         // Use work coordinates by default
-    
+
     logToConsole('command', `Sending command: ${fullCommand}`);
-    
+
     // Send the command
     communicationService.sendCommand(fullCommand)
       .catch(err => {
-         logToConsole('error', 'Error sending movement command: '+ err);
+        logToConsole('error', 'Error sending movement command: ' + err);
       });
   };
-  
+
   // Helper function to parse telemetry position message with the new format
   const parseTelemetryPosition = (message) => {
     console.log('Parsing telemetry message:', message); // Debugging log
-    
+
     try {
       // Extract the JSON part from the message
       const jsonStart = message.indexOf('{');
       if (jsonStart === -1) return null;
-      
+
       const jsonString = message.substring(jsonStart);
       const data = JSON.parse(jsonString);
-      
+
       // Check if the expected structure exists
       if (!data.work || !data.world) {
         console.log("Missing expected work/world properties");
         return null;
       }
-      
+
       return {
         work: {
           x: parseFloat(data.work.X) || 0,
@@ -176,17 +277,17 @@ const ControlPanel = () => {
 
   // Initialize target position from current position
   useEffect(() => {
-    setTargetPosition({...position[positionView]});
+    setTargetPosition({ ...position[positionView] });
   }, [showExactPositionInput, positionView]);
-  
+
   // Specific useEffect for telemetry position
   useEffect(() => {
     const handlePositionTelemetry = (data) => {
       console.log('Position telemetry received:', data); // Debugging log
-      
+
       if (typeof data.response === 'string' && data.response.startsWith('[TELEMETRY]')) {
         const newPosition = parseTelemetryPosition(data.response);
-        
+
         if (newPosition) {
           setPosition(prevPosition => {
             console.log('Updating position from:', prevPosition, 'to:', newPosition); // Debugging log
@@ -198,7 +299,7 @@ const ControlPanel = () => {
 
     // Add debug log for event listener setup
     console.log('Setting up position telemetry listener');
-    
+
     // Add event listener
     communicationService.on('position-telemetry', handlePositionTelemetry);
 
@@ -214,16 +315,26 @@ const ControlPanel = () => {
 
   return (
     <div className="control-panel">
+      {/* Toast notification */}
+      {showSuccessToast && (
+        <div className="success-toast">
+          <div className="toast-content">
+            <span className="toast-icon">✓</span>
+            <span className="toast-message">{toastMessage}</span>
+          </div>
+        </div>
+      )}
+
       {/* Position Display */}
       <div className="control-section position-display">
         <div className="section-header">
           <h3>Position Control</h3>
         </div>
-        
+
         {/* Position View Selector */}
         <div className="position-view-selector">
           <div className="move-mode-selector">
-            <button 
+            <button
               className={`move-mode-btn ${positionView === 'work' ? 'active' : ''}`}
               onClick={() => setPositionView('work')}
               aria-pressed={positionView === 'work'}
@@ -231,7 +342,7 @@ const ControlPanel = () => {
               <span className="move-mode-icon">Work</span>
               <span className="move-mode-label">Coordinate</span>
             </button>
-            <button 
+            <button
               className={`move-mode-btn ${positionView === 'world' ? 'active' : ''}`}
               onClick={() => setPositionView('world')}
               aria-pressed={positionView === 'world'}
@@ -241,7 +352,7 @@ const ControlPanel = () => {
             </button>
           </div>
         </div>
-        
+
         {/* Enhanced Position Cards */}
         <div className="position-cards">
           <div className="position-card x-position">
@@ -251,12 +362,12 @@ const ControlPanel = () => {
             </div>
             <div className="unit">mm</div>
             <div className="secondary-position">
-              {positionView === 'work' ? 
-                `World: ${position.world.x.toFixed(2)}` : 
+              {positionView === 'work' ?
+                `World: ${position.world.x.toFixed(2)}` :
                 `Work: ${position.work.x.toFixed(2)}`}
             </div>
           </div>
-          
+
           <div className="position-card y-position">
             <div className="position-card-header">
               <div className="axis-label">Y</div>
@@ -264,12 +375,12 @@ const ControlPanel = () => {
             </div>
             <div className="unit">mm</div>
             <div className="secondary-position">
-              {positionView === 'work' ? 
-                `World: ${position.world.y.toFixed(2)}` : 
+              {positionView === 'work' ?
+                `World: ${position.world.y.toFixed(2)}` :
                 `Work: ${position.work.y.toFixed(2)}`}
             </div>
           </div>
-          
+
           <div className="position-card z-position">
             <div className="position-card-header">
               <div className="axis-label">Z</div>
@@ -277,8 +388,8 @@ const ControlPanel = () => {
             </div>
             <div className="unit">mm</div>
             <div className="secondary-position">
-              {positionView === 'work' ? 
-                `World: ${position.world.z.toFixed(2)}` : 
+              {positionView === 'work' ?
+                `World: ${position.world.z.toFixed(2)}` :
                 `Work: ${position.work.z.toFixed(2)}`}
             </div>
           </div>
@@ -290,8 +401,8 @@ const ControlPanel = () => {
             </div>
             <div className="unit">deg</div>
             <div className="secondary-position">
-              {positionView === 'work' ? 
-                `World: ${position.world.a.toFixed(2)}` : 
+              {positionView === 'work' ?
+                `World: ${position.world.a.toFixed(2)}` :
                 `Work: ${position.work.a.toFixed(2)}`}
             </div>
           </div>
@@ -304,19 +415,19 @@ const ControlPanel = () => {
               <div className="input-row">
                 <div className="input-group">
                   <label className="axis-label x-axis">X:</label>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     value={targetPosition.x}
                     onChange={(e) => handleTargetPositionChange('x', e.target.value)}
                     step="0.1"
                   />
                   <span className="unit-label">mm</span>
                 </div>
-                
+
                 <div className="input-group">
                   <label className="axis-label y-axis">Y:</label>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     value={targetPosition.y}
                     onChange={(e) => handleTargetPositionChange('y', e.target.value)}
                     step="0.1"
@@ -324,23 +435,23 @@ const ControlPanel = () => {
                   <span className="unit-label">mm</span>
                 </div>
               </div>
-              
+
               <div className="input-row">
                 <div className="input-group">
                   <label className="axis-label z-axis">Z:</label>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     value={targetPosition.z}
                     onChange={(e) => handleTargetPositionChange('z', e.target.value)}
                     step="0.1"
                   />
                   <span className="unit-label">mm</span>
                 </div>
-                
+
                 <div className="input-group">
                   <label className="axis-label a-axis">A:</label>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     value={targetPosition.a}
                     onChange={(e) => handleTargetPositionChange('a', e.target.value)}
                     step="0.1"
@@ -348,11 +459,11 @@ const ControlPanel = () => {
                   <span className="unit-label">°</span>
                 </div>
               </div>
-              
+
               {/* Move Type Selector */}
               <div className="move-controls">
                 <div className="move-mode-selector">
-                  <button 
+                  <button
                     className={`move-mode-btn ${moveType === 'G0' ? 'active' : ''}`}
                     onClick={() => setMoveType('G0')}
                     aria-pressed={moveType === 'G0'}
@@ -360,7 +471,7 @@ const ControlPanel = () => {
                     <span className="move-mode-icon">G0</span>
                     <span className="move-mode-label">Rapid</span>
                   </button>
-                  <button 
+                  <button
                     className={`move-mode-btn ${moveType === 'G1' ? 'active' : ''}`}
                     onClick={() => setMoveType('G1')}
                     aria-pressed={moveType === 'G1'}
@@ -369,8 +480,8 @@ const ControlPanel = () => {
                     <span className="move-mode-label">Controlled</span>
                   </button>
                 </div>
-                
-                <button 
+
+                <button
                   className="move-to-position-btn"
                   onClick={() => moveToExactPosition(moveType)}
                 >
@@ -381,13 +492,13 @@ const ControlPanel = () => {
             </div>
           </div>
         )}
-      
+
         {/* Movement Controls */}
         <div className="movement-controls">
           <div className="xy-controls">
             <div className="control-grid">
-              <button 
-                className="control-btn diagonal nw" 
+              <button
+                className="control-btn diagonal nw"
                 onClick={() => { sendMovementCommand('X', -1); sendMovementCommand('Y', 1); }}
                 title="X- Y+"
               >
@@ -396,9 +507,9 @@ const ControlPanel = () => {
                   <polyline points="7 7 7 17 17 17"></polyline>
                 </svg>
               </button>
-              
-              <button 
-                className="control-btn y-plus" 
+
+              <button
+                className="control-btn y-plus"
                 onClick={() => sendMovementCommand('Y', 1)}
                 title="Y+"
               >
@@ -407,9 +518,9 @@ const ControlPanel = () => {
                 </svg>
                 <span className="control-text">Y+</span>
               </button>
-              
-              <button 
-                className="control-btn diagonal ne" 
+
+              <button
+                className="control-btn diagonal ne"
                 onClick={() => { sendMovementCommand('X', 1); sendMovementCommand('Y', 1); }}
                 title="X+ Y+"
               >
@@ -418,9 +529,9 @@ const ControlPanel = () => {
                   <polyline points="17 7 17 17 7 17"></polyline>
                 </svg>
               </button>
-              
-              <button 
-                className="control-btn x-minus" 
+
+              <button
+                className="control-btn x-minus"
                 onClick={() => sendMovementCommand('X', -1)}
                 title="X-"
               >
@@ -429,9 +540,9 @@ const ControlPanel = () => {
                 </svg>
                 <span className="control-text">X-</span>
               </button>
-              
-              <button 
-                className="control-btn home-xy" 
+
+              <button
+                className="control-btn home-xy"
                 onClick={() => homeAxes('xy')}
                 title="Home XY"
               >
@@ -440,9 +551,9 @@ const ControlPanel = () => {
                   <polyline points="9 22 9 12 15 12 15 22"></polyline>
                 </svg>
               </button>
-              
-              <button 
-                className="control-btn x-plus" 
+
+              <button
+                className="control-btn x-plus"
                 onClick={() => sendMovementCommand('X', 1)}
                 title="X+"
               >
@@ -451,9 +562,9 @@ const ControlPanel = () => {
                 </svg>
                 <span className="control-text">X+</span>
               </button>
-              
-              <button 
-                className="control-btn diagonal sw" 
+
+              <button
+                className="control-btn diagonal sw"
                 onClick={() => { sendMovementCommand('X', -1); sendMovementCommand('Y', -1); }}
                 title="X- Y-"
               >
@@ -462,9 +573,9 @@ const ControlPanel = () => {
                   <polyline points="7 17 7 7 17 7"></polyline>
                 </svg>
               </button>
-              
-              <button 
-                className="control-btn y-minus" 
+
+              <button
+                className="control-btn y-minus"
                 onClick={() => sendMovementCommand('Y', -1)}
                 title="Y-"
               >
@@ -473,9 +584,9 @@ const ControlPanel = () => {
                 </svg>
                 <span className="control-text">Y-</span>
               </button>
-              
-              <button 
-                className="control-btn diagonal se" 
+
+              <button
+                className="control-btn diagonal se"
                 onClick={() => { sendMovementCommand('X', 1); sendMovementCommand('Y', -1); }}
                 title="X+ Y-"
               >
@@ -485,19 +596,19 @@ const ControlPanel = () => {
                 </svg>
               </button>
             </div>
-            
+
             {/* A Controls */}
             <div className="a-control">
-              <button 
-                className="jog-btn a-minus" 
+              <button
+                className="jog-btn a-minus"
                 onClick={() => sendMovementCommand('A', -1)}
                 title="A-"
               >
                 <span className="triangle-left"></span>
                 <span className="axis-text">A-</span>
               </button>
-              <button 
-                className="jog-btn home-a" 
+              <button
+                className="jog-btn home-a"
                 onClick={() => homeAxes('a')}
                 title="Home A"
               >
@@ -506,8 +617,8 @@ const ControlPanel = () => {
                   <polyline points="9 22 9 12 15 12 15 22"></polyline>
                 </svg>
               </button>
-              <button 
-                className="jog-btn a-plus" 
+              <button
+                className="jog-btn a-plus"
                 onClick={() => sendMovementCommand('A', 1)}
                 title="A+"
               >
@@ -516,10 +627,10 @@ const ControlPanel = () => {
               </button>
             </div>
           </div>
-          
+
           <div className="z-controls">
-            <button 
-              className="control-btn z-plus" 
+            <button
+              className="control-btn z-plus"
               onClick={() => sendMovementCommand('Z', 1)}
               title="Z+"
             >
@@ -528,9 +639,9 @@ const ControlPanel = () => {
               </svg>
               <span className="control-text">Z+</span>
             </button>
-            
-            <button 
-              className="control-btn home-z" 
+
+            <button
+              className="control-btn home-z"
               onClick={() => homeAxes('z')}
               title="Home Z"
             >
@@ -539,9 +650,9 @@ const ControlPanel = () => {
                 <polyline points="9 22 9 12 15 12 15 22"></polyline>
               </svg>
             </button>
-            
-            <button 
-              className="control-btn z-minus" 
+
+            <button
+              className="control-btn z-minus"
               onClick={() => sendMovementCommand('Z', -1)}
               title="Z-"
             >
@@ -552,10 +663,11 @@ const ControlPanel = () => {
             </button>
           </div>
         </div>
-                
+
         <div className="global-controls">
-          <button 
-            className="global-btn home-all" 
+
+          <button
+            className="global-btn home-all"
             onClick={() => homeAxes('all')}
           >
             <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none">
@@ -564,9 +676,34 @@ const ControlPanel = () => {
             </svg>
             Home All
           </button>
-          
-          <button 
-            className="global-btn stop-btn" 
+
+          <button
+            className="global-btn set-zero"
+            onClick={() => setWorkZero('all')}
+            title="Set current position as work zero"
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="16" />
+              <line x1="8" y1="12" x2="16" y2="12" />
+            </svg>
+            Set Zero
+          </button>
+
+          <button
+            className="global-btn move-to-zero"
+            onClick={moveToWorkZero}
+            title="Move to work zero position"
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            Go To Zero
+          </button>
+
+
+          <button
+            className="global-btn stop-btn"
             onClick={handleStop}
           >
             <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none">
@@ -576,7 +713,7 @@ const ControlPanel = () => {
           </button>
         </div>
       </div>
-      
+
       {/* Step Size Controls */}
       <div className="control-section step-size-section">
         <div className="section-header">
@@ -584,7 +721,7 @@ const ControlPanel = () => {
         </div>
         <div className="step-size-controls">
           {[0.1, 0.5, 1.0, 5.0, 10.0, 50.0].map(size => (
-            <button 
+            <button
               key={size}
               className={`step-btn ${stepSize === size ? 'active' : ''}`}
               onClick={() => setStepSize(size)}
@@ -594,7 +731,7 @@ const ControlPanel = () => {
           ))}
         </div>
       </div>
-      
+
       {/* Speed Controls */}
       <div className="control-section speed-section">
         <div className="section-header">
@@ -602,12 +739,12 @@ const ControlPanel = () => {
           <div className="speed-value">{speed}%</div>
         </div>
         <div className="speed-slider-container">
-          <input 
-            type="range" 
-            min="1" 
-            max="100" 
+          <input
+            type="range"
+            min="1"
+            max="100"
             value={speed}
-            onChange={(e) => setSpeed(parseInt(e.target.value))} 
+            onChange={(e) => setSpeed(parseInt(e.target.value))}
             className="speed-slider"
           />
           <div className="speed-ticks">
@@ -625,7 +762,7 @@ const ControlPanel = () => {
           <button onClick={() => setSpeed(100)}>100%</button>
         </div>
       </div>
-      
+
       {/* Tool Controls */}
       <div className="control-section tool-section">
         <div className="section-header">
@@ -636,7 +773,7 @@ const ControlPanel = () => {
             </span>
           </div>
         </div>
-        
+
         <div className="tool-control-container">
           <div className="tool-status-display">
             <div className={`status-indicator ${activeTool ? 'active' : 'inactive'}`}>
@@ -647,11 +784,11 @@ const ControlPanel = () => {
               <div className="tool-state">{activeTool ? 'Ready to operate' : 'Standby mode'}</div>
             </div>
           </div>
-          
+
           <label className="toggle-switch">
-            <input 
-              type="checkbox" 
-              checked={activeTool} 
+            <input
+              type="checkbox"
+              checked={activeTool}
               onChange={handleToolToggle}
             />
             <span className="toggle-slider">
