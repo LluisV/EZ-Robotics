@@ -591,58 +591,65 @@ const CodeEditorPanel = () => {
   const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
   // Send G-code to robot
-  const sendToRobot = async () => {
-    try {
-      // Check connection
-      const connectionInfo = communicationService.getConnectionInfo();
-      if (connectionInfo.status !== 'connected') {
-        setStatusMessage('Error: Not connected to robot. Please connect first.');
-        return;
-      }
-  
-      // Generate and normalize code
-      const transformedCode = generateTransformedGCode();
-      const normalizedCode = transformedCode.replace(/\r\n/g, '\n').replace(/\n{2,}/g, '\n').trim();
-      
-      // Use a simpler filename with extension
-      const simpleFilename = '/test.gcode';
-      
-      setStatusMessage(`Debug: Sending commands manually step by step...`);
-      
-      // Step 1: Delete existing file (ignore errors)
-      try {
-        await communicationService.sendCommand(`@DELETE ${simpleFilename}`);
-        setStatusMessage(`Debug: Delete command sent`);
-      } catch (e) {
-        setStatusMessage(`Debug: Delete command error (expected): ${e.message}`);
-      }
-      
-      // Step 2: Send debug command to check filesystem
-      const fsResponse = await communicationService.sendCommand(`?DEBUG SPIFFS`);
-      setStatusMessage(`Debug: SPIFFS info: ${fsResponse}`);
-      
-      // Step 3: Send the receive command
-      const receiveResponse = await communicationService.sendCommand(
-        `@RECEIVE ${simpleFilename} ${normalizedCode.length}`
-      );
-      setStatusMessage(`Debug: Receive response: ${receiveResponse}`);
-      
-      // Step 4: Wait a moment before sending content
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Step 5: Send content directly
-      await communicationService.sendCommand(normalizedCode);
-      setStatusMessage(`Debug: Content sent`);
-      
-      // Step 6: Send direct run command
-      const runResponse = await communicationService.sendCommand(`@RUN ${simpleFilename}`);
-      setStatusMessage(`Debug: Run response: ${runResponse}`);
-      
-    } catch (error) {
-      console.error('Error during debug sequence:', error);
-      setStatusMessage(`Debug failed: ${error.message}`);
+  // Replace just the sendToRobot method in the CodeEditorPanel.js
+// This updated version will work with GRBL protocol
+
+/**
+ * Send G-code to robot using GRBL protocol
+ */
+const sendToRobot = async () => {
+  try {
+    // Check connection
+    const connectionInfo = communicationService.getConnectionInfo();
+    if (connectionInfo.status !== 'connected') {
+      setStatusMessage('Error: Not connected to robot. Please connect first.');
+      return;
     }
-  };
+
+    // Generate and normalize code
+    const transformedCode = generateTransformedGCode();
+    const normalizedCode = transformedCode.replace(/\r\n/g, '\n').replace(/\n{2,}/g, '\n').trim();
+    
+    // Set up transfer tracking
+    setIsTransferring(true);
+    setTransferProgress(0);
+    setTransferError(null);
+    setStatusMessage('Starting G-code transfer...');
+    
+    // Send the G-code file with progress tracking
+    await communicationService.sendGCodeFile(normalizedCode, (progressData) => {
+      // Handle progress updates
+      switch (progressData.status) {
+        case 'started':
+          setStatusMessage(`Starting transfer of ${progressData.totalLines} lines...`);
+          setTransferProgress(0);
+          break;
+        
+        case 'progress':
+          setStatusMessage(`Sending line ${progressData.line}/${progressData.totalLines} (${progressData.progress}%)`);
+          setTransferProgress(progressData.progress);
+          break;
+        
+        case 'completed':
+          setStatusMessage(`Transfer completed: ${progressData.totalLines} lines`);
+          setTransferProgress(100);
+          setTimeout(() => setIsTransferring(false), 2000); // Hide progress after 2 seconds
+          break;
+        
+        case 'error':
+          setTransferError(progressData.error || 'Unknown error');
+          setStatusMessage(`Transfer failed: ${progressData.error || 'Unknown error'}`);
+          setIsTransferring(false);
+          break;
+      }
+    });
+  } catch (error) {
+    console.error('Error during G-code transfer:', error);
+    setStatusMessage(`Transfer failed: ${error.message}`);
+    setTransferError(error.message);
+    setIsTransferring(false);
+  }
+};
 
   const [isTransferring, setIsTransferring] = useState(false);
   const [transferProgress, setTransferProgress] = useState(0);

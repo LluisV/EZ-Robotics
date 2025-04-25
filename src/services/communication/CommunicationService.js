@@ -1,6 +1,6 @@
 /**
  * src/services/communication/CommunicationService.js
- * Improved service for reliable file transfers with the robot
+ * Service for communicating with GRBL-compatible CNC controllers
  */
 import EventEmitter from 'events';
 import SerialAdapter from './adapters/SerialAdapter';
@@ -23,28 +23,13 @@ class CommunicationService extends EventEmitter {
     this.selectedPort = null;
     this.baudRate = 115200; // Default baud rate
     
-    // Queue for commands
-    this.commandQueue = [];
-    this.isProcessingQueue = false;
-    this.isBusy = false;
-    this.responseTimeout = 5000; // ms
-    
-    // File transfer state
-    this.fileTransfer = {
-      inProgress: false,
-      fileName: null,
-      fileContent: null,
-      totalLines: 0,
-      currentLine: 0,
-      chunkSize: 64, // Send in smaller chunks for better reliability
-      bytesTransferred: 0,
-      bytesTotal: 0,
-      error: null,
-      lastAcknowledged: -1,
-      retryCount: 0,
-      maxRetries: 3,
-      timeoutId: null
-    };
+    // GRBL state tracking
+    this.lineBuffer = [];
+    this.lastAck = true; // Start with ack=true so we can send the first command
+    this.expectedResponses = new Map(); // Map of sent commands to response promises
+    this.sentBytes = 0;
+    this.confirmedBytes = 0;
+    this.bufferSize = 128; // GRBL's default RX buffer size
     
     // Buffer for received data
     this.incomingBuffer = '';
@@ -114,6 +99,16 @@ class CommunicationService extends EventEmitter {
         
         // Clear the buffer on new connection
         this.incomingBuffer = '';
+        this.lineBuffer = [];
+        this.lastAck = true;
+        this.sentBytes = 0;
+        this.confirmedBytes = 0;
+        
+        // Send a request for initial status
+        setTimeout(() => {
+          // Send a status request to check if GRBL is responding
+          this._sendRealTimeCommand('?');
+        }, 500);
         
         return true;
       } else {
@@ -144,11 +139,6 @@ class CommunicationService extends EventEmitter {
       return true;
     }
     
-    // If file transfer is in progress, cancel it
-    if (this.fileTransfer.inProgress) {
-      this.cancelFileTransfer('Disconnected');
-    }
-    
     try {
       await this.activeAdapter.disconnect();
       this.connectionStatus = ConnectionStatus.DISCONNECTED;
@@ -159,14 +149,36 @@ class CommunicationService extends EventEmitter {
       });
       
       // Clear any pending commands
-      this.commandQueue = [];
-      this.isProcessingQueue = false;
-      this.isBusy = false;
+      this.lineBuffer = [];
+      this.lastAck = true;
+      this.expectedResponses.clear();
+      this.sentBytes = 0;
+      this.confirmedBytes = 0;
       
       return true;
     } catch (error) {
       console.error('Disconnection error:', error);
       return false;
+    }
+  }
+  
+  /**
+   * Send a GRBL realtime command (like ? for status)
+   * @param {string} command Single character realtime command
+   * @private
+   */
+  _sendRealTimeCommand(command) {
+    if (!this.activeAdapter || this.connectionStatus !== ConnectionStatus.CONNECTED) {
+      console.warn('Cannot send realtime command: not connected');
+      return;
+    }
+    
+    try {
+      // Realtime commands are sent directly, bypassing the buffer
+      this.activeAdapter.write(command);
+    } catch (error) {
+      console.error('Error sending realtime command:', error);
+      this.emit('error', { error });
     }
   }
   
@@ -185,211 +197,305 @@ class CommunicationService extends EventEmitter {
       throw new Error('Not connected to robot');
     }
     
+    // Check for realtime commands (single character)
+    if (command.length === 1 && ['?', '!', '~', '\x18'].includes(command)) {
+      this._sendRealTimeCommand(command);
+      
+      // For status request, return a promise for the response
+      if (command === '?' && expectResponse) {
+        return new Promise((resolve) => {
+          const onStatusResponse = (data) => {
+            // Check if it's a status response (starts with < and ends with >)
+            if (data.response && data.response.startsWith('<') && data.response.endsWith('>')) {
+              this.removeListener('response', onStatusResponse);
+              resolve(data.response);
+            }
+          };
+          
+          // Listen for the response
+          this.on('response', onStatusResponse);
+          
+          // Set a timeout to prevent hanging if we don't get a proper response
+          setTimeout(() => {
+            this.removeListener('response', onStatusResponse);
+            resolve(''); // Resolve with empty string on timeout
+          }, 1000);
+        });
+      }
+      
+      return '';
+    }
+    
     // Normalize command (ensure it ends with newline)
     const normalizedCommand = command.trim() + '\n';
+    const commandLength = normalizedCommand.length;
     
     // Log the command for debugging
     console.log(`Sending command: ${normalizedCommand.trim()}`);
     this.emit('command', { command: normalizedCommand.trim(), sent: true });
     
-    // For immediate commands, send directly and don't queue
-    if (immediate) {
+    // For immediate commands or when the buffer is free, send directly
+    if (immediate || this.lastAck) {
       try {
         await this.activeAdapter.write(normalizedCommand);
+        this.sentBytes += commandLength;
         
         if (expectResponse) {
-          return this._waitForResponse();
+          return this._waitForResponse(normalizedCommand.trim());
         }
         return '';
       } catch (error) {
-        console.error('Error sending immediate command:', error);
+        console.error('Error sending command:', error);
         throw error;
       }
     }
     
-    // For normal commands, add to queue
+    // Otherwise, add to line buffer using GRBL's buffer counting mechanism
     return new Promise((resolve, reject) => {
-      this.commandQueue.push({
-        command: normalizedCommand,
-        expectResponse,
-        resolve,
-        reject
-      });
-      
-      // Start processing the queue if not already doing so
-      if (!this.isProcessingQueue) {
-        this._processCommandQueue();
+      // Check if we have enough space in GRBL's buffer
+      if (this.sentBytes - this.confirmedBytes + commandLength <= this.bufferSize) {
+        // Send the command directly
+        this.activeAdapter.write(normalizedCommand)
+          .then(() => {
+            this.sentBytes += commandLength;
+            
+            if (expectResponse) {
+              // Wait for the response
+              this._waitForResponse(normalizedCommand.trim())
+                .then(response => resolve(response))
+                .catch(error => reject(error));
+            } else {
+              resolve('');
+            }
+          })
+          .catch(error => {
+            console.error('Error sending command:', error);
+            reject(error);
+          });
+      } else {
+        // Not enough space, add to line buffer
+        this.lineBuffer.push({
+          command: normalizedCommand,
+          expectResponse,
+          resolve,
+          reject
+        });
+        
+        // Process the line buffer
+        this._processLineBuffer();
       }
     });
   }
   
   /**
-   * Send a file to the robot with reliable transfer protocol
-   * @param {string} fileName Name to give the file on the robot
-   * @param {string} fileContent Content of the file to send
-   * @returns {Promise<void>}
+   * Wait for a response from the robot
+   * @param {string} command The sent command
+   * @returns {Promise<string>} Response from the robot
+   * @private
    */
-  async sendFile(fileName, fileContent) {
-    if (!this.activeAdapter || this.connectionStatus !== ConnectionStatus.CONNECTED) {
-      throw new Error('Not connected to robot');
+  _waitForResponse(command) {
+    return new Promise((resolve, reject) => {
+      const responseTimeout = 10000; // 10 seconds timeout
+      
+      // Create a handler for the response
+      const responseHandler = (responseData) => {
+        // Check if it's an "ok" or error response
+        if (responseData.response === 'ok' || responseData.response.startsWith('error:')) {
+          this.confirmedBytes += command.length + 1; // +1 for newline
+          this.lastAck = true;
+          
+          // Process any pending commands
+          this._processLineBuffer();
+          
+          resolve(responseData.response);
+        }
+      };
+      
+      // Add the handler to our event emitter
+      this.on('response', responseHandler);
+      
+      // Set a timeout to prevent hanging
+      const timeout = setTimeout(() => {
+        this.removeListener('response', responseHandler);
+        reject(new Error('Response timeout'));
+      }, responseTimeout);
+      
+      // Create a cleanup function to avoid duplicated code
+      const cleanup = () => {
+        this.removeListener('response', responseHandler);
+        clearTimeout(timeout);
+      };
+      
+      // Add error handler
+      const errorHandler = (errorData) => {
+        cleanup();
+        reject(errorData.error);
+      };
+      
+      this.once('error', errorHandler);
+    });
+  }
+  
+  /**
+   * Process the line buffer
+   * @private
+   */
+  _processLineBuffer() {
+    // Only process if we have lines and the last command was acknowledged
+    if (this.lineBuffer.length === 0 || !this.lastAck) {
+      return;
     }
     
-    // If a file transfer is already in progress, cancel it
-    if (this.fileTransfer.inProgress) {
-      this.cancelFileTransfer('New transfer started');
+    // Get the next command
+    const { command, expectResponse, resolve, reject } = this.lineBuffer[0];
+    const commandLength = command.length;
+    
+    // Check if we have space in GRBL's buffer
+    if (this.sentBytes - this.confirmedBytes + commandLength <= this.bufferSize) {
+      // Remove from buffer
+      this.lineBuffer.shift();
+      
+      // Set acknowledging status to false to prevent overlapping
+      this.lastAck = false;
+      
+      // Send the command
+      this.activeAdapter.write(command)
+        .then(() => {
+          this.sentBytes += commandLength;
+          
+          if (expectResponse) {
+            // Wait for the response
+            this._waitForResponse(command.trim())
+              .then(response => {
+                resolve(response);
+                // Continue processing the buffer
+                this._processLineBuffer();
+              })
+              .catch(error => {
+                reject(error);
+                this.lastAck = true; // Allow further processing even on error
+                this._processLineBuffer();
+              });
+          } else {
+            resolve('');
+            this.lastAck = true;
+            this._processLineBuffer();
+          }
+        })
+        .catch(error => {
+          console.error('Error sending command from buffer:', error);
+          reject(error);
+          this.lastAck = true; // Allow further processing even on error
+          this._processLineBuffer();
+        });
+    }
+    // If no space available, we'll retry when an 'ok' is received
+  }
+  
+  /**
+   * Send a G-code file to the robot using GRBL's buffer-based streaming
+   * @param {string} fileContent Content of the G-code file
+   * @param {function} progressCallback Optional callback for progress updates
+   * @returns {Promise<boolean>} Whether the file was sent successfully
+   */
+  async sendGCodeFile(fileContent, progressCallback = null) {
+    if (!this.activeAdapter || this.connectionStatus !== ConnectionStatus.CONNECTED) {
+      throw new Error('Not connected to robot');
     }
     
     try {
       // Normalize line endings and remove multiple blank lines
       const normalizedContent = fileContent.replace(/\r\n/g, '\n').replace(/\n{2,}/g, '\n').trim();
-      const fileSize = normalizedContent.length;
       const lines = normalizedContent.split('\n');
+      const totalLines = lines.length;
       
-      // Initialize file transfer state
-      this.fileTransfer = {
-        inProgress: true,
-        fileName,
-        fileContent: normalizedContent,
-        lines,
-        totalLines: lines.length,
-        currentLine: 0,
-        chunkSize: 64, // Number of lines to send in each chunk before waiting for acknowledgment
-        bytesTransferred: 0,
-        bytesTotal: fileSize,
-        error: null,
-        lastAcknowledged: -1,
-        retryCount: 0,
-        maxRetries: 3,
-        timeoutId: null
-      };
+      // Reset state
+      this.lineBuffer = [];
+      this.lastAck = true;
+      this.sentBytes = 0;
+      this.confirmedBytes = 0;
       
-      this.emit('fileTransfer', { 
-        status: 'started', 
-        fileName, 
-        totalLines: this.fileTransfer.totalLines,
-        bytesTotal: fileSize 
-      });
-      
-      // First, delete the file if it exists to ensure a clean state
-      await this.sendCommand(`@DELETE ${fileName}`, { expectResponse: true });
-      
-      // Send the file receive command with size information
-      const response = await this.sendCommand(`@RECEIVE ${fileName} ${fileSize}`, { expectResponse: true });
-      
-      // Check if the response indicates the receiver is ready
-      if (!response.includes('Receiving file')) {
-        throw new Error(`Failed to start file transfer: ${response}`);
+      // Report start of file transfer
+      if (progressCallback) {
+        progressCallback({
+          status: 'started',
+          totalLines,
+          progress: 0
+        });
       }
       
-      // Start the reliable transfer process
-      await this._startReliableFileTransfer();
+      let currentLine = 0;
+      let errorOccurred = false;
       
-      // Validate the transfer was successful
-      if (this.fileTransfer.error) {
-        throw new Error(`File transfer failed: ${this.fileTransfer.error}`);
+      for (const line of lines) {
+        // Skip empty lines and comments
+        if (!line.trim() || line.trim().startsWith(';')) {
+          currentLine++;
+          continue;
+        }
+        
+        try {
+          // Send the line and wait for the response
+          const response = await this.sendCommand(line, { expectResponse: true });
+          
+          // Check for error response
+          if (response.startsWith('error:')) {
+            console.error(`Error executing line ${currentLine + 1}: ${line} - ${response}`);
+            if (progressCallback) {
+              progressCallback({
+                status: 'error',
+                error: `Error at line ${currentLine + 1}: ${response}`,
+                line: currentLine + 1,
+                command: line
+              });
+            }
+            errorOccurred = true;
+            break;
+          }
+          
+          // Update progress
+          currentLine++;
+          if (progressCallback) {
+            progressCallback({
+              status: 'progress',
+              progress: Math.floor((currentLine / totalLines) * 100),
+              line: currentLine,
+              totalLines
+            });
+          }
+        } catch (error) {
+          console.error(`Error sending line ${currentLine + 1}: ${error.message}`);
+          if (progressCallback) {
+            progressCallback({
+              status: 'error',
+              error: error.message,
+              line: currentLine + 1,
+              command: line
+            });
+          }
+          errorOccurred = true;
+          break;
+        }
       }
       
-      this.emit('fileTransfer', { 
-        status: 'completed', 
-        fileName,
-        bytesTransferred: this.fileTransfer.bytesTotal
-      });
-      
-      return fileName;
-    } catch (error) {
-      this.fileTransfer.error = error.message;
-      this.emit('fileTransfer', { 
-        status: 'error', 
-        error: error.message
-      });
-      console.error('File transfer error:', error);
-      throw error;
-    }
-  }
-  
-  /**
-   * Run a G-code file on the robot
-   * @param {string} fileName Name of the file to run
-   * @returns {Promise<string>} Response from the run command
-   */
-  async runFile(fileName) {
-    try {
-      // Make sure file name starts with /
-      if (!fileName.startsWith('/')) {
-        fileName = '/' + fileName;
+      if (!errorOccurred && progressCallback) {
+        progressCallback({
+          status: 'completed',
+          totalLines
+        });
       }
       
-      // Send run command
-      const response = await this.sendCommand(`@RUN ${fileName}`, { expectResponse: true });
-      
-      this.emit('fileRun', { 
-        status: 'started', 
-        fileName,
-        response
-      });
-      
-      return response;
+      return !errorOccurred;
     } catch (error) {
-      this.emit('fileRun', { 
-        status: 'error', 
-        fileName,
-        error: error.message
-      });
-      console.error('File run error:', error);
+      console.error('Error sending G-code file:', error);
+      if (progressCallback) {
+        progressCallback({
+          status: 'error',
+          error: error.message
+        });
+      }
       throw error;
     }
-  }
-  
-  /**
-   * Upload and run a G-code file in one operation
-   * @param {string} fileName Name to give the file
-   * @param {string} fileContent Content of the G-code file
-   * @returns {Promise<string>} Response from the run command
-   */
-  async uploadAndRunFile(fileName, fileContent) {
-    try {
-      // Upload the file
-      await this.sendFile(fileName, fileContent);
-      
-      // Run the file
-      return await this.runFile(fileName);
-    } catch (error) {
-      console.error('Upload and run error:', error);
-      throw error;
-    }
-  }
-  
-  /**
-   * Cancel an in-progress file transfer
-   * @param {string} reason Reason for cancellation
-   */
-  cancelFileTransfer(reason = 'User cancelled') {
-    if (!this.fileTransfer.inProgress) {
-      return;
-    }
-    
-    // Clear any pending timeout
-    if (this.fileTransfer.timeoutId) {
-      clearTimeout(this.fileTransfer.timeoutId);
-    }
-    
-    // Try to send a cancellation signal to the device
-    try {
-      this.sendCommand(`@CANCEL`, { immediate: true, expectResponse: false });
-    } catch (error) {
-      console.error('Error sending cancel command:', error);
-    }
-    
-    this.fileTransfer.inProgress = false;
-    this.fileTransfer.error = reason;
-    
-    this.emit('fileTransfer', { 
-      status: 'cancelled', 
-      reason,
-      fileName: this.fileTransfer.fileName,
-      bytesTransferred: this.fileTransfer.bytesTransferred,
-      bytesTotal: this.fileTransfer.bytesTotal
-    });
   }
   
   /**
@@ -400,20 +506,44 @@ class CommunicationService extends EventEmitter {
   async sendSpecialCommand(commandType) {
     switch (commandType) {
       case 'STOP':
-        // Send emergency stop command (M112)
-        return this.sendCommand('M112', { immediate: true, expectResponse: false });
+        // Send reset command (Ctrl-X)
+        this._sendRealTimeCommand('\x18');
+        return '';
       
+      case 'FEEDHOLD':
+        // Send feed hold command (!)
+        this._sendRealTimeCommand('!');
+        return '';
+      
+      case 'RESUME':
+        // Send cycle start/resume command (~)
+        this._sendRealTimeCommand('~');
+        return '';
+        
       case 'HOME':
         // Home all axes (G28)
-        return this.sendCommand('G28', { expectResponse: true });
+        return this.sendCommand('$H', { expectResponse: true });
       
       case 'GET_POSITION':
         // Request current position
-        return this.sendCommand('?POS', { immediate: true });
-      
-      case 'GET_STATUS':
-        // Request machine status
-        return this.sendCommand('?STATUS', { immediate: true });
+        this._sendRealTimeCommand('?');
+        return new Promise((resolve) => {
+          const onStatusResponse = (data) => {
+            // Check if it's a status response
+            if (data.response && data.response.startsWith('<') && data.response.endsWith('>')) {
+              this.removeListener('response', onStatusResponse);
+              resolve(data.response);
+            }
+          };
+          
+          this.on('response', onStatusResponse);
+          
+          // Set a timeout
+          setTimeout(() => {
+            this.removeListener('response', onStatusResponse);
+            resolve(''); // Resolve with empty string on timeout
+          }, 1000);
+        });
       
       default:
         throw new Error(`Unknown special command: ${commandType}`);
@@ -430,27 +560,6 @@ class CommunicationService extends EventEmitter {
       type: this.connectionType,
       port: this.selectedPort,
       baudRate: this.baudRate
-    };
-  }
-  
-  /**
-   * Get file transfer status
-   * @returns {Object} File transfer status information
-   */
-  getFileTransferStatus() {
-    if (!this.fileTransfer.inProgress) {
-      return { status: 'idle' };
-    }
-    
-    return {
-      status: 'active',
-      fileName: this.fileTransfer.fileName,
-      progress: Math.round((this.fileTransfer.bytesTransferred / this.fileTransfer.bytesTotal) * 100),
-      bytesTransferred: this.fileTransfer.bytesTransferred,
-      bytesTotal: this.fileTransfer.bytesTotal,
-      currentLine: this.fileTransfer.currentLine,
-      totalLines: this.fileTransfer.totalLines,
-      error: this.fileTransfer.error
     };
   }
   
@@ -515,64 +624,92 @@ class CommunicationService extends EventEmitter {
       // Skip empty lines
       if (!line) continue;
       
-      // Handle file transfer acknowledgments
-      if (this.fileTransfer.inProgress) {
-        if (line.includes('Progress:')) {
-          // Extract progress information
-          const progressMatch = line.match(/Progress:\s*(\d+)%\s*\((\d+)\/(\d+)/);
-          if (progressMatch) {
-            const percentage = parseInt(progressMatch[1], 10);
-            const bytesTransferred = parseInt(progressMatch[2], 10);
-            const bytesTotal = parseInt(progressMatch[3], 10);
-            
-            this.fileTransfer.bytesTransferred = bytesTransferred;
-            
-            this.emit('fileTransfer', {
-              status: 'progress',
-              progress: percentage,
-              bytesTransferred,
-              bytesTotal,
-              currentLine: this.fileTransfer.currentLine,
-              totalLines: this.fileTransfer.totalLines
-            });
-          }
-        } else if (line === '</FILE>') {
-          // End of file transfer
-          this._handleFileTransferCompletion();
-        } else if (line.includes('File receive completed:')) {
-          // Successful file transfer completion
-          this._handleFileTransferCompletion();
-        } else if (line.includes('Error:') || line.includes('Failed:')) {
-          // Error during file transfer
-          this.fileTransfer.error = line;
-          this.cancelFileTransfer(line);
-        }
-      }
-      
-      // Check for position telemetry
-      if (line.startsWith('[TELEMETRY]')) {
-        this.emit('position-telemetry', { response: line });
-      }
-      
-      // Emit the received line
-      this.emit('response', { response: line });
-      
-      // Log the response for debugging
+      // Log the received line for debugging
       console.log(`Received: ${line}`);
       
-      // If we're waiting for a response, this will resolve the waiting promise
-      if (this.pendingResponseResolve) {
-        const resolve = this.pendingResponseResolve;
-        this.pendingResponseResolve = null;
-        
-        if (this.pendingResponseTimeout) {
-          clearTimeout(this.pendingResponseTimeout);
-          this.pendingResponseTimeout = null;
-        }
-        
-        resolve(line);
+      // Emit the received line as a response
+      this.emit('response', { response: line });
+      
+      // Special handling for status responses
+      if (line.startsWith('<') && line.endsWith('>')) {
+        this._parseGrblStatus(line);
       }
     }
+    
+    // Check for status characters (these don't end with newline)
+    if (this.incomingBuffer.startsWith('<') && this.incomingBuffer.includes('>')) {
+      const endIndex = this.incomingBuffer.indexOf('>') + 1;
+      const statusLine = this.incomingBuffer.substring(0, endIndex);
+      this.incomingBuffer = this.incomingBuffer.substring(endIndex);
+      
+      // Log the received status
+      console.log(`Received status: ${statusLine}`);
+      
+      // Emit the received status as a response
+      this.emit('response', { response: statusLine });
+      
+      // Parse the status
+      this._parseGrblStatus(statusLine);
+    }
+  }
+  
+  /**
+   * Parse GRBL status response
+   * @param {string} statusLine The status line (format: <status|...>)
+   * @private
+   */
+  _parseGrblStatus(statusLine) {
+    // Strip the angle brackets
+    const statusContent = statusLine.substring(1, statusLine.length - 1);
+    
+    // Split by pipe character
+    const statusParts = statusContent.split('|');
+    
+    // The first part is the machine state
+    const machineState = statusParts[0];
+    
+    // Parse remaining parts
+    const status = {
+      state: machineState,
+      machinePosition: { x: 0, y: 0, z: 0 },
+      workPosition: { x: 0, y: 0, z: 0 },
+      feedRate: 0
+    };
+    
+    for (let i = 1; i < statusParts.length; i++) {
+      const part = statusParts[i];
+      
+      if (part.startsWith('MPos:')) {
+        // Machine position
+        const coords = part.substring(5).split(',');
+        if (coords.length >= 3) {
+          status.machinePosition = {
+            x: parseFloat(coords[0]),
+            y: parseFloat(coords[1]),
+            z: parseFloat(coords[2])
+          };
+        }
+      } else if (part.startsWith('WPos:')) {
+        // Work position
+        const coords = part.substring(5).split(',');
+        if (coords.length >= 3) {
+          status.workPosition = {
+            x: parseFloat(coords[0]),
+            y: parseFloat(coords[1]),
+            z: parseFloat(coords[2])
+          };
+        }
+      } else if (part.startsWith('FS:')) {
+        // Feed and speed
+        const values = part.substring(3).split(',');
+        if (values.length >= 1) {
+          status.feedRate = parseFloat(values[0]);
+        }
+      }
+    }
+    
+    // Emit the parsed status
+    this.emit('grbl-status', status);
   }
   
   /**
@@ -583,218 +720,6 @@ class CommunicationService extends EventEmitter {
   _handleError(error) {
     console.error('Communication error:', error);
     this.emit('error', { error });
-    
-    // If there's a pending response, reject it
-    if (this.pendingResponseReject) {
-      const reject = this.pendingResponseReject;
-      this.pendingResponseReject = null;
-      
-      if (this.pendingResponseTimeout) {
-        clearTimeout(this.pendingResponseTimeout);
-        this.pendingResponseTimeout = null;
-      }
-      
-      reject(error);
-    }
-    
-    // If there's a file transfer in progress, cancel it
-    if (this.fileTransfer.inProgress) {
-      this.cancelFileTransfer(error.message);
-    }
-  }
-  
-  /**
-   * Handle successful completion of file transfer
-   * @private
-   */
-  _handleFileTransferCompletion() {
-    if (!this.fileTransfer.inProgress) return;
-    
-    // Set state to completed
-    const { fileName, bytesTotal } = this.fileTransfer;
-    this.fileTransfer.bytesTransferred = bytesTotal;
-    this.fileTransfer.inProgress = false;
-    
-    // Emit completion event
-    this.emit('fileTransfer', {
-      status: 'completed',
-      fileName,
-      bytesTransferred: bytesTotal,
-      bytesTotal
-    });
-  }
-  
-  /**
-   * Wait for a response from the robot
-   * @returns {Promise<string>} Response from the robot
-   * @private
-   */
-  _waitForResponse() {
-    return new Promise((resolve, reject) => {
-      this.pendingResponseResolve = resolve;
-      this.pendingResponseReject = reject;
-      
-      // Set a timeout for the response
-      this.pendingResponseTimeout = setTimeout(() => {
-        if (this.pendingResponseResolve) {
-          const tempReject = this.pendingResponseReject;
-          this.pendingResponseResolve = null;
-          this.pendingResponseReject = null;
-          tempReject(new Error('Response timeout'));
-        }
-      }, this.responseTimeout);
-    });
-  }
-  
-  /**
-   * Process the command queue
-   * @private
-   */
-  async _processCommandQueue() {
-    if (this.isProcessingQueue || this.commandQueue.length === 0) {
-      return;
-    }
-    
-    this.isProcessingQueue = true;
-    
-    while (this.commandQueue.length > 0) {
-      const { command, expectResponse, resolve, reject } = this.commandQueue.shift();
-      
-      try {
-        await this.activeAdapter.write(command);
-        
-        if (expectResponse) {
-          const response = await this._waitForResponse();
-          resolve(response);
-        } else {
-          resolve('');
-        }
-      } catch (error) {
-        reject(error);
-      }
-      
-      // Small delay between commands to avoid overwhelming the device
-      await new Promise(r => setTimeout(r, 50));
-    }
-    
-    this.isProcessingQueue = false;
-  }
-  
-  /**
-   * Start the reliable file transfer process
-   * @private
-   */
-  async _startReliableFileTransfer() {
-    // Attempt to send the file data in chunks with acknowledgment between chunks
-    const { fileName, lines, totalLines, chunkSize, bytesTotal } = this.fileTransfer;
-    
-    try {
-      let currentLine = 0;
-      
-      // Send chunks until all lines are sent
-      while (currentLine < totalLines) {
-        // Calculate end of chunk (not exceeding total lines)
-        const endLine = Math.min(currentLine + chunkSize, totalLines);
-        
-        // Get the lines for this chunk
-        const chunkLines = lines.slice(currentLine, endLine);
-        const chunkContent = chunkLines.join('\n') + (endLine < totalLines ? '\n' : '');
-        
-        // Update current line in state
-        this.fileTransfer.currentLine = currentLine;
-        
-        // Calculate bytes transferred so far
-        let bytesTransferred = 0;
-        for (let i = 0; i < currentLine; i++) {
-          bytesTransferred += lines[i].length + 1; // +1 for newline
-        }
-        this.fileTransfer.bytesTransferred = bytesTransferred;
-        
-        // Send the chunk
-        await this.activeAdapter.write(chunkContent);
-        
-        // Wait for acknowledgment (progress update) before sending the next chunk
-        // This is a simplified approach - ideally we'd have explicit acknowledgments
-        await this._waitForChunkAcknowledgment(bytesTransferred);
-        
-        // Move to next chunk
-        currentLine = endLine;
-      }
-      
-      // Signal end of file transfer if needed
-      // Some protocols might need an explicit end marker
-      await this.activeAdapter.write('\n');
-      
-      // Wait for final acknowledgment
-      await this._waitForFileTransferCompletion();
-      
-      return true;
-    } catch (error) {
-      this.fileTransfer.error = error.message;
-      throw error;
-    }
-  }
-  
-  /**
-   * Wait for acknowledgment of a chunk
-   * @param {number} expectedBytes Expected number of bytes to be acknowledged
-   * @private
-   */
-  _waitForChunkAcknowledgment(expectedBytes) {
-    return new Promise((resolve, reject) => {
-      // Set a timeout for acknowledgment
-      const timeout = setTimeout(() => {
-        this.fileTransfer.retryCount++;
-        
-        if (this.fileTransfer.retryCount > this.fileTransfer.maxRetries) {
-          reject(new Error('Maximum retries exceeded waiting for chunk acknowledgment'));
-        } else {
-          // For retry behavior, we would ideally resend the chunk
-          // Here we'll just resolve to continue the process
-          console.warn(`No explicit acknowledgment received, continuing anyway (retry ${this.fileTransfer.retryCount})`);
-          resolve();
-        }
-      }, 1000); // 1-second timeout
-      
-      // Set up a one-time listener for progress events
-      const progressHandler = (data) => {
-        if (data.status === 'progress' && data.bytesTransferred >= expectedBytes) {
-          clearTimeout(timeout);
-          this.removeListener('fileTransfer', progressHandler);
-          resolve();
-        }
-      };
-      
-      this.on('fileTransfer', progressHandler);
-    });
-  }
-  
-  /**
-   * Wait for file transfer completion
-   * @private
-   */
-  _waitForFileTransferCompletion() {
-    return new Promise((resolve, reject) => {
-      // Set a timeout for completion
-      const timeout = setTimeout(() => {
-        reject(new Error('Timeout waiting for file transfer completion'));
-      }, 10000); // 10-second timeout for final acknowledgment
-      
-      // Set up a one-time listener for completion event
-      const completionHandler = (data) => {
-        if (data.status === 'completed') {
-          clearTimeout(timeout);
-          this.removeListener('fileTransfer', completionHandler);
-          resolve();
-        } else if (data.status === 'error' || data.status === 'cancelled') {
-          clearTimeout(timeout);
-          this.removeListener('fileTransfer', completionHandler);
-          reject(new Error(data.error || 'Transfer failed'));
-        }
-      };
-      
-      this.on('fileTransfer', completionHandler);
-    });
   }
 }
 

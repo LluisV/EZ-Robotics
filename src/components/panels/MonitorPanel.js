@@ -8,7 +8,8 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
     position: { x: 0, y: 0, z: 0, a: 0 },
     speed: 0,
     temperature: 0,
-    utilization: 0,
+    cpuUsage: 0,
+    memoryUsage: 0,
     acceleration: 0,
     jerk: 0,
     velocityVector: { x: 0, y: 0, z: 0 }
@@ -18,6 +19,8 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
   const [historyData, setHistoryData] = useState({
     speedHistory: [],
     tempHistory: [],
+    cpuHistory: [],
+    memoryHistory: [],
     accelerationHistory: [],
     jerkHistory: [],
     velocityVectorHistory: {
@@ -32,6 +35,8 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
   const accelerationCanvasRef = useRef(null);
   const jerkCanvasRef = useRef(null);
   const tempCanvasRef = useRef(null);
+  const cpuCanvasRef = useRef(null);
+  const memoryCanvasRef = useRef(null);
   
   // Position history to calculate acceleration and jerk
   const positionHistoryRef = useRef([]);
@@ -97,7 +102,9 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
         },
         velocity: 0,
         velocityVector: { x: 0, y: 0, z: 0 },
-        temperature: parsedData.temperature || 0
+        temperature: parsedData.temperature || 0,
+        cpuUsage: parsedData.cpuUsage || 0,
+        memoryUsage: parsedData.memoryUsage || 0
       };
       
       // Extract position if available
@@ -171,7 +178,9 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
             velocityVector: telemetryData.velocityVector || prev.velocityVector,
             acceleration: kinematics.acceleration,
             jerk: kinematics.jerk,
-            temperature: telemetryData.temperature !== undefined ? telemetryData.temperature : prev.temperature
+            temperature: telemetryData.temperature !== undefined ? telemetryData.temperature : prev.temperature,
+            cpuUsage: telemetryData.cpuUsage !== undefined ? telemetryData.cpuUsage : prev.cpuUsage,
+            memoryUsage: telemetryData.memoryUsage !== undefined ? telemetryData.memoryUsage : prev.memoryUsage
           }));
 
           // Add to history data for charts
@@ -180,6 +189,8 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
             accelerationHistory: [...prev.accelerationHistory, kinematics.acceleration].slice(-maxDataPoints),
             jerkHistory: [...prev.jerkHistory, kinematics.jerk].slice(-maxDataPoints),
             tempHistory: [...prev.tempHistory, telemetryData.temperature || prev.tempHistory[prev.tempHistory.length - 1] || 0].slice(-maxDataPoints),
+            cpuHistory: [...prev.cpuHistory, telemetryData.cpuUsage || prev.cpuHistory[prev.cpuHistory.length - 1] || 0].slice(-maxDataPoints),
+            memoryHistory: [...prev.memoryHistory, telemetryData.memoryUsage || prev.memoryHistory[prev.memoryHistory.length - 1] || 0].slice(-maxDataPoints),
             velocityVectorHistory: {
               x: [...prev.velocityVectorHistory.x, telemetryData.velocityVector?.x || 0].slice(-maxDataPoints),
               y: [...prev.velocityVectorHistory.y, telemetryData.velocityVector?.y || 0].slice(-maxDataPoints),
@@ -201,17 +212,9 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
     };
   }, []);
 
-  // Simulation for utilization (since it isn't in telemetry)
+  // Update elapsed time
   useEffect(() => {
     const interval = setInterval(() => {
-      const newUtilization = 10 + Math.random() * 20;
-      
-      setStatusData(prev => ({
-        ...prev,
-        utilization: newUtilization,
-        connected: true,
-      }));
-      
       setTimeElapsed(prev => prev + refreshRate / 1000);
     }, refreshRate);
 
@@ -523,6 +526,8 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
     drawSparkline(accelerationCanvasRef, historyData.accelerationHistory, '#00aa55', 'rgba(0, 170, 85, 0.3)');
     drawSparkline(jerkCanvasRef, historyData.jerkHistory, '#ff7700', 'rgba(255, 119, 0, 0.3)');
     drawSparkline(tempCanvasRef, historyData.tempHistory, '#ff5555', 'rgba(255, 85, 85, 0.3)');
+    drawSparkline(cpuCanvasRef, historyData.cpuHistory, '#5555ff', 'rgba(85, 85, 255, 0.3)');
+    drawSparkline(memoryCanvasRef, historyData.memoryHistory, '#aa55cc', 'rgba(170, 85, 204, 0.3)');
   }, [historyData]);
 
   // Determine temperature color
@@ -532,10 +537,18 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
     return '#f44336';
   };
   
+  // Determine resource usage color
+  const getResourceColor = (usage) => {
+    if (usage < 40) return '#4caf50';
+    if (usage < 70) return '#ff9800';
+    return '#f44336';
+  };
+  
   // Connection status
   const connectionStatus = statusData.connected ? 'Connected' : 'Disconnected';
   const connectionStatusClass = statusData.connected ? 'status-online' : 'status-offline';
-  const utilizationPercent = statusData.utilization + '%';
+  const cpuUtilizationPercent = statusData.cpuUsage.toFixed(1) + '%';
+  const memoryUtilizationPercent = statusData.memoryUsage.toFixed(1) + '%';
 
   // Format velocity vector for display
   const velocityMagnitude = statusData.speed.toFixed(1);
@@ -639,16 +652,17 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
             <div className="utilization-title">
               <h3 className="section-title">CPU utilization</h3>
               <div className="utilization-badge" style={{
-                backgroundColor: statusData.utilization > 80 ? '#f44336' : 
-                                statusData.utilization > 60 ? '#ff9800' : '#4caf50'
+                backgroundColor: getResourceColor(statusData.cpuUsage)
               }}>
-                {statusData.utilization.toFixed(1)}%
+                {statusData.cpuUsage.toFixed(1)}%
               </div>
             </div>
             <div className="utilization-info">
               <div className="info-pill">
-                <span className="info-label">Memory</span>
-                <span className="info-value">24MB</span>
+                <span className="info-label">CPU Usage</span>
+                <div className="sparkline-container" style={{width: '80px', height: '20px', marginLeft: '5px'}}>
+                  <canvas ref={cpuCanvasRef} width="80" height="20" className="sparkline"></canvas>
+                </div>
               </div>
             </div>
           </div>
@@ -656,9 +670,36 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
             <div 
               className="progress-bar" 
               style={{ 
-                width: utilizationPercent,
-                backgroundColor: statusData.utilization > 80 ? '#f44336' : 
-                                statusData.utilization > 60 ? '#ff9800' : '#4caf50'
+                width: cpuUtilizationPercent,
+                backgroundColor: getResourceColor(statusData.cpuUsage)
+              }}
+            ></div>
+          </div>
+          
+          <div className="utilization-header" style={{marginTop: '15px'}}>
+            <div className="utilization-title">
+              <h3 className="section-title">Memory utilization</h3>
+              <div className="utilization-badge" style={{
+                backgroundColor: getResourceColor(statusData.memoryUsage)
+              }}>
+                {statusData.memoryUsage.toFixed(1)}%
+              </div>
+            </div>
+            <div className="utilization-info">
+              <div className="info-pill">
+                <span className="info-label">Memory Usage</span>
+                <div className="sparkline-container" style={{width: '80px', height: '20px', marginLeft: '5px'}}>
+                  <canvas ref={memoryCanvasRef} width="80" height="20" className="sparkline"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="progress-bar-container">
+            <div 
+              className="progress-bar" 
+              style={{ 
+                width: memoryUtilizationPercent,
+                backgroundColor: getResourceColor(statusData.memoryUsage)
               }}
             ></div>
           </div>

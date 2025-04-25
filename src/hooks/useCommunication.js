@@ -1,13 +1,13 @@
 /**
  * src/hooks/useCommunication.js
- * React hook for communication service
+ * React hook for GRBL communication service
  */
 import { useState, useEffect, useCallback } from 'react';
 import communicationService from '../services/communication/CommunicationService';
 import { ConnectionStatus, ConnectionType, CommonBaudRates } from '../services/communication/CommunicationTypes';
 
 /**
- * Custom hook for using the communication service in React components
+ * Custom hook for using the GRBL communication service in React components
  */
 const useCommunication = () => {
   // State for ports and connection status
@@ -21,8 +21,10 @@ const useCommunication = () => {
   const [error, setError] = useState(null);
   
   // State for device capabilities and status
-  const [machinePosition, setMachinePosition] = useState({ x: 0, y: 0, z: 0, a: 0 });
+  const [machinePosition, setMachinePosition] = useState({ x: 0, y: 0, z: 0 });
+  const [workPosition, setWorkPosition] = useState({ x: 0, y: 0, z: 0 });
   const [machineStatus, setMachineStatus] = useState('Unknown');
+  const [feedRate, setFeedRate] = useState(0);
   
   /**
    * Get available serial ports
@@ -37,7 +39,7 @@ const useCommunication = () => {
       
       // Set default port if available and none selected
       if (ports.length > 0 && !selectedPort) {
-        setSelectedPort(ports[0].path);
+        setSelectedPort(ports[0].port);
       }
       
       addLogEntry('info', `Refreshed ports: ${ports.length} found`);
@@ -99,7 +101,7 @@ const useCommunication = () => {
       
       // Set default port if available and none selected
       if (ports.length > 0 && !selectedPort) {
-        setSelectedPort(ports[0].path);
+        setSelectedPort(ports[0].port);
       }
       
       addLogEntry('info', `Requested ports: ${ports.length} found`);
@@ -157,7 +159,7 @@ const useCommunication = () => {
   }, [connectionStatus]);
   
   /**
-   * Send a special command like STOP or HOME
+   * Send a special command like STOP, FEEDHOLD, or RESUME
    */
   const sendSpecialCommand = useCallback(async (commandType) => {
     setError(null);
@@ -193,8 +195,7 @@ const useCommunication = () => {
     
     try {
       // Create G-code command for movement
-      // Use G0 for rapid movement or G1 for controlled movement
-      const gcode = `G1 ${axis}${direction * distance} F${feedrate}`;
+      const gcode = `G1 ${axis}${direction > 0 ? '+' : ''}${distance} F${feedrate}`;
       addLogEntry('command', `> ${gcode} (Move ${axis} ${direction > 0 ? '+' : '-'}${distance})`);
       
       return await communicationService.sendCommand(gcode);
@@ -216,13 +217,15 @@ const useCommunication = () => {
     try {
       let gcode = '';
       
+      // In GRBL, home command is $H
       if (axes === 'all') {
-        gcode = 'G28';
-        addLogEntry('command', '> G28 (Home all axes)');
+        gcode = '$H';
+        addLogEntry('command', '> $H (Home all axes)');
       } else {
-        // Format: G28 X Y Z for specific axes
-        gcode = `G28 ${axes}`;
-        addLogEntry('command', `> ${gcode} (Home axes: ${axes})`);
+        // With GRBL, we can't home individual axes with standard commands
+        // We'll still use $H and inform the user
+        gcode = '$H';
+        addLogEntry('command', `> $H (Home all axes - GRBL doesn't support selective homing)`);
       }
       
       return await communicationService.sendCommand(gcode);
@@ -242,33 +245,20 @@ const useCommunication = () => {
     }
     
     try {
-      addLogEntry('command', '> ?POS (Get position)');
-      const response = await communicationService.sendCommand('?POS', { immediate: true });
+      // For GRBL, we send the ? command to get status including position
+      addLogEntry('command', '> ? (Get status/position)');
+      await communicationService.sendSpecialCommand('GET_POSITION');
       
-      // Parse position information from response
-      // Format varies by firmware, this is just one example:
-      // Position: X:100.000 Y:50.000 Z:10.000
-      const posRegex = /X:(-?\d+\.?\d*)\s+Y:(-?\d+\.?\d*)\s+Z:(-?\d+\.?\d*)/i;
-      const match = response.match(posRegex);
-      
-      if (match) {
-        const position = {
-          x: parseFloat(match[1]),
-          y: parseFloat(match[2]),
-          z: parseFloat(match[3]),
-        };
-        
-        // Update position state
-        setMachinePosition(position);
-        return position;
-      }
-      
-      return null;
+      // The actual position will be updated through the event handler
+      return {
+        machine: machinePosition,
+        work: workPosition
+      };
     } catch (err) {
       setError(`Position query error: ${err.message}`);
       addLogEntry('error', `Position query error: ${err.message}`);
     }
-  }, [connectionStatus]);
+  }, [connectionStatus, machinePosition, workPosition]);
   
   /**
    * Get machine status
@@ -280,25 +270,53 @@ const useCommunication = () => {
     }
     
     try {
-      addLogEntry('command', '> ?STATUS (Get status)');
-      const response = await communicationService.sendCommand('?STATUS', { immediate: true });
+      // For GRBL, we send the ? command to get status
+      addLogEntry('command', '> ? (Get status)');
+      await communicationService.sendSpecialCommand('GET_POSITION');
       
-      // Parse status information from response
-      // Format varies by firmware, this is just one example:
-      // Status: IDLE | Absolute mode: ON
-      const statusRegex = /Status:\s*(\w+)/i;
-      const match = response.match(statusRegex);
-      
-      if (match) {
-        const status = match[1];
-        setMachineStatus(status);
-        return status;
-      }
-      
-      return null;
+      // The actual status will be updated through the event handler
+      return machineStatus;
     } catch (err) {
       setError(`Status query error: ${err.message}`);
       addLogEntry('error', `Status query error: ${err.message}`);
+    }
+  }, [connectionStatus, machineStatus]);
+  
+  /**
+   * Send a feedhold command to pause the machine
+   */
+  const pauseMachine = useCallback(async () => {
+    if (connectionStatus !== ConnectionStatus.CONNECTED) {
+      setError('Not connected to a device');
+      return;
+    }
+    
+    try {
+      addLogEntry('command', '> ! (Feedhold/pause)');
+      await communicationService.sendSpecialCommand('FEEDHOLD');
+      return true;
+    } catch (err) {
+      setError(`Pause error: ${err.message}`);
+      addLogEntry('error', `Pause error: ${err.message}`);
+    }
+  }, [connectionStatus]);
+  
+  /**
+   * Send a resume command to continue after a feedhold
+   */
+  const resumeMachine = useCallback(async () => {
+    if (connectionStatus !== ConnectionStatus.CONNECTED) {
+      setError('Not connected to a device');
+      return;
+    }
+    
+    try {
+      addLogEntry('command', '> ~ (Resume)');
+      await communicationService.sendSpecialCommand('RESUME');
+      return true;
+    } catch (err) {
+      setError(`Resume error: ${err.message}`);
+      addLogEntry('error', `Resume error: ${err.message}`);
     }
   }, [connectionStatus]);
   
@@ -347,26 +365,14 @@ const useCommunication = () => {
     // Handle responses from the device
     const handleResponse = (data) => {
       addLogEntry('response', data.response);
-      
-      // Try to parse position from response
-      const posRegex = /X:(-?\d+\.?\d*)\s+Y:(-?\d+\.?\d*)\s+Z:(-?\d+\.?\d*)/i;
-      const posMatch = data.response.match(posRegex);
-      
-      if (posMatch) {
-        setMachinePosition({
-          x: parseFloat(posMatch[1]),
-          y: parseFloat(posMatch[2]),
-          z: parseFloat(posMatch[3]),
-        });
-      }
-      
-      // Try to parse status from response
-      const statusRegex = /Status:\s*(\w+)/i;
-      const statusMatch = data.response.match(statusRegex);
-      
-      if (statusMatch) {
-        setMachineStatus(statusMatch[1]);
-      }
+    };
+    
+    // Handle GRBL status updates
+    const handleGrblStatus = (status) => {
+      setMachineStatus(status.state);
+      setMachinePosition(status.machinePosition);
+      setWorkPosition(status.workPosition);
+      setFeedRate(status.feedRate);
     };
     
     // Handle errors
@@ -379,6 +385,7 @@ const useCommunication = () => {
     communicationService.on('connection', handleConnection);
     communicationService.on('command', handleCommand);
     communicationService.on('response', handleResponse);
+    communicationService.on('grbl-status', handleGrblStatus);
     communicationService.on('error', handleError);
     
     // Get initial connection status
@@ -391,6 +398,7 @@ const useCommunication = () => {
       communicationService.removeListener('connection', handleConnection);
       communicationService.removeListener('command', handleCommand);
       communicationService.removeListener('response', handleResponse);
+      communicationService.removeListener('grbl-status', handleGrblStatus);
       communicationService.removeListener('error', handleError);
     };
   }, []);
@@ -401,6 +409,26 @@ const useCommunication = () => {
       refreshPorts();
     }
   }, [refreshPorts, connectionType]);
+  
+  // Set up a regular status update request (similar to how GRBL GUI clients work)
+  useEffect(() => {
+    let statusInterval;
+    
+    if (connectionStatus === ConnectionStatus.CONNECTED) {
+      // Request status every 250ms (typical for GRBL interfaces)
+      statusInterval = setInterval(() => {
+        communicationService.sendSpecialCommand('GET_POSITION').catch(() => {
+          // Ignore errors in background polling
+        });
+      }, 250);
+    }
+    
+    return () => {
+      if (statusInterval) {
+        clearInterval(statusInterval);
+      }
+    };
+  }, [connectionStatus]);
   
   return {
     // Connection management
@@ -414,6 +442,7 @@ const useCommunication = () => {
     setBaudRate,
     commonBaudRates: CommonBaudRates,
     refreshPorts,
+    requestPorts,
     connect,
     disconnect,
     isLoading,
@@ -426,10 +455,14 @@ const useCommunication = () => {
     homeAxes,
     getPosition,
     getMachineStatus,
+    pauseMachine,
+    resumeMachine,
     
     // Machine state
     machinePosition,
+    workPosition,
     machineStatus,
+    feedRate,
     
     // Logging
     logs,
