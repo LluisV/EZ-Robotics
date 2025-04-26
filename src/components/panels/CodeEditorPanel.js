@@ -602,7 +602,7 @@ const sendToRobot = async () => {
     // Check connection
     const connectionInfo = communicationService.getConnectionInfo();
     if (connectionInfo.status !== 'connected') {
-      setStatusMessage('Error: Not connected to robot. Please connect first.');
+      setStatusMessage('Error: Not connected to FluidNC. Please connect first.');
       return;
     }
 
@@ -614,14 +614,19 @@ const sendToRobot = async () => {
     setIsTransferring(true);
     setTransferProgress(0);
     setTransferError(null);
-    setStatusMessage('Starting G-code transfer...');
+    setStatusMessage('Starting G-code transfer to FluidNC...');
     
-    // Send the G-code file with progress tracking
-    await communicationService.sendGCodeFile(normalizedCode, (progressData) => {
+    // Calculate total lines for progress tracking
+    const totalLines = normalizedCode.split('\n').filter(line => 
+      line.trim() && !line.trim().startsWith(';')
+    ).length;
+    
+    // Progress callback function
+    const progressCallback = (progressData) => {
       // Handle progress updates
       switch (progressData.status) {
         case 'started':
-          setStatusMessage(`Starting transfer of ${progressData.totalLines} lines...`);
+          setStatusMessage(`Starting transfer of ${progressData.totalLines} lines to FluidNC...`);
           setTransferProgress(0);
           break;
         
@@ -631,7 +636,7 @@ const sendToRobot = async () => {
           break;
         
         case 'completed':
-          setStatusMessage(`Transfer completed: ${progressData.totalLines} lines`);
+          setStatusMessage(`Transfer completed: ${progressData.totalLines} lines sent to FluidNC`);
           setTransferProgress(100);
           setTimeout(() => setIsTransferring(false), 2000); // Hide progress after 2 seconds
           break;
@@ -642,9 +647,13 @@ const sendToRobot = async () => {
           setIsTransferring(false);
           break;
       }
-    });
+    };
+    
+    // Send the file with progress tracking
+    await communicationService.sendGCodeFile(normalizedCode, progressCallback);
+    
   } catch (error) {
-    console.error('Error during G-code transfer:', error);
+    console.error('Error sending G-code to FluidNC:', error);
     setStatusMessage(`Transfer failed: ${error.message}`);
     setTransferError(error.message);
     setIsTransferring(false);

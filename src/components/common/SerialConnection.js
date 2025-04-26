@@ -3,8 +3,8 @@ import communicationService from '../../services/communication/CommunicationServ
 import { ConnectionStatus, ConnectionType } from '../../services/communication/CommunicationTypes';
 
 /**
- * Simplified Serial Connection component for the header
- * Allows users to directly request and connect to a COM port
+ * Simplified Serial Connection component for the header 
+ * Allows users to directly request and connect to a COM port where robot is running
  */
 const SerialConnection = ({ onStatusChange = () => {} }) => {
   const [baudRate, setBaudRate] = useState(115200);
@@ -13,7 +13,7 @@ const SerialConnection = ({ onStatusChange = () => {} }) => {
   const [error, setError] = useState(null);
   
   // Common baud rates for serial connections
-  const baudRates = [9600, 19200, 38400, 57600, 115200, 230400, 250000];
+  const baudRates = [9600, 19200, 38400, 57600, 115200, 230400, 250000, 500000, 921600];
   
   // Request a new port and connect to it
   const requestAndConnect = async () => {
@@ -32,7 +32,7 @@ const SerialConnection = ({ onStatusChange = () => {} }) => {
       // Take the first available port
       const selectedPort = availablePorts[0];
       
-      // Attempt to connect to the port
+      // Attempt to connect to the port with FluidNC settings
       const connected = await communicationService.connect({
         type: ConnectionType.SERIAL,
         port: selectedPort.path || selectedPort.port,
@@ -47,25 +47,18 @@ const SerialConnection = ({ onStatusChange = () => {} }) => {
         });
         
         // Log connection to console and communication service
-        const connectionMsg = `Connected to ${selectedPort.displayName || selectedPort.path} at ${baudRate} baud`;
+        const connectionMsg = `Connected to FluidNC at ${selectedPort.displayName || selectedPort.path} at ${baudRate} baud`;
         console.log(connectionMsg);
         communicationService.emit('response', { response: connectionMsg });
         
-        // Send help message automatically after connecting
+        // Send startup commands to FluidNC after connecting
         setTimeout(() => {
-            communicationService.sendCommand('?help')
-                .then(response => {
-                    console.log('Help response:', response);
-                    // The response will be automatically displayed in the console panel
-                })
-                .catch(err => {
-                    console.error('Error sending help command:', err);
-                });
-        }, 500); // Short delay to ensure connection is ready
+            sendStartupCommands();
+        }, 1000); // Longer delay to ensure connection is ready
       } else {
         // Get more detailed error information
         const connectionInfo = communicationService.getConnectionInfo();
-        const detailedError = connectionInfo.error || 'Failed to connect';
+        const detailedError = connectionInfo.error || 'Failed to connect to FluidNC';
         
         throw new Error(detailedError);
       }
@@ -85,7 +78,31 @@ const SerialConnection = ({ onStatusChange = () => {} }) => {
     }
   };
   
-  // Disconnect from port
+  // Send initial commands to FluidNC after connection
+  const sendStartupCommands = async () => {
+    try {
+      // Initial FluidNC setup commands
+      const commands = [
+        '?', // Get current status
+        '$I', // Get FluidNC info
+        '$SR', // Status report with position
+        '$SLP=250', // Status report interval (ms)
+      ];
+      
+      // Send commands one by one with short delays in between
+      for (const cmd of commands) {
+        await communicationService.sendCommand(cmd);
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      communicationService.emit('response', { response: 'FluidNC startup commands executed' });
+    } catch (error) {
+      console.error('Error sending startup commands:', error);
+      communicationService.emit('error', { error: 'Error initializing FluidNC: ' + error.message });
+    }
+  };
+  
+  // Disconnect from FluidNC device
   const disconnect = async () => {
     setIsConnecting(true);
     
@@ -95,7 +112,7 @@ const SerialConnection = ({ onStatusChange = () => {} }) => {
       onStatusChange({ connected: false });
       
       // Log disconnection to console and communication service
-      const disconnectMsg = 'Disconnected from serial port';
+      const disconnectMsg = 'Disconnected from FluidNC device';
       console.log(disconnectMsg);
       communicationService.emit('response', { response: disconnectMsg });
     } catch (err) {
@@ -110,7 +127,7 @@ const SerialConnection = ({ onStatusChange = () => {} }) => {
   // Setup event listeners for the communication service
   useEffect(() => {
     const handleConnection = (data) => {
-      setIsConnected(data.status === 'CONNECTED');
+      setIsConnected(data.status === ConnectionStatus.CONNECTED);
       
       if (data.error) {
         setError(data.error);
@@ -121,7 +138,7 @@ const SerialConnection = ({ onStatusChange = () => {} }) => {
     
     // Get initial status
     const info = communicationService.getConnectionInfo();
-    setIsConnected(info.status === 'CONNECTED');
+    setIsConnected(info.status === ConnectionStatus.CONNECTED);
     
     // Cleanup
     return () => {
@@ -148,7 +165,7 @@ const SerialConnection = ({ onStatusChange = () => {} }) => {
           onClick={!isConnected ? requestAndConnect : disconnect}
           disabled={isConnecting}
         >
-          {isConnecting ? 'Connecting...' : isConnected ? 'Disconnect' : 'Connect to Port'}
+          {isConnecting ? 'Connecting...' : isConnected ? 'Disconnect' : 'Connect to Robot'}
         </button>
       </div>
       

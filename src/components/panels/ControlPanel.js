@@ -5,7 +5,7 @@ import communicationService from '../../services/communication/CommunicationServ
 import EventEmitter from 'events';
 
 /**
- * Modern Control Panel component for robot positioning and control with exact position input.
+ * Modern Control Panel component for FluidNC positioning and control with exact position input.
  */
 const ControlPanel = () => {
   const [speed, setSpeed] = useState(25);
@@ -22,11 +22,14 @@ const ControlPanel = () => {
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
 
+  // Add log messages to console
   const logToConsole = (type, message) => {
-
+    communicationService.emit(type === 'error' ? 'error' : 'response', { 
+      [type === 'error' ? 'error' : 'response']: message 
+    });
   };
 
-  // Function to simulate sending a movement command
+  // Function to send a movement command to FluidNC
   const sendMovementCommand = (axis, direction) => {
     // Get connection status
     const connectionInfo = communicationService.getConnectionInfo();
@@ -37,25 +40,39 @@ const ControlPanel = () => {
 
     const distance = direction * stepSize;
 
-    // Create G-code command for INCREMENTAL movement
-    // Add a relative positioning command first
-    const gcode = `G91\nG1 ${axis}${distance} F${speed * 60}\nG90`; // Switch to relative, move, then back to absolute
+    // Create G-code command - FluidNC expects relative mode for incremental movement
+    // The $J= command is FluidNC's jog command that accepts relative coordinates
+    const feedrateInMmPerMin = speed * 60; // Convert from percentage to mm/min
+    const jogCommand = `$J=${axis}${distance} F${feedrateInMmPerMin}`;
 
-    logToConsole('command', `Sending command: ${gcode}`);
+    logToConsole('command', `Sending jog command: ${jogCommand}`);
 
     // Send the command
-    communicationService.sendCommand(gcode)
+    communicationService.sendCommand(jogCommand)
       .catch(err => {
-        logToConsole('error', 'Error sending movement command: ' + err);
+        logToConsole('error', 'Error sending jog command: ' + err);
       });
   };
 
   // Function to handle tool control
   const handleToolToggle = () => {
     setActiveTool(!activeTool);
+    
+    // Send the appropriate FluidNC command to toggle spindle
+    const command = !activeTool ? 'M3 S1000' : 'M5';  // M3=Spindle on, M5=Spindle off, S1000=1000 RPM
+    
+    logToConsole('command', `Toggling tool state: ${command}`);
+    
+    communicationService.sendCommand(command)
+      .then(() => {
+        logToConsole('response', `Tool ${!activeTool ? 'activated' : 'deactivated'}`);
+      })
+      .catch(err => {
+        logToConsole('error', 'Error toggling tool: ' + err);
+      });
   };
 
-  // Function to home axes
+  // Function to home axes for FluidNC
   const homeAxes = (axes = 'all') => {
     // Get connection status
     const connectionInfo = communicationService.getConnectionInfo();
@@ -67,11 +84,12 @@ const ControlPanel = () => {
     let gcode = '';
 
     if (axes === 'all') {
-      gcode = 'G28';
-      logToConsole('command', 'Sending home all axes command: G28');
+      // FluidNC uses $H to home all axes
+      gcode = '$H';
+      logToConsole('command', 'Sending home all axes command: $H');
     } else {
-      // Format: G28 X Y Z for specific axes
-      gcode = `G28 ${axes.toUpperCase()}`;
+      // FluidNC allows homing specific axes with $H<axis>
+      gcode = `$H${axes.toUpperCase()}`;
       logToConsole('command', `Sending home command: ${gcode}`);
     }
 
@@ -99,14 +117,14 @@ const ControlPanel = () => {
 
     logToConsole('command', 'Sending stop command');
 
-    // Send the command
+    // FluidNC stop command is Ctrl-X (ASCII 0x18)
     communicationService.sendSpecialCommand('STOP')
       .catch(err => {
         logToConsole('error', 'Error sending stop command: ' + err);
       });
   };
 
-  // Function to set current position as work zero
+  // Function to set current position as work zero in FluidNC
   const setWorkZero = (axes = 'all') => {
     const connectionInfo = communicationService.getConnectionInfo();
     if (connectionInfo.status !== 'connected') {
@@ -116,13 +134,13 @@ const ControlPanel = () => {
 
     let gcode = '';
     if (axes === 'all') {
-      // G92 X0 Y0 Z0 sets work offset for all axes to current position
-      gcode = 'G92 X0 Y0 Z0 A0';
+      // FluidNC uses G10 L20 P0 X0 Y0 Z0 to set work offset for the current WCS
+      gcode = 'G10 L20 P0 X0 Y0 Z0 A0';
       logToConsole('command', 'Setting current position as work zero for all axes');
     } else {
       // Set zero only for specified axes
       const axesArray = axes.split('');
-      gcode = `G92 ${axesArray.map(axis => `${axis.toUpperCase()}0`).join(' ')}`;
+      gcode = `G10 L20 P0 ${axesArray.map(axis => `${axis.toUpperCase()}0`).join(' ')}`;
       logToConsole('command', `Setting current position as work zero for ${axes.toUpperCase()} axes`);
     }
 
@@ -147,7 +165,7 @@ const ControlPanel = () => {
       });
   };
 
-  // Function to move to work zero position
+  // Function to move to work zero position in FluidNC
   const moveToWorkZero = () => {
     const connectionInfo = communicationService.getConnectionInfo();
     if (connectionInfo.status !== 'connected') {
@@ -157,7 +175,8 @@ const ControlPanel = () => {
 
     // First move Z to a safe height to avoid collisions
     const safeHeight = 5; // 5mm above work zero
-    const gcode = `G1 Z${safeHeight} F${speed * 60}\nG1 X0 Y0 F${speed * 60}\nG1 Z0 F${speed * 30}`;
+    const feedrateInMmPerMin = speed * 60;
+    const gcode = `G0 Z${safeHeight} F${feedrateInMmPerMin}\nG0 X0 Y0 F${feedrateInMmPerMin}\nG0 Z0 F${feedrateInMmPerMin/2}`;
 
     logToConsole('command', 'Moving to work zero position');
 
@@ -171,7 +190,7 @@ const ControlPanel = () => {
       });
   };
 
-  // Function to reset the machine
+  // Function to reset FluidNC
   const resetMachine = () => {
     const connectionInfo = communicationService.getConnectionInfo();
     if (connectionInfo.status !== 'connected') {
@@ -183,8 +202,8 @@ const ControlPanel = () => {
     if (window.confirm('Are you sure you want to reset the machine? This will clear all errors and restart the controller.')) {
       logToConsole('command', 'Resetting machine');
 
-      // Send the command - M999 is a common reset command
-      communicationService.sendCommand('M999')
+      // For FluidNC, send a Ctrl-X to perform a soft reset
+      communicationService.sendSpecialCommand('STOP')
         .then(() => {
           showToast('Machine reset successful');
         })
@@ -205,7 +224,7 @@ const ControlPanel = () => {
     }, 3000);
   };
 
-  // Function to move to exact position
+  // Function to move to exact position using FluidNC
   const moveToExactPosition = (moveType = 'G1') => {
     // Get connection status
     const connectionInfo = communicationService.getConnectionInfo();
@@ -216,40 +235,45 @@ const ControlPanel = () => {
 
     // Use the correct coordinate values based on the current view
     let coordsToSend = { ...targetPosition };
+    const feedrateInMmPerMin = speed * 60;
 
-    // If we're in World view, use those coordinates directly
-    // If we're in Work view, we'll use the input coordinates as is (they're already work coordinates)
+    // Create G-code command for movement based on the move type
+    let gcode;
+    
+    if (positionView === 'world') {
+      // For machine coordinates (world), FluidNC requires G53
+      gcode = `G53 ${moveType} X${coordsToSend.x} Y${coordsToSend.y} Z${coordsToSend.z} F${feedrateInMmPerMin}`;
+      if (coordsToSend.a !== 0) {
+        gcode += ` A${coordsToSend.a}`;
+      }
+    } else {
+      // For work coordinates, use normal G0/G1 commands
+      gcode = `${moveType} X${coordsToSend.x} Y${coordsToSend.y} Z${coordsToSend.z} F${feedrateInMmPerMin}`;
+      if (coordsToSend.a !== 0) {
+        gcode += ` A${coordsToSend.a}`;
+      }
+    }
 
-    // Create G-code command for movement
-    const gcode = `${moveType} X${coordsToSend.x} Y${coordsToSend.y} Z${coordsToSend.z} A${coordsToSend.a} F${speed * 60}`;
-
-    // When in world view, we need to explicitly specify that we're using machine coordinates (G53)
-    const fullCommand = positionView === 'world'
-      ? `G53 ${gcode}` // Use G53 prefix for machine coordinates
-      : gcode;         // Use work coordinates by default
-
-    logToConsole('command', `Sending command: ${fullCommand}`);
+    logToConsole('command', `Sending movement command: ${gcode}`);
 
     // Send the command
-    communicationService.sendCommand(fullCommand)
+    communicationService.sendCommand(gcode)
       .catch(err => {
         logToConsole('error', 'Error sending movement command: ' + err);
       });
   };
 
-  // Helper function to parse telemetry position message with the new format
+  // Helper function to parse FluidNC position telemetry
   const parseTelemetryPosition = (message) => {
-    console.log('Parsing telemetry message:', message); // Debugging log
-
     try {
-      // Extract the JSON part from the message
+      // Extract JSON from FluidNC telemetry message
       const jsonStart = message.indexOf('{');
       if (jsonStart === -1) return null;
 
       const jsonString = message.substring(jsonStart);
       const data = JSON.parse(jsonString);
 
-      // Check if the expected structure exists
+      // Check for expected structure (modified for FluidNC format)
       if (!data.work || !data.world) {
         console.log("Missing expected work/world properties");
         return null;
@@ -278,37 +302,28 @@ const ControlPanel = () => {
   // Initialize target position from current position
   useEffect(() => {
     setTargetPosition({ ...position[positionView] });
-  }, [showExactPositionInput, positionView]);
+  }, [showExactPositionInput, positionView, position]);
 
-  // Specific useEffect for telemetry position
+  // Listen to FluidNC position updates
   useEffect(() => {
     const handlePositionTelemetry = (data) => {
-      console.log('Position telemetry received:', data); // Debugging log
-
       if (typeof data.response === 'string' && data.response.startsWith('[TELEMETRY]')) {
         const newPosition = parseTelemetryPosition(data.response);
 
         if (newPosition) {
-          setPosition(prevPosition => {
-            console.log('Updating position from:', prevPosition, 'to:', newPosition); // Debugging log
-            return newPosition;
-          });
+          setPosition(newPosition);
         }
       }
     };
-
-    // Add debug log for event listener setup
-    console.log('Setting up position telemetry listener');
 
     // Add event listener
     communicationService.on('position-telemetry', handlePositionTelemetry);
 
     // Cleanup listener on unmount
     return () => {
-      console.log('Removing position telemetry listener');
-      communicationService.off('position-telemetry', handlePositionTelemetry);
+      communicationService.removeListener('position-telemetry', handlePositionTelemetry);
     };
-  }, []); // Empty dependency array to run only once on mount
+  }, []);
 
   // Get the active position object based on current view
   const activePosition = position[positionView];
@@ -665,7 +680,6 @@ const ControlPanel = () => {
         </div>
 
         <div className="global-controls">
-
           <button
             className="global-btn home-all"
             onClick={() => homeAxes('all')}
@@ -700,7 +714,6 @@ const ControlPanel = () => {
             </svg>
             Go To Zero
           </button>
-
 
           <button
             className="global-btn stop-btn"
@@ -763,7 +776,7 @@ const ControlPanel = () => {
         </div>
       </div>
 
-      {/* Tool Controls */}
+      {/* Tool Controls - Modified for FluidNC spindle control */}
       <div className="control-section tool-section">
         <div className="section-header">
           <h3>Tool Control</h3>
@@ -780,8 +793,8 @@ const ControlPanel = () => {
               <div className="pulse-ring"></div>
             </div>
             <div className="tool-status-info">
-              <div className="tool-name">CNC Tool</div>
-              <div className="tool-state">{activeTool ? 'Ready to operate' : 'Standby mode'}</div>
+              <div className="tool-name">FluidNC Spindle</div>
+              <div className="tool-state">{activeTool ? 'Spindle running' : 'Spindle stopped'}</div>
             </div>
           </div>
 
@@ -810,7 +823,7 @@ const ControlPanel = () => {
         </div>
       </div>
     </div>
-  );
-};
+  )};
 
-export default ControlPanel;
+
+  export default ControlPanel;

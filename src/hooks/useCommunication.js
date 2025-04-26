@@ -1,13 +1,13 @@
 /**
  * src/hooks/useCommunication.js
- * React hook for GRBL communication service
+ * React hook for FluidNC communication service
  */
 import { useState, useEffect, useCallback } from 'react';
 import communicationService from '../services/communication/CommunicationService';
 import { ConnectionStatus, ConnectionType, CommonBaudRates } from '../services/communication/CommunicationTypes';
 
 /**
- * Custom hook for using the GRBL communication service in React components
+ * Custom hook for using the FluidNC communication service in React components
  */
 const useCommunication = () => {
   // State for ports and connection status
@@ -21,8 +21,8 @@ const useCommunication = () => {
   const [error, setError] = useState(null);
   
   // State for device capabilities and status
-  const [machinePosition, setMachinePosition] = useState({ x: 0, y: 0, z: 0 });
-  const [workPosition, setWorkPosition] = useState({ x: 0, y: 0, z: 0 });
+  const [machinePosition, setMachinePosition] = useState({ x: 0, y: 0, z: 0, a: 0 });
+  const [workPosition, setWorkPosition] = useState({ x: 0, y: 0, z: 0, a: 0 });
   const [machineStatus, setMachineStatus] = useState('Unknown');
   const [feedRate, setFeedRate] = useState(0);
   
@@ -53,7 +53,7 @@ const useCommunication = () => {
   }, [selectedPort]);
   
   /**
-   * Connect to the selected port or WebSocket URL
+   * Connect to FluidNC device
    */
   const connect = useCallback(async () => {
     setIsLoading(true);
@@ -91,6 +91,9 @@ const useCommunication = () => {
     }
   }, [connectionType, selectedPort, baudRate]);
 
+  /**
+   * Request port selection from the user (using Web Serial API)
+   */
   const requestPorts = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -115,7 +118,7 @@ const useCommunication = () => {
   }, [selectedPort]);
   
   /**
-   * Disconnect from the device
+   * Disconnect from FluidNC device
    */
   const disconnect = useCallback(async () => {
     setIsLoading(true);
@@ -133,14 +136,14 @@ const useCommunication = () => {
   }, []);
   
   /**
-   * Send a G-code command to the device
+   * Send a G-code command to FluidNC
    */
   const sendCommand = useCallback(async (command, options = {}) => {
     setError(null);
     
     try {
       if (connectionStatus !== ConnectionStatus.CONNECTED) {
-        throw new Error('Not connected to a device');
+        throw new Error('Not connected to FluidNC');
       }
       
       addLogEntry('command', `> ${command}`);
@@ -159,14 +162,14 @@ const useCommunication = () => {
   }, [connectionStatus]);
   
   /**
-   * Send a special command like STOP, FEEDHOLD, or RESUME
+   * Send a special command to FluidNC (STOP, FEEDHOLD, RESUME, etc.)
    */
   const sendSpecialCommand = useCallback(async (commandType) => {
     setError(null);
     
     try {
       if (connectionStatus !== ConnectionStatus.CONNECTED) {
-        throw new Error('Not connected to a device');
+        throw new Error('Not connected to FluidNC');
       }
       
       addLogEntry('command', `> [${commandType}]`);
@@ -185,20 +188,20 @@ const useCommunication = () => {
   }, [connectionStatus]);
   
   /**
-   * Send a movement command (G0/G1)
+   * Send a movement command (jog) to FluidNC
    */
   const sendMovementCommand = useCallback(async (axis, direction, distance, feedrate) => {
     if (connectionStatus !== ConnectionStatus.CONNECTED) {
-      setError('Not connected to a device');
+      setError('Not connected to FluidNC');
       return;
     }
     
     try {
-      // Create G-code command for movement
-      const gcode = `G1 ${axis}${direction > 0 ? '+' : ''}${distance} F${feedrate}`;
-      addLogEntry('command', `> ${gcode} (Move ${axis} ${direction > 0 ? '+' : '-'}${distance})`);
+      // Create FluidNC jog command - FluidNC uses $J= for jogging
+      const jog = `$J=${axis}${direction > 0 ? '+' : ''}${distance} F${feedrate}`;
+      addLogEntry('command', `> ${jog} (Jog ${axis} ${direction > 0 ? '+' : '-'}${distance})`);
       
-      return await communicationService.sendCommand(gcode);
+      return await communicationService.sendCommand(jog);
     } catch (err) {
       setError(`Movement error: ${err.message}`);
       addLogEntry('error', `Movement error: ${err.message}`);
@@ -206,29 +209,28 @@ const useCommunication = () => {
   }, [connectionStatus]);
   
   /**
-   * Home all axes or specific axis
+   * Home specific axes or all axes with FluidNC
    */
   const homeAxes = useCallback(async (axes = 'all') => {
     if (connectionStatus !== ConnectionStatus.CONNECTED) {
-      setError('Not connected to a device');
+      setError('Not connected to FluidNC');
       return;
     }
     
     try {
-      let gcode = '';
+      let command = '';
       
-      // In GRBL, home command is $H
+      // FluidNC uses $H for homing
       if (axes === 'all') {
-        gcode = '$H';
+        command = '$H';
         addLogEntry('command', '> $H (Home all axes)');
       } else {
-        // With GRBL, we can't home individual axes with standard commands
-        // We'll still use $H and inform the user
-        gcode = '$H';
-        addLogEntry('command', `> $H (Home all axes - GRBL doesn't support selective homing)`);
+        // FluidNC can home specific axes with $H<axis>
+        command = `$H${axes.toUpperCase()}`; 
+        addLogEntry('command', `> ${command} (Home ${axes} axes)`);
       }
       
-      return await communicationService.sendCommand(gcode);
+      return await communicationService.sendCommand(command);
     } catch (err) {
       setError(`Homing error: ${err.message}`);
       addLogEntry('error', `Homing error: ${err.message}`);
@@ -236,16 +238,16 @@ const useCommunication = () => {
   }, [connectionStatus]);
   
   /**
-   * Get current position
+   * Get current machine position
    */
   const getPosition = useCallback(async () => {
     if (connectionStatus !== ConnectionStatus.CONNECTED) {
-      setError('Not connected to a device');
+      setError('Not connected to FluidNC');
       return;
     }
     
     try {
-      // For GRBL, we send the ? command to get status including position
+      // FluidNC uses ? command to get status including position
       addLogEntry('command', '> ? (Get status/position)');
       await communicationService.sendSpecialCommand('GET_POSITION');
       
@@ -261,16 +263,16 @@ const useCommunication = () => {
   }, [connectionStatus, machinePosition, workPosition]);
   
   /**
-   * Get machine status
+   * Get machine status from FluidNC
    */
   const getMachineStatus = useCallback(async () => {
     if (connectionStatus !== ConnectionStatus.CONNECTED) {
-      setError('Not connected to a device');
+      setError('Not connected to FluidNC');
       return;
     }
     
     try {
-      // For GRBL, we send the ? command to get status
+      // FluidNC uses ? command to get status
       addLogEntry('command', '> ? (Get status)');
       await communicationService.sendSpecialCommand('GET_POSITION');
       
@@ -287,7 +289,7 @@ const useCommunication = () => {
    */
   const pauseMachine = useCallback(async () => {
     if (connectionStatus !== ConnectionStatus.CONNECTED) {
-      setError('Not connected to a device');
+      setError('Not connected to FluidNC');
       return;
     }
     
@@ -306,7 +308,7 @@ const useCommunication = () => {
    */
   const resumeMachine = useCallback(async () => {
     if (connectionStatus !== ConnectionStatus.CONNECTED) {
-      setError('Not connected to a device');
+      setError('Not connected to FluidNC');
       return;
     }
     
@@ -362,13 +364,18 @@ const useCommunication = () => {
       addLogEntry('command', `> ${data.command}`);
     };
     
-    // Handle responses from the device
+    // Handle responses from FluidNC
     const handleResponse = (data) => {
+      if (!data.response || data.response.startsWith('[TELEMETRY]')) {
+        // Skip telemetry responses as they're handled separately
+        return;
+      }
+      
       addLogEntry('response', data.response);
     };
     
-    // Handle GRBL status updates
-    const handleGrblStatus = (status) => {
+    // Handle FluidNC status updates
+    const handleFluidNCStatus = (status) => {
       setMachineStatus(status.state);
       setMachinePosition(status.machinePosition);
       setWorkPosition(status.workPosition);
@@ -385,7 +392,7 @@ const useCommunication = () => {
     communicationService.on('connection', handleConnection);
     communicationService.on('command', handleCommand);
     communicationService.on('response', handleResponse);
-    communicationService.on('grbl-status', handleGrblStatus);
+    communicationService.on('fluidnc-status', handleFluidNCStatus);
     communicationService.on('error', handleError);
     
     // Get initial connection status
@@ -398,7 +405,7 @@ const useCommunication = () => {
       communicationService.removeListener('connection', handleConnection);
       communicationService.removeListener('command', handleCommand);
       communicationService.removeListener('response', handleResponse);
-      communicationService.removeListener('grbl-status', handleGrblStatus);
+      communicationService.removeListener('fluidnc-status', handleFluidNCStatus);
       communicationService.removeListener('error', handleError);
     };
   }, []);
@@ -410,12 +417,12 @@ const useCommunication = () => {
     }
   }, [refreshPorts, connectionType]);
   
-  // Set up a regular status update request (similar to how GRBL GUI clients work)
+  // Set up a regular status update request
   useEffect(() => {
     let statusInterval;
     
     if (connectionStatus === ConnectionStatus.CONNECTED) {
-      // Request status every 250ms (typical for GRBL interfaces)
+      // Request status every 250ms (FluidNC will throttle if needed)
       statusInterval = setInterval(() => {
         communicationService.sendSpecialCommand('GET_POSITION').catch(() => {
           // Ignore errors in background polling
