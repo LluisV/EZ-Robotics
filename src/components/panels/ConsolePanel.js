@@ -390,14 +390,31 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
   useEffect(() => {
     const handleSerialData = (event) => {
       if (event.detail && event.detail.data) {
+        // Determine if this is a status/telemetry message
+        const isStatusMessage = event.detail.isStatusMessage || 
+                               (event.detail.data.startsWith('<') && event.detail.data.includes('|MPos:'));
+        
+        // Only show status messages if TELEMETRY filter is enabled
+        if (isStatusMessage && !debugLevels.TELEMETRY) {
+          return; // Skip showing telemetry messages when filter is off
+        }
+        
         // Determine the message type/level for styling
         let messageType = 'response';
         let messageLevel = 'INFO';
         
         const data = event.detail.data.trim();
+      
+        // Skip simple "ok" messages
+        if (data === "ok") {
+          return;
+        }
         
         // Parse message type based on content
-        if (data.includes('[ERROR]') || data.includes('error')) {
+        if (isStatusMessage) {
+          messageType = 'response';
+          messageLevel = 'TELEMETRY';
+        } else if (data.includes('[ERROR]') || data.includes('error')) {
           messageLevel = 'ERROR';
         } else if (data.includes('[WARN]') || data.includes('warning')) {
           messageLevel = 'WARN';
@@ -405,8 +422,6 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
           messageLevel = 'INFO';
         } else if (data.includes('[DEBUG]')) {
           messageLevel = 'DEBUG';
-        } else if (data.includes('[TELEMETRY]')) {
-          messageLevel = 'TELEMETRY';
         }
         
         // Add the received data to the console

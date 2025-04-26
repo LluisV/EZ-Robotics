@@ -27,6 +27,32 @@ class SerialCommunicationService {
     isSupported() {
       return navigator && navigator.serial;
     }
+
+    /**
+     * Start polling for position updates
+     * @param {number} interval - Polling interval in milliseconds
+     */
+    startPositionPolling(interval = 1000) {
+        if (this.positionPollingInterval) {
+        clearInterval(this.positionPollingInterval);
+        }
+        
+        this.positionPollingInterval = setInterval(() => {
+        if (this.isConnected) {
+            this.send('?');
+        }
+        }, interval);
+    }
+    
+    /**
+     * Stop polling for position updates
+     */
+    stopPositionPolling() {
+        if (this.positionPollingInterval) {
+        clearInterval(this.positionPollingInterval);
+        this.positionPollingInterval = null;
+        }
+    }
   
     /**
      * Connect to a serial port
@@ -61,10 +87,15 @@ class SerialCommunicationService {
         
         // Start reading from the port
         this.startReading();
-        
+                
+        // Start position polling
+        this.startPositionPolling(250);
+
         // Notify listeners
         this.notifyListeners('connect', { port: this.port.getInfo() });
-        
+
+        this.isConnected = true;
+       
         // Send initial query to FluidNC
         await this.send("$#"); // Request parameters
         
@@ -108,6 +139,8 @@ class SerialCommunicationService {
         this.port = null;
         this.reader = null;
         this.readingTask = null;
+
+        this.stopPositionPolling();
         
         // Notify listeners
         this.notifyListeners('disconnect', {});
@@ -189,9 +222,16 @@ class SerialCommunicationService {
             
             // Process each complete line
             for (const line of lines) {
-              if (line.trim()) {
-                this.notifyListeners('data', { data: line.trim() });
-              }
+                if (line.trim()) {
+                  // Determine if this is a status/telemetry message
+                  const isStatusMessage = line.trim().startsWith('<') && line.includes('|MPos:');
+                  
+                  // Notify listeners with type information
+                  this.notifyListeners('data', { 
+                    data: line.trim(),
+                    isStatusMessage  // Add this flag
+                  });
+                }
             }
           }
         } catch (error) {

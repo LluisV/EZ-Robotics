@@ -36,9 +36,14 @@ const SerialConnection = ({ onConnectionChange }) => {
       }
       
       const success = await serialService.connect(baudRate);
-      if (success) {
+        if (success) {
         handleConnectionChange(true, serialService.getPortInfo());
-      }
+        
+        // Send an initial status request to get position data
+        setTimeout(() => {
+            serialService.send('?');
+        }, 100);
+        }
     } catch (error) {
       console.error("Serial connection error:", error);
       handleConnectionChange(false, null, error);

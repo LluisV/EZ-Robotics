@@ -522,52 +522,44 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
   // Subscribe to position telemetry events
   useEffect(() => {
     // Handler for position telemetry
-    const handlePositionTelemetry = (data) => {
-      if (typeof data.response === 'string' && data.response.startsWith('[TELEMETRY]')) {
-        try {
-          // Check if it's the new JSON format
-          if (data.response.includes('{"work":') || data.response.includes('{"world":')) {
-            // Extract the JSON part
-            const jsonStart = data.response.indexOf('{');
-            if (jsonStart === -1) return;
+    const handlePositionTelemetry = (event) => {
+      const data = event.detail;
+      
+      if (data && data.type === 'response' && data.data) {
+        // Check if this is a status message in GRBL format: <status|MPos:x,y,z|...>
+        if (data.data.startsWith('<') && data.data.includes('|MPos:')) {
+          try {
+            // Parse machine position (MPos)
+            const mPosMatch = data.data.match(/MPos:([^,|]+),([^,|]+),([^,|]+)/);
+            // Parse work coordinate offset (WCO)
+            const wcoMatch = data.data.match(/WCO:([^,|]+),([^,|]+),([^,|]+)/);
             
-            const jsonString = data.response.substring(jsonStart);
-            const parsedData = JSON.parse(jsonString);
-            
-            // Update world position if available
-            if (parsedData.world) {
+            if (mPosMatch) {
+              // Extract machine positions
+              const worldX = parseFloat(mPosMatch[1]) || 0;
+              const worldY = parseFloat(mPosMatch[2]) || 0;
+              const worldZ = parseFloat(mPosMatch[3]) || 0;
+              
+              // For 3D viewer, invert X as needed by the coordinate system
               const newWorldPosition = {
-                x: -parseFloat(parsedData.world.X) || 0,
-                y: parseFloat(parsedData.world.Y) || 0,
-                z: parseFloat(parsedData.world.Z) || 0,
-                a: parseFloat(parsedData.world.A) || 0
+                x: -worldX, // X is inverted in the 3D view
+                y: worldY,
+                z: worldZ,
+                a: 0 // Default A axis
               };
               
-              // Only update if position has changed
-              const hasPositionChanged = 
-                newWorldPosition.x !== robotPosition.x ||
-                newWorldPosition.y !== robotPosition.y ||
-                newWorldPosition.z !== robotPosition.z ||
-                newWorldPosition.a !== robotPosition.a;
-              
-              if (hasPositionChanged) {
-                setRobotPosition(newWorldPosition);
+              // Extract work coordinate offsets if available
+              let wcoX = 0, wcoY = 0, wcoZ = 0;
+              if (wcoMatch) {
+                wcoX = parseFloat(wcoMatch[1]) || 0;
+                wcoY = parseFloat(wcoMatch[2]) || 0;
+                wcoZ = parseFloat(wcoMatch[3]) || 0;
                 
-                // Update the robot tool position in the 3D scene using WORLD coordinates
-                if (robotToolRef.current) {
-                  updateRobotToolPosition(newWorldPosition);
-                } else {
-                  createRobotTool();
-                }
-              }
-            }
-
-            if(parsedData.work)
-              {
+                // Update work offset
                 const newWorkOffset = {
-                  x: parseFloat(parsedData.world.X) - parseFloat(parsedData.work.X) || 0,
-                  y: parseFloat(parsedData.world.Y) - parseFloat(parsedData.work.Y) || 0,
-                  z: parseFloat(parsedData.world.Z) - parseFloat(parsedData.work.Z) || 0
+                  x: wcoX,
+                  y: wcoY,
+                  z: wcoZ
                 };
                 
                 // Only update if work offset has changed
@@ -583,15 +575,37 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
                   updateAxesAndGrid();
                 }
               }
-
+              
+              // Only update if position has changed
+              const hasPositionChanged = 
+                newWorldPosition.x !== robotPosition.x ||
+                newWorldPosition.y !== robotPosition.y ||
+                newWorldPosition.z !== robotPosition.z;
+              
+              if (hasPositionChanged) {
+                setRobotPosition(newWorldPosition);
+                
+                // Update the robot tool position in the 3D scene
+                if (robotToolRef.current) {
+                  updateRobotToolPosition(newWorldPosition);
+                } else {
+                  createRobotTool();
+                }
+              }
+            }
+          } catch (error) {
+            console.error("Error parsing position telemetry:", error);
           }
-        } catch (error) {
-          console.error("Error parsing position telemetry:", error);
         }
       }
     };
     
-
+    // Listen for telemetry data
+    document.addEventListener('serialdata', handlePositionTelemetry);
+    
+    return () => {
+      document.removeEventListener('serialdata', handlePositionTelemetry);
+    };
   }, [createRobotTool, updateRobotToolPosition, updateAxesAndGrid, robotPosition, workOffset]);
 
   // STL file import functions

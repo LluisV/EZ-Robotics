@@ -337,40 +337,6 @@ const ControlPanel = () => {
       });
   };
 
-  // Helper function to parse FluidNC position telemetry
-  const parseTelemetryPosition = (message) => {
-    try {
-      // Check if it's the new JSON format
-      if (message.includes('{"work":') || message.includes('{"world":')) {
-        // Extract the JSON part
-        const jsonStart = message.indexOf('{');
-        if (jsonStart === -1) return null;
-        
-        const jsonString = message.substring(jsonStart);
-        const parsedData = JSON.parse(jsonString);
-        
-        // Return the parsed position data
-        return {
-          work: {
-            x: parsedData.work?.X !== undefined ? parseFloat(parsedData.work.X) : 0,
-            y: parsedData.work?.Y !== undefined ? parseFloat(parsedData.work.Y) : 0,
-            z: parsedData.work?.Z !== undefined ? parseFloat(parsedData.work.Z) : 0,
-            a: parsedData.work?.A !== undefined ? parseFloat(parsedData.work.A) : 0
-          },
-          world: {
-            x: parsedData.world?.X !== undefined ? parseFloat(parsedData.world.X) : 0,
-            y: parsedData.world?.Y !== undefined ? parseFloat(parsedData.world.Y) : 0,
-            z: parsedData.world?.Z !== undefined ? parseFloat(parsedData.world.Z) : 0,
-            a: parsedData.world?.A !== undefined ? parseFloat(parsedData.world.A) : 0
-          }
-        };
-      }
-      return null;
-    } catch (error) {
-      console.error("Error parsing telemetry:", error);
-      return null;
-    }
-  };
 
   // Initialize target position from current position
   useEffect(() => {
@@ -383,29 +349,77 @@ const ControlPanel = () => {
       const data = event.detail;
       
       if (data && data.type === 'response' && data.data) {
-        // Check if this is a telemetry message
-        if (data.data.startsWith('[TELEMETRY]')) {
-          const positionData = parseTelemetryPosition(data.data);
-          
-          if (positionData) {
-            setPosition(positionData);
+        // Check if this is a status message in GRBL format: <status|MPos:x,y,z|...>
+        if (data.data.startsWith('<') && data.data.includes('|MPos:')) {
+          try {
+            // Parse machine position (MPos)
+            const mPosMatch = data.data.match(/MPos:([^,|]+),([^,|]+),([^,|]+)/);
+            // Parse work coordinate offset (WCO)
+            const wcoMatch = data.data.match(/WCO:([^,|]+),([^,|]+),([^,|]+)/);
+            
+            if (mPosMatch) {
+              // Extract machine positions
+              const worldX = parseFloat(mPosMatch[1]) || 0;
+              const worldY = parseFloat(mPosMatch[2]) || 0;
+              const worldZ = parseFloat(mPosMatch[3]) || 0;
+              
+              // Create a copy of the current position to update
+              const newPosition = {
+                work: { ...position.work },
+                world: {
+                  x: worldX,
+                  y: worldY,
+                  z: worldZ,
+                  a: position.world.a // Preserve A value as it might not be in MPos
+                }
+              };
+              
+              // If WCO data is available, update work coordinates
+              if (wcoMatch) {
+                const wcoX = parseFloat(wcoMatch[1]) || 0;
+                const wcoY = parseFloat(wcoMatch[2]) || 0;
+                const wcoZ = parseFloat(wcoMatch[3]) || 0;
+                
+                // Calculate work positions by subtracting offsets
+                newPosition.work.x = worldX - wcoX;
+                newPosition.work.y = worldY - wcoY;
+                newPosition.work.z = worldZ - wcoZ;
+                // A axis usually not included in basic WCO reports
+              } else {
+                // If no WCO data, calculate work position based on 
+                // the difference between the previous world and work positions
+                const previousWorldX = position.world.x;
+                const previousWorldY = position.world.y;
+                const previousWorldZ = position.world.z;
+                
+                // Calculate the offsets from previous known positions
+                const offsetX = previousWorldX - position.work.x;
+                const offsetY = previousWorldY - position.work.y;
+                const offsetZ = previousWorldZ - position.work.z;
+                
+                // Apply these same offsets to the new world position
+                newPosition.work.x = worldX - offsetX;
+                newPosition.work.y = worldY - offsetY;
+                newPosition.work.z = worldZ - offsetZ;
+              }
+              
+              // Update position state
+              setPosition(newPosition);
+            }
+          } catch (error) {
+            console.error("Error parsing position status:", error);
           }
         }
       }
     };
     
-    // Listen for telemetry data
+    // Listen for status data
     document.addEventListener('serialdata', handlePositionTelemetry);
-    
-    // Request current position on load if connected
-    if (isConnected) {
-      serialService.send('?'); // Request status report
-    }
     
     return () => {
       document.removeEventListener('serialdata', handlePositionTelemetry);
     };
-  }, [isConnected]);
+  }, [position]); // Add position to dependencies
 
   // Get the active position object based on current view
   const activePosition = position[positionView];

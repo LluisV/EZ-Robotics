@@ -84,81 +84,148 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
     };
   };
 
-  // Parse telemetry data from message
-  const parseTelemetryData = (message) => {
+  const parseStatusMessage = (message) => {
     try {
-
+      // Check if it's a GRBL status message
+      if (message.startsWith('<') && message.includes('|MPos:')) {
+        // Parse machine position (MPos)
+        const mPosMatch = message.match(/MPos:([^,|]+),([^,|]+),([^,|]+)/);
+        // Parse feed and speed (FS)
+        const fsMatch = message.match(/FS:([^,|]+),([^,|]+)/);
+        // Parse work coordinate offset (WCO)
+        const wcoMatch = message.match(/WCO:([^,|]+),([^,|]+),([^,|]+)/);
+        // Parse status
+        const statusMatch = message.match(/<([^|]+)\|/);
+        
+        if (mPosMatch) {
+          // Extract positions
+          const worldX = parseFloat(mPosMatch[1]) || 0;
+          const worldY = parseFloat(mPosMatch[2]) || 0;
+          const worldZ = parseFloat(mPosMatch[3]) || 0;
+          
+          // Extract feed rate if available
+          let velocity = 0;
+          if (fsMatch) {
+            velocity = parseFloat(fsMatch[1]) || 0;
+          }
+          
+          // Extract work coordinate offsets if available
+          let wcoX = 0, wcoY = 0, wcoZ = 0;
+          if (wcoMatch) {
+            wcoX = parseFloat(wcoMatch[1]) || 0;
+            wcoY = parseFloat(wcoMatch[2]) || 0;
+            wcoZ = parseFloat(wcoMatch[3]) || 0;
+          }
+          
+          // Calculate work positions
+          const workX = worldX - wcoX;
+          const workY = worldY - wcoY;
+          const workZ = worldZ - wcoZ;
+          
+          // Return the parsed position data
+          return {
+            position: {
+              x: workX,
+              y: workY,
+              z: workZ,
+              a: 0
+            },
+            velocity: velocity,
+            velocityVector: {
+              x: 0, // Not provided in basic GRBL status
+              y: 0,
+              z: 0
+            },
+            temperature: 25, // Default value, not provided in GRBL status
+            cpuUsage: 0, // Not provided in GRBL status
+            memoryUsage: 0, // Not provided in GRBL status
+            status: statusMatch ? statusMatch[1] : 'Unknown'
+          };
+        }
+      }
+      return null;
     } catch (error) {
-      console.error("Error parsing telemetry data:", error);
+      console.error("Error parsing status message:", error);
       return null;
     }
   };
 
   // Handle position telemetry from robot
   useEffect(() => {
-    const handlePositionTelemetry = (data) => {
-      if (typeof data.response === 'string') {
-        try {
-          const telemetryData = parseTelemetryData(data.response);
-          if (!telemetryData) return;
-          
-          // Update position, velocity, and temperature data
-          const timestamp = Date.now();
-          
-          // Add to position, velocity and time history
-          if (telemetryData.position) {
-            positionHistoryRef.current.push(telemetryData.position);
-          }
-          
-          if (telemetryData.velocity !== undefined) {
-            velocityHistoryRef.current.push(telemetryData.velocity);
-            timeHistoryRef.current.push(timestamp);
-          }
-
-          // Limit history size
-          if (positionHistoryRef.current.length > maxDataPoints + 3) {
-            positionHistoryRef.current.shift();
-            velocityHistoryRef.current.shift();
-            timeHistoryRef.current.shift();
-          }
-
-          // Calculate acceleration and jerk from velocity history
-          const kinematics = calculateKinematics(velocityHistoryRef.current, timeHistoryRef.current);
-
-          // Update state with new position and calculated values
-          setStatusData(prev => ({
-            ...prev,
-            connected: true,
-            position: telemetryData.position || prev.position,
-            speed: telemetryData.velocity || prev.speed,
-            velocityVector: telemetryData.velocityVector || prev.velocityVector,
-            acceleration: kinematics.acceleration,
-            jerk: kinematics.jerk,
-            temperature: telemetryData.temperature !== undefined ? telemetryData.temperature : prev.temperature,
-            cpuUsage: telemetryData.cpuUsage !== undefined ? telemetryData.cpuUsage : prev.cpuUsage,
-            memoryUsage: telemetryData.memoryUsage !== undefined ? telemetryData.memoryUsage : prev.memoryUsage
-          }));
-
-          // Add to history data for charts
-          setHistoryData(prev => ({
-            speedHistory: [...prev.speedHistory, telemetryData.velocity || 0].slice(-maxDataPoints),
-            accelerationHistory: [...prev.accelerationHistory, kinematics.acceleration].slice(-maxDataPoints),
-            jerkHistory: [...prev.jerkHistory, kinematics.jerk].slice(-maxDataPoints),
-            tempHistory: [...prev.tempHistory, telemetryData.temperature || prev.tempHistory[prev.tempHistory.length - 1] || 0].slice(-maxDataPoints),
-            cpuHistory: [...prev.cpuHistory, telemetryData.cpuUsage || prev.cpuHistory[prev.cpuHistory.length - 1] || 0].slice(-maxDataPoints),
-            memoryHistory: [...prev.memoryHistory, telemetryData.memoryUsage || prev.memoryHistory[prev.memoryHistory.length - 1] || 0].slice(-maxDataPoints),
-            velocityVectorHistory: {
-              x: [...prev.velocityVectorHistory.x, telemetryData.velocityVector?.x || 0].slice(-maxDataPoints),
-              y: [...prev.velocityVectorHistory.y, telemetryData.velocityVector?.y || 0].slice(-maxDataPoints),
-              z: [...prev.velocityVectorHistory.z, telemetryData.velocityVector?.z || 0].slice(-maxDataPoints)
+    const handlePositionStatus = (event) => {
+      const data = event.detail;
+      
+      if (data && data.type === 'response' && data.data) {
+        // Check if this is a status message in GRBL format
+        if (data.data.startsWith('<') && data.data.includes('|MPos:')) {
+          try {
+            const statusData = parseStatusMessage(data.data);
+            if (!statusData) return;
+            
+            // Update position, velocity, and other data
+            const timestamp = Date.now();
+            
+            // Add to position, velocity and time history
+            if (statusData.position) {
+              positionHistoryRef.current.push(statusData.position);
             }
-          }));
-        } catch (error) {
-          console.error("Error processing telemetry:", error);
+            
+            if (statusData.velocity !== undefined) {
+              velocityHistoryRef.current.push(statusData.velocity);
+              timeHistoryRef.current.push(timestamp);
+            }
+  
+            // Limit history size
+            if (positionHistoryRef.current.length > maxDataPoints + 3) {
+              positionHistoryRef.current.shift();
+              velocityHistoryRef.current.shift();
+              timeHistoryRef.current.shift();
+            }
+  
+            // Calculate acceleration and jerk from velocity history
+            const kinematics = calculateKinematics(velocityHistoryRef.current, timeHistoryRef.current);
+  
+            // Update state with new position and calculated values
+            setStatusData(prev => ({
+              ...prev,
+              connected: true,
+              position: statusData.position || prev.position,
+              speed: statusData.velocity || prev.speed,
+              velocityVector: statusData.velocityVector || prev.velocityVector,
+              acceleration: kinematics.acceleration,
+              jerk: kinematics.jerk,
+              temperature: statusData.temperature !== undefined ? statusData.temperature : prev.temperature,
+              cpuUsage: statusData.cpuUsage !== undefined ? statusData.cpuUsage : prev.cpuUsage,
+              memoryUsage: statusData.memoryUsage !== undefined ? statusData.memoryUsage : prev.memoryUsage
+            }));
+  
+            // Update history data for charts
+            setHistoryData(prev => ({
+              speedHistory: [...prev.speedHistory, statusData.velocity || 0].slice(-maxDataPoints),
+              accelerationHistory: [...prev.accelerationHistory, kinematics.acceleration].slice(-maxDataPoints),
+              jerkHistory: [...prev.jerkHistory, kinematics.jerk].slice(-maxDataPoints),
+              tempHistory: [...prev.tempHistory, statusData.temperature || prev.tempHistory[prev.tempHistory.length - 1] || 0].slice(-maxDataPoints),
+              cpuHistory: [...prev.cpuHistory, statusData.cpuUsage || prev.cpuHistory[prev.cpuHistory.length - 1] || 0].slice(-maxDataPoints),
+              memoryHistory: [...prev.memoryHistory, statusData.memoryUsage || prev.memoryHistory[prev.memoryHistory.length - 1] || 0].slice(-maxDataPoints),
+              velocityVectorHistory: {
+                x: [...prev.velocityVectorHistory.x, statusData.velocityVector?.x || 0].slice(-maxDataPoints),
+                y: [...prev.velocityVectorHistory.y, statusData.velocityVector?.y || 0].slice(-maxDataPoints),
+                z: [...prev.velocityVectorHistory.z, statusData.velocityVector?.z || 0].slice(-maxDataPoints)
+              }
+            }));
+          } catch (error) {
+            console.error("Error processing status data:", error);
+          }
         }
       }
     };
-
+    
+    // Listen for status data
+    document.addEventListener('serialdata', handlePositionStatus);
+    
+    return () => {
+      document.removeEventListener('serialdata', handlePositionStatus);
+    };
   }, []);
 
   // Update elapsed time
