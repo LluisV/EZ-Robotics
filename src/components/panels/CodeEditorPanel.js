@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import '../../styles/code-editor.css';
 import { useGCode } from '../../contexts/GCodeContext';
+import GCodeSender from '../../utils/GCodeSender';
 
 /**
  * Enhanced G-Code Editor with transformation tools and auto-validation
@@ -25,11 +26,13 @@ const CodeEditorPanel = () => {
   const [warnings, setWarnings] = useState([]);
   const [transformMode, setTransformMode] = useState(null); // 'scale', 'move', 'rotate'
   const [statusMessage, setStatusMessage] = useState('');
+  const [isPaused, setIsPaused] = useState(false);
 
   const editorRef = useRef(null);
   const lineNumbersRef = useRef(null);
   const fileInputRef = useRef(null);
   const validationTimeoutRef = useRef(null);
+  const gcodeSender = new GCodeSender();
 
   // Initialize the editor with the current gcode from context
   useEffect(() => {
@@ -589,11 +592,8 @@ const CodeEditorPanel = () => {
 
   const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
- // Send G-code to robot
-// This implementation sends GCode line-by-line to the FluidNC controller
-
 /**
- * Send G-code to robot using GRBL protocol
+ * Send G-code to robot using GRBL protocol with improved reliability
  */
 const sendToRobot = async () => {
   // Define helper function to log messages to the console panel
@@ -623,173 +623,92 @@ const sendToRobot = async () => {
   }
 
   try {
-    // Start file transfer
+    // Start file transfer UI updates
     setIsTransferring(true);
     setTransferProgress(0);
     setTransferError(null);
     
-    // Split G-code into lines and clean up
-    const lines = gCodeToSend
-      .split('\n')
-      .map(line => {
-        // Remove comments and trim whitespace
-        const commentIndex = line.indexOf(';');
-        return (commentIndex >= 0 ? line.substring(0, commentIndex) : line).trim();
-      })
-      .filter(line => line); // Remove empty lines
-    
-    const totalLines = lines.length;
+    // Load the G-code into our sender
+    const totalLines = gcodeSender.loadGCode(gCodeToSend);
     const totalBytes = new Blob([gCodeToSend]).size;
     
     // Log to console panel that we're starting transfer
     logToConsole('system', `Starting transfer: ${fileName} (${totalBytes} bytes, ${totalLines} lines)`);
     
-    let sentBytes = 0;
-    let linesSent = 0;
-
-    // Report transfer started
-    handleFileTransferProgress({
-      status: 'started',
-      fileName: fileName,
-      bytesTotal: totalBytes
-    });
-
-    // Set up a simple queue with a configurable line buffer
-    const MAX_BUFFER_SIZE = 5; // Max number of unacknowledged lines
-    let unacknowledgedLines = 0;
-    let cancelled = false;
-
-    // Add event listener for response from FluidNC
-    const handleResponse = (event) => {
-      const data = event.detail;
-      if (data && data.type === 'response' && data.data) {
-        const response = data.data.trim();
+    // Set up the callbacks for our sender
+    gcodeSender.setCallbacks({
+      onProgress: (data) => {
+        // Update progress UI
+        setTransferProgress(data.progress);
         
-        // Check for common responses
-        if (response === 'ok') {
-          // One line was processed successfully
-          unacknowledgedLines--;
-          
-          // Now we can send the next line
-          setTimeout(() => sendNextLine(), 50); // Add a small delay between commands
-        } else if (response.startsWith('error:')) {
-          // Error occurred
-          document.removeEventListener('serialdata', handleResponse);
-          const errorMessage = `Error: ${response.substring(6)}`;
-          logToConsole('error', `Transfer error: ${errorMessage}`);
-          setTransferError(errorMessage);
-          setIsTransferring(false);
-          cancelled = true;
-        } else if (response.startsWith('ALARM:')) {
-          // Alarm triggered
-          document.removeEventListener('serialdata', handleResponse);
-          const alarmMessage = `Machine alarm: ${response}`;
-          logToConsole('error', `Transfer interrupted: ${alarmMessage}`);
-          setTransferError(alarmMessage);
-          setIsTransferring(false);
-          cancelled = true;
-        }
-      }
-    };
-    
-    document.addEventListener('serialdata', handleResponse);
-
-    // Function to send the next line when ready
-    const sendNextLine = async () => {
-      // Check if transfer was cancelled
-      if (cancelled) return;
-      
-      // Check if we've reached the end
-      if (linesSent >= totalLines) {
-        if (unacknowledgedLines === 0) {
-          // All lines were sent and acknowledged
-          handleFileTransferProgress({
-            status: 'completed',
-            fileName: fileName,
-            bytesTotal: totalBytes,
-            bytesTransferred: totalBytes,
-            progress: 100
-          });
-          
-          const completeMsg = `Transfer completed: ${fileName} (${totalLines} lines)`;
-          logToConsole('system', completeMsg);
-          setIsTransferring(false);
-          document.removeEventListener('serialdata', handleResponse);
-          setStatusMessage(completeMsg);
-        }
-        return;
-      }
-      
-      // Check if we need to wait for acknowledgements
-      if (unacknowledgedLines >= MAX_BUFFER_SIZE) {
-        return; // Wait for more acknowledgements
-      }
-      
-      // Send the next line
-      const line = lines[linesSent];
-      
-      // Skip empty lines
-      if (!line) {
-        linesSent++;
-        sendNextLine();
-        return;
-      }
-      
-      try {
-        const success = await window.serialService.send(line);
+        // Format progress message with byte information
+        const sentBytes = Math.floor((data.acknowledged / data.total) * totalBytes);
+        setStatusMessage(`Transferring: ${data.progress.toFixed(1)}% (${formatBytes(sentBytes)} / ${formatBytes(totalBytes)})`);
         
-        if (success) {
-          const lineBytes = new Blob([line + '\n']).size;
-          sentBytes += lineBytes;
-          linesSent++;
-          unacknowledgedLines++;
-          
-          // Update progress
-          const progress = (sentBytes / totalBytes) * 100;
-          setTransferProgress(progress);
-          
-          // Report progress
-          handleFileTransferProgress({
-            status: 'progress',
-            bytesTransferred: sentBytes,
-            bytesTotal: totalBytes,
-            linesTransferred: linesSent,
-            linesTotal: totalLines,
-            progress: progress.toFixed(1)
-          });
-          
-          // Check if we can send more lines
-          sendNextLine();
-        } else {
-          const commError = "Communication error: Failed to send data";
-          logToConsole('error', commError);
-          setTransferError(commError);
-          setIsTransferring(false);
-          document.removeEventListener('serialdata', handleResponse);
-          cancelled = true;
+        // Log progress occasionally (e.g., every 5-10%)
+        if (data.acknowledged % Math.max(1, Math.floor(totalLines / 20)) === 0) {
+          logToConsole('info', `Transfer progress: ${data.progress.toFixed(1)}% (${data.acknowledged}/${data.total} lines)`);
         }
-      } catch (error) {
-        const errorMsg = `Error sending line ${linesSent}: ${error.message}`;
-        console.error(errorMsg);
-        logToConsole('error', errorMsg);
-        setTransferError(`Error: ${error.message}`);
+        
+        // Optional: Highlight current line in editor if desired
+        if (data.acknowledged > 0 && data.acknowledged <= totalLines) {
+          // Find the actual line number in the editor
+          // This requires mapping from the filtered GCode to the editor lines
+          // For simplicity, we'll use the acknowledged count directly
+          setSelectedLine(data.acknowledged);
+        }
+      },
+      
+      onComplete: (data) => {
+        // Update UI for completion
+        setTransferProgress(100);
         setIsTransferring(false);
-        document.removeEventListener('serialdata', handleResponse);
-        cancelled = true;
+        
+        const completeMsg = `Transfer completed: ${fileName} (${data.total} lines)`;
+        logToConsole('system', completeMsg);
+        setStatusMessage(completeMsg);
+        
+        // Clear line highlight after transfer
+        setTimeout(() => {
+          setSelectedLine(-1);
+        }, 2000);
+      },
+      
+      onError: (error) => {
+        // Log error but don't stop the transfer for non-fatal errors
+        logToConsole('error', `Transfer error: ${error}`);
+        
+        // Update error message in UI but continue transferring
+        setTransferError(error);
+      },
+      
+      onLineSuccess: (lineNumber) => {
+        // This is optional - update UI to show the current line being processed
+      },
+      
+      onPause: (reason) => {
+        logToConsole('warning', `Transfer paused: ${reason || 'User requested'}`);
+        setStatusMessage(`Transfer paused: ${reason || 'User requested'}`);
+      },
+      
+      onResume: () => {
+        logToConsole('info', 'Transfer resumed');
+        
+        // Restore normal status message
+        const progress = gcodeSender.getStatus().progress;
+        const sentBytes = Math.floor((progress / 100) * totalBytes);
+        setStatusMessage(`Transferring: ${progress.toFixed(1)}% (${formatBytes(sentBytes)} / ${formatBytes(totalBytes)})`);
       }
-    };
+    });
     
-    // Start sending lines
-    for (let i = 0; i < Math.min(MAX_BUFFER_SIZE, totalLines); i++) {
-      sendNextLine();
+    // Start the transfer
+    const success = await gcodeSender.start(window.serialService);
+    
+    if (!success) {
+      throw new Error("Failed to start G-code transfer");
     }
     
-    // Add cancellation logic to the return statement
-    return () => {
-      document.removeEventListener('serialdata', handleResponse);
-      cancelled = true;
-      setIsTransferring(false);
-    };
+    // The transfer is now running asynchronously
     
   } catch (error) {
     const errorMsg = `Error sending G-code to robot: ${error.message}`;
@@ -797,9 +716,51 @@ const sendToRobot = async () => {
     logToConsole('error', errorMsg);
     setTransferError(`Error: ${error.message}`);
     setIsTransferring(false);
+    
+    // Make sure to stop the sender
+    gcodeSender.stop();
   }
-  
+};
 
+/**
+ * Pause the current transfer
+ */
+const pauseTransfer = () => {
+  if (gcodeSender.pause()) {
+    setIsPaused(true);
+    setStatusMessage('Transfer paused');
+  }
+};
+
+/**
+ * Resume the current transfer
+ */
+const resumeTransfer = () => {
+  if (gcodeSender.resume()) {
+    setIsPaused(false);
+    setStatusMessage('Transfer resumed');
+  }
+};
+
+/**
+ * Stop/cancel the current transfer
+ */
+const stopTransfer = () => {
+  if (gcodeSender.stop()) {
+    setIsPaused(false);
+    setIsTransferring(false);
+    setStatusMessage('Transfer stopped by user');
+  }
+};
+
+/**
+ * Retry the transfer after an error
+ */
+const retryTransfer = () => {
+  if (!isTransferring && transferError) {
+    setTransferError(null);
+    sendToRobot();
+  }
 };
 
 
@@ -808,22 +769,16 @@ const sendToRobot = async () => {
   const [transferError, setTransferError] = useState(null);
 
   const formatBytes = (bytes, decimals = 2) => {
-    if (bytes === 0) return '0 B';
+  if (bytes === 0) return '0 B';
 
-    const k = 1024;
-    const dm = decimals < 0 ? 0 : decimals;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
 
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
 
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-  };
-
-  const retryTransfer = () => {
-    if (!isTransferring && transferError) {
-      sendToRobot();
-    }
-  };
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+};
 
   // Handler for file transfer progress events
   const handleFileTransferProgress = (data) => {
@@ -1027,28 +982,63 @@ const sendToRobot = async () => {
 
       {/* File Transfer Progress UI */}
       {isTransferring && (
-        <div className="transfer-progress-container">
-          <div className="transfer-status">
-            <div className="status-indicator"></div>
-            <span>{statusMessage || `Transferring: ${fileName}`}</span>
+      <div className="transfer-progress-container">
+        <div className="transfer-status">
+          <div className="status-indicator"></div>
+          <span>{statusMessage || `Transferring: ${fileName}`}</span>
+          
+          {/* Control buttons - match the toolbar button style */}
+          <div className="transfer-controls">
+            <button 
+              className="toolbar-btn"
+              onClick={isPaused ? resumeTransfer : pauseTransfer}
+              title={isPaused ? "Resume transfer" : "Pause transfer"}
+              style={{ padding: '4px 8px', fontSize: '11px' }}
+            >
+              {isPaused ? (
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="6" y="4" width="4" height="16"></rect>
+                  <rect x="14" y="4" width="4" height="16"></rect>
+                </svg>
+              )}
+            </button>
+            
+            <button 
+              className="toolbar-btn danger"
+              onClick={stopTransfer}
+              title="Stop transfer"
+              style={{ padding: '4px 8px', fontSize: '11px' }}
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              </svg>
+            </button>
           </div>
-          <div className="progress-bar">
-            <div
-              className="progress-fill"
-              style={{ width: `${transferProgress}%` }}
-            ></div>
-          </div>
-          <div className="progress-text">
-            {`${transferProgress.toFixed(1)}% completed`}
-          </div>
-          {transferError && (
-            <div className="transfer-error">
-              <div className="error-message">{transferError}</div>
-              <button onClick={retryTransfer} className="retry-btn">Retry</button>
-            </div>
-          )}
         </div>
-      )}
+        
+        <div className="progress-bar">
+          <div
+            className="progress-fill"
+            style={{ width: `${transferProgress}%` }}
+          ></div>
+        </div>
+        
+        <div className="progress-text">
+          {`${transferProgress.toFixed(1)}% completed`}
+        </div>
+        
+        {transferError && (
+          <div className="transfer-error">
+            <div className="error-message">{transferError}</div>
+            <button onClick={retryTransfer} className="retry-btn">Retry</button>
+          </div>
+        )}
+      </div>
+    )}
 
       {/* Transformation panel */}
       {transformMode && (
