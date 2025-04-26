@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import SerialConnection from './SerialConnection';
 
 /**
  * Application header component with added serial connection UI
@@ -12,6 +13,12 @@ const Header = ({ children }) => {
 
   const handleConnectionStatusChange = (status) => {
     setConnectionStatus(status);
+    
+    // Dispatch a global event when connection status changes
+    const event = new CustomEvent('serialconnection', { 
+      detail: { connected: status.connected, port: status.port } 
+    });
+    document.dispatchEvent(event);
   };
 
   return (
@@ -23,6 +30,8 @@ const Header = ({ children }) => {
       
       <div className="header-controls">
         {children}
+        
+        <SerialConnection onConnectionChange={handleConnectionStatusChange} />
                 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span 

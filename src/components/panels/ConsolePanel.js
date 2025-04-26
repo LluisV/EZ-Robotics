@@ -196,15 +196,15 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
   }, []);
 
   // Add a command or response to the history with size limiting
-  const addEntry = useCallback((type, content) => {
+  const addEntry = useCallback((type, content, level = null) => {
     const timestamp = new Date().toLocaleTimeString();
-    let level = type;
+    let messageLevel = level || type;
     
-    // For responses, try to parse the level from the message
-    if (type === 'response') {
+    // For responses, try to parse the level from the message if not provided
+    if (type === 'response' && !level) {
       const parsedLevel = parseMessageLevel(content);
       if (parsedLevel) {
-        level = parsedLevel;
+        messageLevel = parsedLevel;
       }
     }
     
@@ -213,7 +213,7 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
         ...prev, 
         {
           type,
-          level,
+          level: messageLevel,
           content,
           timestamp
         }
@@ -249,8 +249,22 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
       ).join('\n');
       addEntry('system', helpResponse);
     } else {
+      // Send to serial port if connected
+      if (window.sendSerialData) {
+        window.sendSerialData(currentCommand)
+          .then(success => {
+            if (!success) {
+              addEntry('error', 'Failed to send command: No serial connection');
+            }
+          })
+          .catch(error => {
+            addEntry('error', `Error sending command: ${error.message}`);
+          });
+      } else {
+        addEntry('error', 'Serial connection not available');
+      }
 
-      // Call the callback
+      // Also call the original callback
       onSendCommand(currentCommand);
     }
     
@@ -258,19 +272,6 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
     setCurrentCommand('');
     setHistoryIndex(-1);
   }, [currentCommand, addEntry, onSendCommand]);
-
-  // Handle key press - memoized
-  const handleKeyPress = useCallback((e) => {
-    if (e.key === 'Enter') {
-      sendCommand();
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      navigateHistory(-1);
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      navigateHistory(1);
-    }
-  }, [sendCommand]);
 
   // Navigate through command history - memoized
   const navigateHistory = useCallback((direction) => {
@@ -291,6 +292,19 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
       setCurrentCommand(commandsOnly[commandsOnly.length - 1 - newIndex]);
     }
   }, [commandHistory, historyIndex]);
+
+  // Handle key press - memoized
+  const handleKeyPress = useCallback((e) => {
+    if (e.key === 'Enter') {
+      sendCommand();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      navigateHistory(-1);
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      navigateHistory(1);
+    }
+  }, [sendCommand, navigateHistory]);
 
   // Toggle a debug level filter - memoized
   const toggleDebugLevel = useCallback((level) => {
@@ -372,6 +386,65 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
     }
   }, [visibleMessages.length, autoScroll]);
 
+  // Listen for serial data events
+  useEffect(() => {
+    const handleSerialData = (event) => {
+      if (event.detail && event.detail.data) {
+        // Determine the message type/level for styling
+        let messageType = 'response';
+        let messageLevel = 'INFO';
+        
+        const data = event.detail.data.trim();
+        
+        // Parse message type based on content
+        if (data.includes('[ERROR]') || data.includes('error')) {
+          messageLevel = 'ERROR';
+        } else if (data.includes('[WARN]') || data.includes('warning')) {
+          messageLevel = 'WARN';
+        } else if (data.includes('[INFO]')) {
+          messageLevel = 'INFO';
+        } else if (data.includes('[DEBUG]')) {
+          messageLevel = 'DEBUG';
+        } else if (data.includes('[TELEMETRY]')) {
+          messageLevel = 'TELEMETRY';
+        }
+        
+        // Add the received data to the console
+        addEntry(messageType, data, messageLevel);
+      }
+    };
+    
+    // Listen for serial connection status changes
+    const handleSerialConnection = (event) => {
+      if (event.detail) {
+        const { connected, port } = event.detail;
+        addEntry('system', connected 
+          ? `Connected to ${port?.usbProductName || 'serial port'}`
+          : 'Disconnected from serial port');
+      }
+    };
+    
+    // Listen for console entries from other components
+    const handleConsoleEntry = (event) => {
+      if (event.detail) {
+        const { type, content, level } = event.detail;
+        addEntry(type, content, level);
+      }
+    };
+    
+    // Add event listeners
+    document.addEventListener('serialdata', handleSerialData);
+    document.addEventListener('serialconnection', handleSerialConnection);
+    document.addEventListener('consoleEntry', handleConsoleEntry);
+    
+    // Clean up
+    return () => {
+      document.removeEventListener('serialdata', handleSerialData);
+      document.removeEventListener('serialconnection', handleSerialConnection);
+      document.removeEventListener('consoleEntry', handleConsoleEntry);
+    };
+  }, [addEntry]);
+  
 
   return (
     <div className="console-container">
@@ -471,7 +544,17 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
             }}
             title="Scroll to bottom"
           >
-            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none">
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              width="14" 
+              height="14" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+            >
               <path d="M12 3v18"></path>
               <path d="M6 15l6 6 6-6"></path>
             </svg>
@@ -482,7 +565,17 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
             onClick={() => setCommandHistory([])}
             title="Clear console"
           >
-            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none">
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              width="14" 
+              height="14" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+            >
               <path d="M3 6h18"></path>
               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
               <line x1="10" y1="11" x2="10" y2="17"></line>
@@ -534,8 +627,8 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
         <div className="console-status-bar">
           <div className="status-item">
             <span className="status-label">Status:</span>
-            <span className={`status-value ${true ? "connected" : "disconnected"}`}>
-              {true ? "Connected" : "Disconnected"}
+            <span className={`status-value ${window.sendSerialData ? "connected" : "disconnected"}`}>
+              {window.sendSerialData ? "Connected" : "Disconnected"}
             </span>
           </div>
           <div className="status-item">
@@ -549,6 +642,7 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
               className="toolbar-button send-button"
               onClick={sendCommand}
               title="Send command (Enter)"
+              disabled={!window.sendSerialData && currentCommand !== 'help' && currentCommand !== 'clear'}
             >
               <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none">
                 <line x1="22" y1="2" x2="11" y2="13"></line>

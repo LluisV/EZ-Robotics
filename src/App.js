@@ -24,6 +24,7 @@ import Toolbar from './components/common/Toolbar';
 import ThemeSelector from './components/common/ThemeSelector';
 import dockingManager from './services/docking/DockingManager';
 import { GCodeProvider } from './contexts/GCodeContext';
+import './services/SerialCommunicationService';
 
 // Import panel components
 import ControlPanel from './components/panels/ControlPanel';
@@ -32,6 +33,7 @@ import Viewer3DPanel from './components/panels/Viewer3DPanel';
 import CodeEditorPanel from './components/panels/CodeEditorPanel';
 import ConsolePanel from './components/panels/ConsolePanel';
 import AccelerationPanel from './components/panels/AccelerationPanel';
+
 
 /**
  * Main application component
