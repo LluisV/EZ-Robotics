@@ -89,7 +89,7 @@ class SerialCommunicationService {
         this.startReading();
                 
         // Start position polling
-        this.startPositionPolling(250);
+        this.startPositionPolling(100);
 
         // Notify listeners
         this.notifyListeners('connect', { port: this.port.getInfo() });

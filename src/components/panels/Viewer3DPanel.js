@@ -52,6 +52,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
   const [tempGridDimensions, setTempGridDimensions] = useState({ width: 240, height: 350 });
   const [showWorldCoords, setShowWorldCoords] = useState(true);
 
+  
   // Conversion factor from mm to scene units (0.1 means 10mm = 1 unit)
   const sceneScale = 0.1;
 
@@ -188,7 +189,6 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
       robotToolRef.current.rotation.z = worldPos.a * Math.PI / 180;
     }
     
-    console.log("Updated robot position to:", worldPos);
   }, [sceneScale, createRobotTool]);
 
   // Fix the flex layout for the main container and STL panel

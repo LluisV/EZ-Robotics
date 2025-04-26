@@ -20,6 +20,8 @@ const ControlPanel = () => {
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [isConnected, setIsConnected] = useState(false);
+  // Add flag to track whether inputs have been initialized
+  const [inputsInitialized, setInputsInitialized] = useState(false);
 
   // Add log messages to console
   const logToConsole = (type, message) => {
@@ -338,10 +340,21 @@ const ControlPanel = () => {
   };
 
 
-  // Initialize target position from current position
+  // Initialize target position from current position ONLY ONCE
   useEffect(() => {
+    // Only initialize the inputs when position view changes or when the component first loads
+    // and the inputs haven't been initialized yet
+    if (!inputsInitialized || showExactPositionInput) {
+      setTargetPosition({ ...position[positionView] });
+      setInputsInitialized(true);
+    }
+  }, [showExactPositionInput, positionView]); // Removed position from dependencies
+
+  // When position view changes, update target position
+  useEffect(() => {
+    // Update target position when switching between work/world views
     setTargetPosition({ ...position[positionView] });
-  }, [showExactPositionInput, positionView, position]);
+  }, [positionView]);
 
   // Listen to FluidNC position updates
   useEffect(() => {
@@ -405,6 +418,9 @@ const ControlPanel = () => {
               
               // Update position state
               setPosition(newPosition);
+
+              // Important: We do NOT update targetPosition here
+              // This allows users to freely edit the input values
             }
           } catch (error) {
             console.error("Error parsing position status:", error);
@@ -419,7 +435,7 @@ const ControlPanel = () => {
     return () => {
       document.removeEventListener('serialdata', handlePositionTelemetry);
     };
-  }, [position]); // Add position to dependencies
+  }, [position]); // Keep position in dependencies for position tracking
 
   // Get the active position object based on current view
   const activePosition = position[positionView];

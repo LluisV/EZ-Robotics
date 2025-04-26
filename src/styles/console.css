@@ -1,42 +1,44 @@
-/* src/styles/console.css */
-
+/* Modern IDE-style console styling */
 .console-container {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: var(--dv-group-view-background-color, var(--bg-dark));
-  color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
-  font-family: "Fira Code", "Cascadia Code", "Consolas", "Monaco", monospace;
+  width: 100%;
+  background-color: var(--dv-group-view-background-color, #1e1e1e);
+  color: var(--dv-activegroup-visiblepanel-tab-color, #cccccc);
+  font-family: "Fira Code", "Cascadia Code", "JetBrains Mono", "Consolas", monospace;
+  border-radius: 4px;
   overflow: hidden;
-  border-radius: var(--dv-border-radius, var(--border-radius));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
-/* Console Toolbar/Filters - IDE style */
+/* Console toolbar - modern IDE style */
 .console-toolbar {
   display: flex;
   align-items: center;
   padding: 4px 8px;
-  background-color: var(--dv-tabs-container-background-color, var(--bg-darker));
-  border-bottom: 1px solid var(--dv-separator-border, var(--border-color));
+  background-color: var(--dv-tabs-container-background-color, #252526);
+  border-bottom: 1px solid var(--dv-separator-border, #333333);
   font-size: 11px;
   min-height: 28px;
-  overflow: visible;
   flex-wrap: wrap;
+  gap: 4px;
 }
 
 .toolbar-section {
   display: flex;
   align-items: center;
   margin-right: 8px;
-  margin-bottom: 4px;
   flex-wrap: wrap;
+  gap: 4px;
 }
 
 .section-label {
-  color: var(--dv-tab-inactive-foreground-color, var(--text-secondary));
+  color: var(--dv-tab-inactive-foreground-color, #8a8a8a);
   margin-right: 8px;
   font-size: 11px;
   white-space: nowrap;
+  font-weight: 500;
 }
 
 .console-filters {
@@ -50,10 +52,10 @@
   display: flex;
   align-items: center;
   padding: 1px 6px;
-  border-radius: var(--dv-border-radius, 3px);
+  border-radius: 3px;
   cursor: pointer;
   opacity: 0.7;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
   user-select: none;
   height: 18px;
   border: 1px solid transparent;
@@ -61,13 +63,13 @@
 
 .filter-option:hover {
   opacity: 0.9;
-  background-color: var(--dv-tabs-hover-background-color, var(--bg-light));
+  background-color: var(--dv-tabs-hover-background-color, #2d2d2d);
 }
 
 .filter-option.active {
   opacity: 1;
-  background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, var(--bg-light));
-  border: 1px solid var(--dv-separator-border, var(--border-color));
+  background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, #37373d);
+  border: 1px solid var(--dv-separator-border, #333333);
 }
 
 .filter-indicator {
@@ -78,31 +80,44 @@
 }
 
 .filter-indicator.error {
-  background-color: var(--accent-red);
+  background-color: var(--accent-red, #ff5555);
 }
 
 .filter-indicator.warning {
-  background-color: var(--accent-orange);
+  background-color: var(--accent-orange, #ffaa55);
 }
 
 .filter-indicator.info {
-  background-color: var(--accent-blue);
+  background-color: var(--accent-blue, #55aaff);
 }
 
 .filter-indicator.debug {
-  background-color: var(--accent-purple);
+  background-color: var(--accent-purple, #aa55cc);
 }
 
-.filter-indicator.command {
-  background-color: var(--accent-cyan);
+.filter-indicator.sent {
+  background-color: var(--accent-cyan, #55ddff);
 }
 
 .filter-indicator.response {
-  background-color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
+  background-color: var(--dv-activegroup-visiblepanel-tab-color, #cccccc);
 }
 
 .filter-indicator.system {
-  background-color: var(--accent-green);
+  background-color: var(--accent-green, #55cc77);
+}
+
+.filter-indicator.telemetry {
+  background-color: var(--accent-blue, #77aaff);
+}
+
+.filter-indicator.alarm {
+  background-color: var(--accent-red, #ff3333);
+  box-shadow: 0 0 4px var(--accent-red, #ff3333);
+}
+
+.filter-indicator.probe {
+  background-color: var(--accent-green, #33cc33);
 }
 
 .filter-label {
@@ -113,8 +128,8 @@
 
 .toolbar-divider {
   width: 1px;
-  height: 20px;
-  background-color: var(--dv-separator-border, var(--border-color));
+  height: 18px;
+  background-color: var(--dv-separator-border, #333333);
   margin: 0 8px;
 }
 
@@ -127,6 +142,17 @@
   gap: 4px;
 }
 
+
+.toolbar-button:hover {
+  background-color: var(--dv-tabs-hover-background-color, #2d2d2d);
+  border-color: var(--dv-separator-border, #333333);
+}
+
+.toolbar-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Console Output Area - IDE style */
 .console-output {
   flex: 1;
@@ -137,213 +163,543 @@
   scroll-behavior: smooth;
   white-space: pre-wrap;
   word-break: break-word;
-  background-color: var(--dv-group-view-background-color, var(--bg-darker));
+  background-color: var(--dv-group-view-background-color, #1e1e1e);
   position: relative;
   scrollbar-width: thin;
-  scrollbar-color: var(--dv-tabs-container-scrollbar-color, var(--bg-light)) var(--dv-background-color, var(--bg-dark));
+  scrollbar-color: var(--dv-tabs-container-scrollbar-color, #3e3e42) var(--dv-background-color, #1e1e1e);
 }
 
-/* Console Entry Styles - IDE style */
+/* Enhanced Console Entry Styles */
 .console-entry {
   padding: 1px 4px 1px 0;
   display: flex;
   min-height: 20px;
   position: relative;
-  border-bottom: 1px solid var(--dv-separator-border-transparent, rgba(127, 127, 127, 0.05));
+  border-bottom: 1px solid var(--dv-separator-border-transparent, rgba(80, 80, 80, 0.2));
 }
 
 .console-entry:hover {
-  background-color: var(--dv-list-hover-background-color, rgba(127, 127, 127, 0.05));
+  background-color: var(--dv-list-hover-background-color, rgba(90, 93, 94, 0.15));
 }
 
 .entry-line-number {
-  color: var(--dv-tab-inactive-foreground-color, var(--text-secondary));
+  color: var(--dv-tab-inactive-foreground-color, #8a8a8a);
   font-size: 10px;
-  opacity: 0.5;
-  min-width: 30px;
+  opacity: 0.7;
+  min-width: 40px;
   padding: 0 4px;
   text-align: right;
   user-select: none;
-  border-right: 1px solid var(--dv-separator-border, var(--border-color));
+  border-right: 1px solid var(--dv-separator-border, #333333);
   margin-right: 8px;
+}
+
+/* Type tag styling */
+.entry-type-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 50px;
+  font-size: 9px;
+  font-weight: bold;
+  text-align: center;
+  padding: 2px 6px;
+  border-radius: 2px;
+  margin-right: 8px;
+  height: 18px;
+  margin-top: 1px;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.type-tag {
+  color: #ffffff;
+  background-color: #555555;
+  text-transform: uppercase;
+  padding: 1px;
+  border-radius: 2px;
+}
+
+.error-tag {
+  background-color: #dd3333;
+  padding: 1px;
+  border-radius: 2px;
+}
+
+.warning-tag {
+  background-color: #ee7700;
+  padding: 1px;
+  border-radius: 2px;
+}
+
+.info-tag {
+  background-color: #2277dd;
+  padding: 1px;
+  border-radius: 2px;
+}
+
+.debug-tag {
+  background-color: #8833aa;
+  padding: 1px;
+  border-radius: 2px;
+}
+
+.sent-tag {
+  background-color: #22aadd;
+  padding: 1px;
+  border-radius: 2px;
+  color: #000000;
+}
+
+.response-tag {
+  background-color: #666666;
+  padding: 1px;
+  border-radius: 2px;
+}
+
+.system-tag {
+  background-color: #33aa55;
+  padding: 1px;
+  border-radius: 2px;
+}
+
+.telemetry-tag {
+  background-color: #5577dd;
+  padding: 1px;
+  border-radius: 2px;
+}
+
+.alarm-tag {
+  background-color: #dd2222;
+  animation: pulse 2s infinite;
+  padding: 1px;
+  border-radius: 2px;
+}
+
+.message-tag {
+  background-color: #2299ff;
+  padding: 1px;
+  border-radius: 2px;
+}
+
+.probe-tag {
+  background-color: #22aa22;
+  padding: 1px;
+  border-radius: 2px;
+}
+
+.status-tag {
+  background-color: #4444bb;
+  padding: 1px;
+  border-radius: 2px;
 }
 
 .entry-content {
   flex: 1;
   padding: 0 4px;
+  line-height: 20px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
+/* Enhanced message styling */
 .console-error {
-  color: var(--dv-panel-validation-error-foreground, var(--accent-red));
+  color: var(--accent-red, #ff5555);
 }
 
 .console-warning {
-  color: var(--dv-panel-validation-warning-foreground, var(--accent-orange));
+  color: var(--accent-orange, #ffaa55);
 }
 
 .console-info {
-  color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
+  color: var(--dv-activegroup-visiblepanel-tab-color, #cccccc);
 }
 
 .console-debug {
-  color: var(--accent-purple);
+  color: var(--accent-purple, #aa55cc);
 }
 
-.console-command {
-  color: var(--accent-cyan);
-  font-weight: bold;
+.console-sent {
+  color: var(--accent-cyan, #55ddff);
+  font-weight: 600;
 }
 
 .console-response {
-  color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
+  color: var(--dv-activegroup-visiblepanel-tab-color, #cccccc);
 }
 
 .console-system {
-  color: var(--accent-green);
+  color: var(--accent-green, #55cc77);
+}
+
+.console-telemetry {
+  color: var(--accent-blue, #77aaff);
+  opacity: 0.9;
+}
+
+.console-alarm {
+  color: var(--accent-red, #ff3333);
+  font-weight: bold;
+}
+
+.console-probe {
+  color: var(--accent-green, #33cc33);
 }
 
 .console-welcome {
-  color: var(--dv-tab-inactive-foreground-color, var(--text-secondary));
+  color: var(--dv-tab-inactive-foreground-color, #8a8a8a);
   font-style: italic;
-  padding: 10px 0 10px 40px;
+  padding: 10px 20px;
   line-height: 1.5;
 }
 
-/* Console Input Area - IDE style */
+/* Status message styling - SIMPLIFIED */
+.status-message {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 5px;
+}
+
+.status-indicator-console {
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 2px;
+  font-size: 9px;
+  text-transform: uppercase;
+  min-width: 44px;
+  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+  box-sizing: border-box;
+  height: 20px;
+}
+
+.status-indicator-console.idle {
+  background-color: #22aa22;
+  border-radius: 2px;
+  
+  color: #ffffff;
+}
+
+.status-indicator-console.run {
+  background-color: #2244ff;
+  border-radius: 2px;
+  color: #ffffff;
+}
+
+.status-indicator-console.hold {
+  background-color: #ee7700;
+  border-radius: 2px;
+  color: #ffffff;
+}
+
+.status-indicator-console.alarm {
+  background-color: #dd2222;
+  color: #ffffff;
+  animation: pulse 2s infinite;
+  border-radius: 2px;
+}
+
+.status-indicator-console.jog {
+  background-color: #9933ff;
+  border-radius: 2px;
+  color: #ffffff;
+}
+
+.position-label {
+  color: var(--dv-tab-inactive-foreground-color, #8a8a8a);
+  font-weight: 500;
+  font-size: 10px;
+  margin-left: 2px;
+}
+
+.position-value {
+  color: var(--accent-blue, #77aaff);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 11px;
+  margin-right: 4px;
+}
+
+/* Error message styling */
+.error-code, .alarm-code {
+  font-weight: bold;
+  color: var(--accent-red, #ff5555);
+}
+
+/* Message timestamp, level, and module styling */
+.timestamp {
+  color: var(--dv-tab-inactive-foreground-color, #8a8a8a);
+  margin-right: 5px;
+  font-size: 11px;
+}
+
+.core {
+  color: var(--accent-cyan, #55ddff);
+  margin-right: 5px;
+}
+
+.level {
+  font-weight: bold;
+  margin-right: 5px;
+}
+
+.level-error {
+  color: var(--accent-red, #ff5555);
+}
+
+.level-info {
+  color: var(--accent-blue, #55aaff);
+}
+
+.level-warn {
+  color: var(--accent-orange, #ffaa55);
+}
+
+.level-debug {
+  color: var(--accent-purple, #aa55cc);
+}
+
+.module {
+  color: var(--accent-green, #55cc77);
+  margin-right: 5px;
+  font-weight: bold;
+}
+
+/* Probe result styling */
+.probe-result {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.probe-label {
+  background-color: #22aa22;
+  color: #ffffff;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 2px;
+  font-size: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+  box-sizing: border-box;
+}
+
+.probe-status {
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 2px;
+  font-size: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+  box-sizing: border-box;
+}
+
+.probe-status.success {
+  background-color: #22aa22;
+  color: #ffffff;
+}
+
+.probe-status.failure {
+  background-color: #dd2222;
+  color: #ffffff;
+}
+
+/* Startup message styling */
+.startup-message {
+  color: var(--accent-blue, #55aaff);
+  font-weight: 600;
+}
+
+/* Console prompt & input styling */
+.console-prompt {
+  font-weight: bold;
+  margin-right: 5px;
+  color: var(--accent-cyan, #55ddff);
+}
+
+/* Console Input Area */
 .console-input-container {
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--dv-separator-border, var(--border-color));
-  background-color: var(--dv-tabs-container-background-color, var(--bg-darker));
+  border-top: 1px solid var(--dv-separator-border, #333333);
+  background-color: var(--dv-tabs-container-background-color, #252526);
 }
 
 .console-input-wrapper {
   display: flex;
   align-items: center;
-  padding: 6px 8px;
-  background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, var(--bg-dark));
-}
-
-.console-prompt {
-  font-weight: bold;
-  margin-right: 5px;
-  color: var(--accent-cyan);
+  padding: 8px;
+  background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, #1e1e1e);
 }
 
 .console-input {
   flex: 1;
   border: none;
   outline: none;
-  background-color: transparent;
-  color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
-  font-family: "Fira Code", "Cascadia Code", "Consolas", "Monaco", monospace;
+  background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, #1e1e1e);
+  color: var(--dv-activegroup-visiblepanel-tab-color, #cccccc);
+  font-family: "Fira Code", "Cascadia Code", "JetBrains Mono", "Consolas", monospace;
   font-size: 12px;
   line-height: 1.5;
   padding: 2px 6px;
 }
 
+.console-input::placeholder {
+  color: var(--dv-tab-inactive-foreground-color, #8a8a8a);
+  opacity: 0.6;
+}
+
+.send-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  border-radius: 3px;
+  background-color: var(--accent-blue, #0e639c);
+  border: none;
+  color: white;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  outline: none;
+}
+
+.send-button:hover {
+  background-color: var(--accent-blue-hover, #1177bb);
+}
+
+.send-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: var(--dv-separator-border, #333333);
+}
+
 .console-status-bar {
   display: flex;
   align-items: center;
-  padding: 2px 8px;
-  background-color: var(--dv-tabs-container-background-color, var(--bg-darker));
-  border-top: 1px solid var(--dv-separator-border, var(--border-color));
-  height: 20px;
+  padding: 0 8px;
+  background-color: var(--dv-tabs-container-background-color, #252526);
+  border-top: 1px solid var(--dv-separator-border, #333333);
+  height: 22px;
   font-size: 11px;
+  color: var(--dv-tab-inactive-foreground-color, #8a8a8a);
 }
 
 .status-item {
   display: flex;
   align-items: center;
   margin-right: 16px;
+  height: 100%;
 }
 
 .status-label {
-  color: var(--dv-tab-inactive-foreground-color, var(--text-secondary));
+  color: var(--dv-tab-inactive-foreground-color, #8a8a8a);
   margin-right: 5px;
+  font-size: 10px;
 }
 
 .status-value {
-  color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
+  color: var(--dv-activegroup-visiblepanel-tab-color, #cccccc);
+  font-size: 10px;
+  font-weight: 500;
 }
 
 .status-value.connected {
-  color: var(--accent-green);
+  color: var(--accent-green, #55cc77);
 }
 
 .status-value.disconnected {
-  color: var(--accent-red);
+  color: var(--accent-red, #ff5555);
 }
 
-.status-indicator-wrapper {
+.status-value.enabled {
+  color: var(--accent-blue, #55aaff);
+}
+
+.status-value.disabled {
+  color: var(--dv-tab-inactive-foreground-color, #8a8a8a);
+}
+
+.keyboard-shortcuts {
   margin-left: auto;
-}
-
-.send-button {
   display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  height: 18px;
-  font-size: 11px;
+  gap: 6px;
 }
 
-/* Improved Scrollbar for small sizes */
+.kbd {
+  font-size: 9px;
+  background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, #323233);
+  border: 1px solid var(--dv-separator-border, #444444);
+  border-bottom: 2px solid var(--dv-separator-border, #555555);
+  border-radius: 3px;
+  padding: 0 4px;
+  color: var(--dv-activegroup-visiblepanel-tab-color, #cccccc);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
+  height: 16px;
+  font-family: "Fira Code", "Cascadia Code", "JetBrains Mono", "Consolas", monospace;
+}
+
+/* Enhanced Scrollbar */
 .console-output::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 .console-output::-webkit-scrollbar-track {
-  background: var(--dv-background-color, transparent);
+  background: var(--dv-background-color, #1e1e1e);
 }
 
 .console-output::-webkit-scrollbar-thumb {
-  background-color: var(--dv-tabs-container-scrollbar-color, var(--bg-light));
-  border-radius: var(--dv-border-radius, 3px);
+  background-color: var(--dv-tabs-container-scrollbar-color, #424242);
+  border-radius: 4px;
+  border: 2px solid var(--dv-background-color, #1e1e1e);
 }
 
 .console-output::-webkit-scrollbar-thumb:hover {
-  background-color: var(--dv-tabs-container-scrollbar-color-hover, var(--text-secondary));
+  background-color: var(--dv-tabs-container-scrollbar-color-hover, #525252);
 }
 
-/* Hide scrollbar when not needed but keep functionality */
-.console-output::-webkit-scrollbar-thumb:vertical {
-  min-height: 30px;
+.console-output::-webkit-scrollbar-corner {
+  background-color: var(--dv-background-color, #1e1e1e);
 }
 
-.console-output::-webkit-scrollbar-thumb:horizontal {
-  min-width: 30px;
+/* Animation for alarm messages */
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
 }
 
-/* Message formatting for robot logs */
-.console-entry .level {
-  color: var(--accent-blue);
-  font-weight: bold;
-  margin-right: 4px;
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .filter-label {
+    display: none;
+  }
+  
+  .filter-option {
+    padding: 1px 3px;
+  }
+  
+  .filter-indicator {
+    margin-right: 0;
+  }
+  
+  .section-label {
+    display: none;
+  }
+  
+  .entry-line-number {
+    min-width: 30px;
+  }
 }
-
-.console-entry .module {
-  color: var(--accent-green);
-  font-weight: bold;
-  margin-right: 4px;
-}
-
-.console-entry .core {
-  color: var(--accent-cyan);
-  margin-right: 4px;
-}
-
-.console-entry .timestamp {
-  color: var(--dv-tab-inactive-foreground-color, var(--text-secondary));
-  margin-right: 4px;
-}
-
-.filter-indicator.telemetry {
-  background-color: var(--accent-blue); 
- }
- 
- .console-telemetry {
-  color: var(--accent-blue);
-  opacity: 0.8;
- }
