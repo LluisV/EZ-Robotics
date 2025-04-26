@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import communicationService from '../../services/communication/CommunicationService';
 import '../../styles/acceleration-panel.css';
 
 /**
@@ -27,15 +26,7 @@ const AccelerationPanel = () => {
   // Initial load of parameters from machine
   useEffect(() => {
     const fetchAccelerationSettings = async () => {
-      if (communicationService.getConnectionInfo().status === 'connected') {
-        try {
-          communicationService.emit('response', { 
-            response: "[INFO] Retrieved acceleration settings from machine" 
-          });
-        } catch (error) {
-          console.error("Failed to fetch acceleration settings:", error);
-        }
-      }
+      
     };
     
     fetchAccelerationSettings();
@@ -75,52 +66,7 @@ const AccelerationPanel = () => {
   
   // Apply settings to the machine
   const applySettings = async () => {
-    if (communicationService.getConnectionInfo().status !== 'connected') {
-      communicationService.emit('error', { 
-        error: "Cannot apply settings: Machine not connected" 
-      });
-      return;
-    }
-    
-    try {
-      communicationService.emit('response', { 
-        response: "[INFO] Applying acceleration profile..." 
-      });
-      
-      // Simulate commands being sent
-      const commands = [
-        `$110=${accelParams.maxAccel}`, // X acceleration mm/s²
-        `$111=${accelParams.maxAccel}`, // Y acceleration
-        `$112=${accelParams.maxAccel * 0.5}`, // Z acceleration
-        `$120=${accelParams.maxVelocity}`, // X maximum velocity mm/min
-        `$121=${accelParams.maxVelocity}`, // Y maximum velocity
-        `$122=${accelParams.maxVelocity * 0.7}`, // Z maximum velocity (typically lower)
-        `$23=${accelParams.maxJerk}`, // Max jerk setting
-        `$24=${accelParams.lookAheadDistance}`, // Look ahead buffer
-        `$26=${accelParams.corneringSpeed/100}`, // Cornering factor (converted to decimal)
-        `$27=${accelParams.smoothingFactor}`, // Path smoothing
-      ];
-      
-      // Simulate sending each command with a small delay
-      for (const cmd of commands) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        communicationService.emit('command', { command: cmd, sent: true });
-        communicationService.emit('response', { response: "ok" });
-      }
-      
-      // Final confirmation
-      setTimeout(() => {
-        communicationService.emit('response', { 
-          response: "[INFO] Acceleration profile successfully applied to machine" 
-        });
-        setHasUnsavedChanges(false);
-      }, 500);
-      
-    } catch (error) {
-      communicationService.emit('error', { 
-        error: `Failed to apply settings: ${error.message}` 
-      });
-    }
+
   };
   
   // Presets
@@ -601,7 +547,7 @@ const AccelerationPanel = () => {
             <button 
               className="apply-btn"
               onClick={applySettings}
-              disabled={!hasUnsavedChanges || communicationService.getConnectionInfo().status !== 'connected'}
+              disabled={!hasUnsavedChanges}
             >
               Apply to Machine
             </button>

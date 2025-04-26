@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import '../../styles/code-editor.css';
 import { useGCode } from '../../contexts/GCodeContext';
-import communicationService from '../../services/communication/CommunicationService';
 
 /**
  * Enhanced G-Code Editor with transformation tools and auto-validation
@@ -598,66 +597,7 @@ const CodeEditorPanel = () => {
  * Send G-code to robot using GRBL protocol
  */
 const sendToRobot = async () => {
-  try {
-    // Check connection
-    const connectionInfo = communicationService.getConnectionInfo();
-    if (connectionInfo.status !== 'connected') {
-      setStatusMessage('Error: Not connected to FluidNC. Please connect first.');
-      return;
-    }
-
-    // Generate and normalize code
-    const transformedCode = generateTransformedGCode();
-    const normalizedCode = transformedCode.replace(/\r\n/g, '\n').replace(/\n{2,}/g, '\n').trim();
-    
-    // Set up transfer tracking
-    setIsTransferring(true);
-    setTransferProgress(0);
-    setTransferError(null);
-    setStatusMessage('Starting G-code transfer to FluidNC...');
-    
-    // Calculate total lines for progress tracking
-    const totalLines = normalizedCode.split('\n').filter(line => 
-      line.trim() && !line.trim().startsWith(';')
-    ).length;
-    
-    // Progress callback function
-    const progressCallback = (progressData) => {
-      // Handle progress updates
-      switch (progressData.status) {
-        case 'started':
-          setStatusMessage(`Starting transfer of ${progressData.totalLines} lines to FluidNC...`);
-          setTransferProgress(0);
-          break;
-        
-        case 'progress':
-          setStatusMessage(`Sending line ${progressData.line}/${progressData.totalLines} (${progressData.progress}%)`);
-          setTransferProgress(progressData.progress);
-          break;
-        
-        case 'completed':
-          setStatusMessage(`Transfer completed: ${progressData.totalLines} lines sent to FluidNC`);
-          setTransferProgress(100);
-          setTimeout(() => setIsTransferring(false), 2000); // Hide progress after 2 seconds
-          break;
-        
-        case 'error':
-          setTransferError(progressData.error || 'Unknown error');
-          setStatusMessage(`Transfer failed: ${progressData.error || 'Unknown error'}`);
-          setIsTransferring(false);
-          break;
-      }
-    };
-    
-    // Send the file with progress tracking
-    await communicationService.sendGCodeFile(normalizedCode, progressCallback);
-    
-  } catch (error) {
-    console.error('Error sending G-code to FluidNC:', error);
-    setStatusMessage(`Transfer failed: ${error.message}`);
-    setTransferError(error.message);
-    setIsTransferring(false);
-  }
+ 
 };
 
   const [isTransferring, setIsTransferring] = useState(false);

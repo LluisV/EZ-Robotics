@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import '../../styles/monitor-panel.css';
-import communicationService from '../../services/communication/CommunicationService';
 
 const MonitorPanel = ({ refreshRate = 1000 }) => {
   const [statusData, setStatusData] = useState({
@@ -88,50 +87,7 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
   // Parse telemetry data from message
   const parseTelemetryData = (message) => {
     try {
-      // Extract the JSON part from the message
-      const jsonStart = message.indexOf('{');
-      if (jsonStart === -1) return null;
-      
-      const jsonString = message.substring(jsonStart);
-      const parsedData = JSON.parse(jsonString);
-      
-      // Create the result object with all available telemetry data
-      const result = {
-        position: {
-          x: 0, y: 0, z: 0, a: 0
-        },
-        velocity: 0,
-        velocityVector: { x: 0, y: 0, z: 0 },
-        temperature: parsedData.temperature || 0,
-        cpuUsage: parsedData.cpuUsage || 0,
-        memoryUsage: parsedData.memoryUsage || 0
-      };
-      
-      // Extract position if available
-      if (parsedData.work) {
-        result.position = {
-          x: parseFloat(parsedData.work.X) || 0,
-          y: parseFloat(parsedData.work.Y) || 0,
-          z: parseFloat(parsedData.work.Z) || 0,
-          a: 0 // Default to 0 if not present
-        };
-      }
-      
-      // Extract velocity if available
-      if (parsedData.velocity !== undefined) {
-        result.velocity = parseFloat(parsedData.velocity) || 0;
-      }
-      
-      // Extract velocity vector if available
-      if (parsedData.velocityVector) {
-        result.velocityVector = {
-          x: parseFloat(parsedData.velocityVector.X) || 0,
-          y: parseFloat(parsedData.velocityVector.Y) || 0,
-          z: parseFloat(parsedData.velocityVector.Z) || 0
-        };
-      }
-      
-      return result;
+
     } catch (error) {
       console.error("Error parsing telemetry data:", error);
       return null;
@@ -141,7 +97,7 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
   // Handle position telemetry from robot
   useEffect(() => {
     const handlePositionTelemetry = (data) => {
-      if (typeof data.response === 'string' && data.response.startsWith('[TELEMETRY]')) {
+      if (typeof data.response === 'string') {
         try {
           const telemetryData = parseTelemetryData(data.response);
           if (!telemetryData) return;
@@ -203,13 +159,6 @@ const MonitorPanel = ({ refreshRate = 1000 }) => {
       }
     };
 
-    // Add event listener
-    communicationService.on('position-telemetry', handlePositionTelemetry);
-    
-    // Cleanup
-    return () => {
-      communicationService.removeListener('position-telemetry', handlePositionTelemetry);
-    };
   }, []);
 
   // Update elapsed time

@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
 import '../../styles/control-panel.css';
-import communicationService from '../../services/communication/CommunicationService';
 import EventEmitter from 'events';
 
 /**
@@ -24,20 +23,13 @@ const ControlPanel = () => {
 
   // Add log messages to console
   const logToConsole = (type, message) => {
-    communicationService.emit(type === 'error' ? 'error' : 'response', { 
-      [type === 'error' ? 'error' : 'response']: message 
-    });
+
   };
 
   // Function to send a movement command to FluidNC
   const sendMovementCommand = (axis, direction) => {
-    // Get connection status
-    const connectionInfo = communicationService.getConnectionInfo();
-    if (connectionInfo.status !== 'connected') {
-      logToConsole('error', 'Not connected. Connection status: ' + connectionInfo.status);
-      return;
-    }
-
+    // Check the connection
+    // ...
     const distance = direction * stepSize;
 
     // Create G-code command - FluidNC expects relative mode for incremental movement
@@ -48,14 +40,14 @@ const ControlPanel = () => {
     logToConsole('command', `Sending jog command: ${jogCommand}`);
 
     // Send the command
-    communicationService.sendCommand(jogCommand)
-      .catch(err => {
-        logToConsole('error', 'Error sending jog command: ' + err);
-      });
+
   };
 
   // Function to handle tool control
   const handleToolToggle = () => {
+    // Check the connection
+    // ...
+
     setActiveTool(!activeTool);
     
     // Send the appropriate FluidNC command to toggle spindle
@@ -63,24 +55,13 @@ const ControlPanel = () => {
     
     logToConsole('command', `Toggling tool state: ${command}`);
     
-    communicationService.sendCommand(command)
-      .then(() => {
-        logToConsole('response', `Tool ${!activeTool ? 'activated' : 'deactivated'}`);
-      })
-      .catch(err => {
-        logToConsole('error', 'Error toggling tool: ' + err);
-      });
+    // Send command
   };
 
   // Function to home axes for FluidNC
   const homeAxes = (axes = 'all') => {
-    // Get connection status
-    const connectionInfo = communicationService.getConnectionInfo();
-    if (connectionInfo.status !== 'connected') {
-      logToConsole('error', 'Not connected. Connection status: ' + connectionInfo.status);
-      return;
-    }
-
+    // Check the connection
+    // ...
     let gcode = '';
 
     if (axes === 'all') {
@@ -94,10 +75,6 @@ const ControlPanel = () => {
     }
 
     // Send the command
-    communicationService.sendCommand(gcode)
-      .catch(err => {
-        logToConsole('error', 'Error sending home command: ' + err);
-      });
   };
 
   // Handle target position input changes
@@ -109,29 +86,21 @@ const ControlPanel = () => {
   };
 
   const handleStop = () => {
-    const connectionInfo = communicationService.getConnectionInfo();
-    if (connectionInfo.status !== 'connected') {
-      logToConsole('error', 'Not connected. Connection status:' + connectionInfo.status);
-      return;
-    }
+    // Check the connection
+    // ...
 
     logToConsole('command', 'Sending stop command');
 
-    // FluidNC stop command is Ctrl-X (ASCII 0x18)
-    communicationService.sendSpecialCommand('STOP')
-      .catch(err => {
-        logToConsole('error', 'Error sending stop command: ' + err);
-      });
+    // Send the command
+    //...
   };
 
   // Function to set current position as work zero in FluidNC
   const setWorkZero = (axes = 'all') => {
-    const connectionInfo = communicationService.getConnectionInfo();
-    if (connectionInfo.status !== 'connected') {
-      logToConsole('error', 'Not connected. Connection status: ' + connectionInfo.status);
-      return;
-    }
+    // Check the connection
+    // ...
 
+    // Maybe we shoukd use G92 instead?
     let gcode = '';
     if (axes === 'all') {
       // FluidNC uses G10 L20 P0 X0 Y0 Z0 to set work offset for the current WCS
@@ -145,33 +114,13 @@ const ControlPanel = () => {
     }
 
     // Send the command
-    communicationService.sendCommand(gcode)
-      .then(() => {
-        showToast('Work zero position set successfully');
-        // Update local position state
-        setPosition(prev => ({
-          ...prev,
-          work: {
-            ...prev.work,
-            x: 0,
-            y: 0,
-            z: 0,
-            a: 0
-          }
-        }));
-      })
-      .catch(err => {
-        logToConsole('error', 'Error setting work zero: ' + err);
-      });
+    //...
   };
 
   // Function to move to work zero position in FluidNC
   const moveToWorkZero = () => {
-    const connectionInfo = communicationService.getConnectionInfo();
-    if (connectionInfo.status !== 'connected') {
-      logToConsole('error', 'Not connected. Connection status: ' + connectionInfo.status);
-      return;
-    }
+    // Check the connection
+    // ...
 
     // First move Z to a safe height to avoid collisions
     const safeHeight = 5; // 5mm above work zero
@@ -181,35 +130,20 @@ const ControlPanel = () => {
     logToConsole('command', 'Moving to work zero position');
 
     // Send the command
-    communicationService.sendCommand(gcode)
-      .then(() => {
-        showToast('Moved to work zero position');
-      })
-      .catch(err => {
-        logToConsole('error', 'Error moving to work zero: ' + err);
-      });
+    //...
   };
 
   // Function to reset FluidNC
   const resetMachine = () => {
-    const connectionInfo = communicationService.getConnectionInfo();
-    if (connectionInfo.status !== 'connected') {
-      logToConsole('error', 'Not connected. Connection status: ' + connectionInfo.status);
-      return;
-    }
+    // Check the connection
+    // ...
 
     // Confirm before resetting
     if (window.confirm('Are you sure you want to reset the machine? This will clear all errors and restart the controller.')) {
       logToConsole('command', 'Resetting machine');
 
-      // For FluidNC, send a Ctrl-X to perform a soft reset
-      communicationService.sendSpecialCommand('STOP')
-        .then(() => {
-          showToast('Machine reset successful');
-        })
-        .catch(err => {
-          logToConsole('error', 'Error resetting machine: ' + err);
-        });
+      // Send the command
+      //...
     }
   };
 
@@ -226,12 +160,8 @@ const ControlPanel = () => {
 
   // Function to move to exact position using FluidNC
   const moveToExactPosition = (moveType = 'G1') => {
-    // Get connection status
-    const connectionInfo = communicationService.getConnectionInfo();
-    if (connectionInfo.status !== 'connected') {
-      logToConsole('error', 'Not connected. Connection status:' + connectionInfo.status);
-      return;
-    }
+    // Check the connection
+    // ...
 
     // Use the correct coordinate values based on the current view
     let coordsToSend = { ...targetPosition };
@@ -257,42 +187,13 @@ const ControlPanel = () => {
     logToConsole('command', `Sending movement command: ${gcode}`);
 
     // Send the command
-    communicationService.sendCommand(gcode)
-      .catch(err => {
-        logToConsole('error', 'Error sending movement command: ' + err);
-      });
+    //...
   };
 
   // Helper function to parse FluidNC position telemetry
   const parseTelemetryPosition = (message) => {
     try {
-      // Extract JSON from FluidNC telemetry message
-      const jsonStart = message.indexOf('{');
-      if (jsonStart === -1) return null;
-
-      const jsonString = message.substring(jsonStart);
-      const data = JSON.parse(jsonString);
-
-      // Check for expected structure (modified for FluidNC format)
-      if (!data.work || !data.world) {
-        console.log("Missing expected work/world properties");
-        return null;
-      }
-
-      return {
-        work: {
-          x: parseFloat(data.work.X) || 0,
-          y: parseFloat(data.work.Y) || 0,
-          z: parseFloat(data.work.Z) || 0,
-          a: parseFloat(data.work.A) || 0
-        },
-        world: {
-          x: parseFloat(data.world.X) || 0,
-          y: parseFloat(data.world.Y) || 0,
-          z: parseFloat(data.world.Z) || 0,
-          a: parseFloat(data.world.A) || 0
-        }
-      };
+      
     } catch (error) {
       console.error("Error parsing telemetry:", error);
       return null;
@@ -307,21 +208,7 @@ const ControlPanel = () => {
   // Listen to FluidNC position updates
   useEffect(() => {
     const handlePositionTelemetry = (data) => {
-      if (typeof data.response === 'string' && data.response.startsWith('[TELEMETRY]')) {
-        const newPosition = parseTelemetryPosition(data.response);
-
-        if (newPosition) {
-          setPosition(newPosition);
-        }
-      }
-    };
-
-    // Add event listener
-    communicationService.on('position-telemetry', handlePositionTelemetry);
-
-    // Cleanup listener on unmount
-    return () => {
-      communicationService.removeListener('position-telemetry', handlePositionTelemetry);
+      
     };
   }, []);
 

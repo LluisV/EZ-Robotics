@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import SerialConnection from './SerialConnection';
 
 /**
  * Application header component with added serial connection UI
@@ -24,9 +23,7 @@ const Header = ({ children }) => {
       
       <div className="header-controls">
         {children}
-        
-        <SerialConnection onStatusChange={handleConnectionStatusChange} />
-        
+                
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span 
             className={`status-indicator ${connectionStatus.connected ? 'status-online' : 'status-offline'}`}

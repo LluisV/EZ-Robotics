@@ -5,7 +5,6 @@ import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
 import { useGCode } from '../../contexts/GCodeContext';
 import ToolpathVisualizer from '../../utils/ToolpathVisualizer';
 import Gizmo from './Gizmo';
-import communicationService from '../../services/communication/CommunicationService';
 
 const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
   const mountRef = useRef(null);
@@ -592,13 +591,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
       }
     };
     
-    // Register event listener
-    communicationService.on('position-telemetry', handlePositionTelemetry);
-    
-    // Cleanup
-    return () => {
-      communicationService.removeListener('position-telemetry', handlePositionTelemetry);
-    };
+
   }, [createRobotTool, updateRobotToolPosition, updateAxesAndGrid, robotPosition, workOffset]);
 
   // STL file import functions

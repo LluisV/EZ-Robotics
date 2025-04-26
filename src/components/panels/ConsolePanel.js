@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
-import communicationService from '../../services/communication/CommunicationService';
 import '../../styles/console.css';
 
 // Maximum number of messages to keep in history
@@ -250,18 +249,7 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
       ).join('\n');
       addEntry('system', helpResponse);
     } else {
-      // In a real implementation, this would send to communication service
-      communicationService.sendCommand(currentCommand)
-        .then(response => {
-          // Process actual response from the robot
-          if (response) {
-            addEntry('response', response);
-          }
-        })
-        .catch(error => {
-          addEntry('error', `Error: ${error.message}`);
-        });
-      
+
       // Call the callback
       onSendCommand(currentCommand);
     }
@@ -384,30 +372,6 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
     }
   }, [visibleMessages.length, autoScroll]);
 
-  // Listen for messages from the communication service
-  useEffect(() => {
-    const handleResponse = (data) => {
-      if (data && data.response) {
-        addEntry('response', data.response);
-      }
-    };
-
-    const handleError = (data) => {
-      if (data && data.error) {
-        addEntry('error', typeof data.error === 'string' ? data.error : data.error.message || 'Unknown error');
-      }
-    };
-
-    // Register event listeners
-    communicationService.on('response', handleResponse);
-    communicationService.on('error', handleError);
-    
-    // Clean up listeners on unmount
-    return () => {
-      communicationService.removeListener('response', handleResponse);
-      communicationService.removeListener('error', handleError);
-    };
-  }, [addEntry]);
 
   return (
     <div className="console-container">
@@ -570,8 +534,8 @@ const ConsolePanel = ({ onSendCommand = () => {} }) => {
         <div className="console-status-bar">
           <div className="status-item">
             <span className="status-label">Status:</span>
-            <span className={`status-value ${communicationService.getConnectionInfo().status === "connected" ? "connected" : "disconnected"}`}>
-              {communicationService.getConnectionInfo().status === "connected" ? "Connected" : "Disconnected"}
+            <span className={`status-value ${true ? "connected" : "disconnected"}`}>
+              {true ? "Connected" : "Disconnected"}
             </span>
           </div>
           <div className="status-item">
