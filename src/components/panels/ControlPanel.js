@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-
+import serialService from '../../services/SerialCommunicationService';
 import '../../styles/control-panel.css';
-import EventEmitter from 'events';
 
 /**
  * Modern Control Panel component for FluidNC positioning and control with exact position input.
@@ -20,48 +19,106 @@ const ControlPanel = () => {
   const [positionView, setPositionView] = useState('work'); // 'work' or 'world'
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [isConnected, setIsConnected] = useState(false);
 
   // Add log messages to console
   const logToConsole = (type, message) => {
-
+    // Create a custom event to log to console panel
+    const event = new CustomEvent('consoleEntry', { 
+      detail: { type, content: message }
+    });
+    document.dispatchEvent(event);
   };
+
+  // Check if serial connection is available
+  useEffect(() => {
+    // Listen for serial connection status changes
+    const handleConnectionChange = (event) => {
+      if (event.detail) {
+        setIsConnected(event.detail.connected);
+      }
+    };
+
+    document.addEventListener('serialconnection', handleConnectionChange);
+    
+    // Check initial connection state
+    setIsConnected(serialService.getConnectionStatus());
+    
+    return () => {
+      document.removeEventListener('serialconnection', handleConnectionChange);
+    };
+  }, []);
 
   // Function to send a movement command to FluidNC
   const sendMovementCommand = (axis, direction) => {
-    // Check the connection
-    // ...
+    if (!isConnected) {
+      logToConsole('error', 'Cannot move: Not connected to machine');
+      showToast('Cannot move: Not connected to machine');
+      return;
+    }
+
     const distance = direction * stepSize;
 
     // Create G-code command - FluidNC expects relative mode for incremental movement
     // The $J= command is FluidNC's jog command that accepts relative coordinates
     const feedrateInMmPerMin = speed * 60; // Convert from percentage to mm/min
-    const jogCommand = "$J="
-
+    
+    // Construct the jog command with the specified axis and distance
+    let jogCommand = `$J=G91 ${axis}${distance} F${feedrateInMmPerMin}`;
+    
     logToConsole('command', `Sending jog command: ${jogCommand}`);
 
-    // Send the command
-
+    // Send the command to the serial port
+    serialService.send(jogCommand)
+      .then(success => {
+        if (!success) {
+          logToConsole('error', 'Failed to send jog command: No response from machine');
+        }
+      })
+      .catch(error => {
+        logToConsole('error', `Error sending jog command: ${error.message}`);
+      });
   };
 
   // Function to handle tool control
   const handleToolToggle = () => {
-    // Check the connection
-    // ...
-
-    setActiveTool(!activeTool);
+    if (!isConnected) {
+      logToConsole('error', 'Cannot toggle tool: Not connected to machine');
+      showToast('Cannot toggle tool: Not connected to machine');
+      return;
+    }
+    
+    // Toggle tool state
+    const newState = !activeTool;
     
     // Send the appropriate FluidNC command to toggle spindle
-    const command = !activeTool ? 'M3 S1000' : 'M5';  // M3=Spindle on, M5=Spindle off, S1000=1000 RPM
+    const command = newState ? 'M3 S1000' : 'M5';  // M3=Spindle on, M5=Spindle off, S1000=1000 RPM
     
     logToConsole('command', `Toggling tool state: ${command}`);
     
-    // Send command
+    // Send command to the serial port
+    serialService.send(command)
+      .then(success => {
+        if (success) {
+          setActiveTool(newState);
+          showToast(`Tool ${newState ? 'activated' : 'deactivated'}`);
+        } else {
+          logToConsole('error', 'Failed to toggle tool: No response from machine');
+        }
+      })
+      .catch(error => {
+        logToConsole('error', `Error toggling tool: ${error.message}`);
+      });
   };
 
   // Function to home axes for FluidNC
   const homeAxes = (axes = 'all') => {
-    // Check the connection
-    // ...
+    if (!isConnected) {
+      logToConsole('error', 'Cannot home: Not connected to machine');
+      showToast('Cannot home: Not connected to machine');
+      return;
+    }
+
     let gcode = '';
 
     if (axes === 'all') {
@@ -74,7 +131,18 @@ const ControlPanel = () => {
       logToConsole('command', `Sending home command: ${gcode}`);
     }
 
-    // Send the command
+    // Send the command to the serial port
+    serialService.send(gcode)
+      .then(success => {
+        if (success) {
+          showToast(`Homing ${axes === 'all' ? 'all axes' : axes.toUpperCase()}`);
+        } else {
+          logToConsole('error', 'Failed to send home command: No response from machine');
+        }
+      })
+      .catch(error => {
+        logToConsole('error', `Error sending home command: ${error.message}`);
+      });
   };
 
   // Handle target position input changes
@@ -86,21 +154,41 @@ const ControlPanel = () => {
   };
 
   const handleStop = () => {
-    // Check the connection
-    // ...
+    if (!isConnected) {
+      logToConsole('error', 'Cannot stop: Not connected to machine');
+      showToast('Cannot stop: Not connected to machine');
+      return;
+    }
 
-    logToConsole('command', 'Sending stop command');
+    logToConsole('command', 'Sending stop command: !');
 
-    // Send the command
-    //...
+    // Send the command to immediately stop motion
+    serialService.send('!')
+      .then(success => {
+        if (success) {
+          showToast('Emergency stop sent');
+          
+          // Also follow with a soft reset
+          setTimeout(() => {
+            serialService.send('\x18'); // CTRL+X for soft reset
+          }, 100);
+        } else {
+          logToConsole('error', 'Failed to send stop command: No response from machine');
+        }
+      })
+      .catch(error => {
+        logToConsole('error', `Error sending stop command: ${error.message}`);
+      });
   };
 
   // Function to set current position as work zero in FluidNC
   const setWorkZero = (axes = 'all') => {
-    // Check the connection
-    // ...
+    if (!isConnected) {
+      logToConsole('error', 'Cannot set zero: Not connected to machine');
+      showToast('Cannot set zero: Not connected to machine');
+      return;
+    }
 
-    // Maybe we shoukd use G92 instead?
     let gcode = '';
     if (axes === 'all') {
       // FluidNC uses G10 L20 P0 X0 Y0 Z0 to set work offset for the current WCS
@@ -113,14 +201,27 @@ const ControlPanel = () => {
       logToConsole('command', `Setting current position as work zero for ${axes.toUpperCase()} axes`);
     }
 
-    // Send the command
-    //...
+    // Send the command to the serial port
+    serialService.send(gcode)
+      .then(success => {
+        if (success) {
+          showToast(`Position set as work zero for ${axes === 'all' ? 'all axes' : axes.toUpperCase()}`);
+        } else {
+          logToConsole('error', 'Failed to set work zero: No response from machine');
+        }
+      })
+      .catch(error => {
+        logToConsole('error', `Error setting work zero: ${error.message}`);
+      });
   };
 
   // Function to move to work zero position in FluidNC
   const moveToWorkZero = () => {
-    // Check the connection
-    // ...
+    if (!isConnected) {
+      logToConsole('error', 'Cannot move to zero: Not connected to machine');
+      showToast('Cannot move to zero: Not connected to machine');
+      return;
+    }
 
     // First move Z to a safe height to avoid collisions
     const safeHeight = 5; // 5mm above work zero
@@ -129,21 +230,54 @@ const ControlPanel = () => {
 
     logToConsole('command', 'Moving to work zero position');
 
-    // Send the command
-    //...
+    // Send each line of the command with a small delay between them
+    const commands = gcode.split('\n');
+    
+    const sendSequentially = async () => {
+      for (const cmd of commands) {
+        try {
+          const success = await serialService.send(cmd);
+          if (!success) {
+            logToConsole('error', `Failed to send command: ${cmd}`);
+            break;
+          }
+          // Add a small delay between commands
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (error) {
+          logToConsole('error', `Error sending command: ${error.message}`);
+          break;
+        }
+      }
+      showToast('Moving to work zero position');
+    };
+    
+    sendSequentially();
   };
 
   // Function to reset FluidNC
   const resetMachine = () => {
-    // Check the connection
-    // ...
+    if (!isConnected) {
+      logToConsole('error', 'Cannot reset: Not connected to machine');
+      showToast('Cannot reset: Not connected to machine');
+      return;
+    }
 
     // Confirm before resetting
     if (window.confirm('Are you sure you want to reset the machine? This will clear all errors and restart the controller.')) {
-      logToConsole('command', 'Resetting machine');
+      logToConsole('command', 'Resetting machine with Ctrl-X');
 
-      // Send the command
-      //...
+      // Send CTRL+X for a soft reset
+      serialService.send('\x18')
+        .then(success => {
+          if (success) {
+            showToast('Machine reset command sent');
+          } else {
+            logToConsole('error', 'Failed to reset machine: No response');
+          }
+        })
+        .catch(error => {
+          logToConsole('error', `Error resetting machine: ${error.message}`);
+        });
     }
   };
 
@@ -160,8 +294,11 @@ const ControlPanel = () => {
 
   // Function to move to exact position using FluidNC
   const moveToExactPosition = (moveType = 'G1') => {
-    // Check the connection
-    // ...
+    if (!isConnected) {
+      logToConsole('error', 'Cannot move to position: Not connected to machine');
+      showToast('Cannot move to position: Not connected to machine');
+      return;
+    }
 
     // Use the correct coordinate values based on the current view
     let coordsToSend = { ...targetPosition };
@@ -186,14 +323,49 @@ const ControlPanel = () => {
 
     logToConsole('command', `Sending movement command: ${gcode}`);
 
-    // Send the command
-    //...
+    // Send the command to the serial port
+    serialService.send(gcode)
+      .then(success => {
+        if (success) {
+          showToast(`Moving to ${positionView} position`);
+        } else {
+          logToConsole('error', 'Failed to move to position: No response from machine');
+        }
+      })
+      .catch(error => {
+        logToConsole('error', `Error moving to position: ${error.message}`);
+      });
   };
 
   // Helper function to parse FluidNC position telemetry
   const parseTelemetryPosition = (message) => {
     try {
-      
+      // Check if it's the new JSON format
+      if (message.includes('{"work":') || message.includes('{"world":')) {
+        // Extract the JSON part
+        const jsonStart = message.indexOf('{');
+        if (jsonStart === -1) return null;
+        
+        const jsonString = message.substring(jsonStart);
+        const parsedData = JSON.parse(jsonString);
+        
+        // Return the parsed position data
+        return {
+          work: {
+            x: parsedData.work?.X !== undefined ? parseFloat(parsedData.work.X) : 0,
+            y: parsedData.work?.Y !== undefined ? parseFloat(parsedData.work.Y) : 0,
+            z: parsedData.work?.Z !== undefined ? parseFloat(parsedData.work.Z) : 0,
+            a: parsedData.work?.A !== undefined ? parseFloat(parsedData.work.A) : 0
+          },
+          world: {
+            x: parsedData.world?.X !== undefined ? parseFloat(parsedData.world.X) : 0,
+            y: parsedData.world?.Y !== undefined ? parseFloat(parsedData.world.Y) : 0,
+            z: parsedData.world?.Z !== undefined ? parseFloat(parsedData.world.Z) : 0,
+            a: parsedData.world?.A !== undefined ? parseFloat(parsedData.world.A) : 0
+          }
+        };
+      }
+      return null;
     } catch (error) {
       console.error("Error parsing telemetry:", error);
       return null;
@@ -207,10 +379,33 @@ const ControlPanel = () => {
 
   // Listen to FluidNC position updates
   useEffect(() => {
-    const handlePositionTelemetry = (data) => {
+    const handlePositionTelemetry = (event) => {
+      const data = event.detail;
       
+      if (data && data.type === 'response' && data.data) {
+        // Check if this is a telemetry message
+        if (data.data.startsWith('[TELEMETRY]')) {
+          const positionData = parseTelemetryPosition(data.data);
+          
+          if (positionData) {
+            setPosition(positionData);
+          }
+        }
+      }
     };
-  }, []);
+    
+    // Listen for telemetry data
+    document.addEventListener('serialdata', handlePositionTelemetry);
+    
+    // Request current position on load if connected
+    if (isConnected) {
+      serialService.send('?'); // Request status report
+    }
+    
+    return () => {
+      document.removeEventListener('serialdata', handlePositionTelemetry);
+    };
+  }, [isConnected]);
 
   // Get the active position object based on current view
   const activePosition = position[positionView];
@@ -386,6 +581,7 @@ const ControlPanel = () => {
                 <button
                   className="move-to-position-btn"
                   onClick={() => moveToExactPosition(moveType)}
+                  disabled={!isConnected}
                 >
                   <span className="btn-icon"></span>
                   Move to Position
@@ -403,6 +599,7 @@ const ControlPanel = () => {
                 className="control-btn diagonal nw"
                 onClick={() => { sendMovementCommand('X', -1); sendMovementCommand('Y', 1); }}
                 title="X- Y+"
+                disabled={!isConnected}
               >
                 <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none">
                   <line x1="17" y1="7" x2="7" y2="17"></line>
@@ -414,6 +611,7 @@ const ControlPanel = () => {
                 className="control-btn y-plus"
                 onClick={() => sendMovementCommand('Y', 1)}
                 title="Y+"
+                disabled={!isConnected}
               >
                 <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none">
                   <polyline points="18 15 12 9 6 15"></polyline>
@@ -425,6 +623,7 @@ const ControlPanel = () => {
                 className="control-btn diagonal ne"
                 onClick={() => { sendMovementCommand('X', 1); sendMovementCommand('Y', 1); }}
                 title="X+ Y+"
+                disabled={!isConnected}
               >
                 <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none">
                   <line x1="7" y1="7" x2="17" y2="17"></line>
@@ -436,6 +635,7 @@ const ControlPanel = () => {
                 className="control-btn x-minus"
                 onClick={() => sendMovementCommand('X', -1)}
                 title="X-"
+                disabled={!isConnected}
               >
                 <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none">
                   <polyline points="15 18 9 12 15 6"></polyline>
@@ -447,6 +647,7 @@ const ControlPanel = () => {
                 className="control-btn home-xy"
                 onClick={() => homeAxes('xy')}
                 title="Home XY"
+                disabled={!isConnected}
               >
                 <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none">
                   <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
@@ -458,6 +659,7 @@ const ControlPanel = () => {
                 className="control-btn x-plus"
                 onClick={() => sendMovementCommand('X', 1)}
                 title="X+"
+                disabled={!isConnected}
               >
                 <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none">
                   <polyline points="9 18 15 12 9 6"></polyline>
@@ -469,6 +671,7 @@ const ControlPanel = () => {
                 className="control-btn diagonal sw"
                 onClick={() => { sendMovementCommand('X', -1); sendMovementCommand('Y', -1); }}
                 title="X- Y-"
+                disabled={!isConnected}
               >
                 <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none">
                   <line x1="17" y1="17" x2="7" y2="7"></line>
@@ -480,6 +683,7 @@ const ControlPanel = () => {
                 className="control-btn y-minus"
                 onClick={() => sendMovementCommand('Y', -1)}
                 title="Y-"
+                disabled={!isConnected}
               >
                 <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none">
                   <polyline points="6 9 12 15 18 9"></polyline>
@@ -491,6 +695,7 @@ const ControlPanel = () => {
                 className="control-btn diagonal se"
                 onClick={() => { sendMovementCommand('X', 1); sendMovementCommand('Y', -1); }}
                 title="X+ Y-"
+                disabled={!isConnected}
               >
                 <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none">
                   <line x1="7" y1="17" x2="17" y2="7"></line>
@@ -505,6 +710,7 @@ const ControlPanel = () => {
                 className="jog-btn a-minus"
                 onClick={() => sendMovementCommand('A', -1)}
                 title="A-"
+                disabled={!isConnected}
               >
                 <span className="triangle-left"></span>
                 <span className="axis-text">A-</span>
@@ -513,6 +719,7 @@ const ControlPanel = () => {
                 className="jog-btn home-a"
                 onClick={() => homeAxes('a')}
                 title="Home A"
+                disabled={!isConnected}
               >
                 <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none">
                   <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
@@ -523,6 +730,7 @@ const ControlPanel = () => {
                 className="jog-btn a-plus"
                 onClick={() => sendMovementCommand('A', 1)}
                 title="A+"
+                disabled={!isConnected}
               >
                 <span className="triangle-right"></span>
                 <span className="axis-text">A+</span>
@@ -535,6 +743,7 @@ const ControlPanel = () => {
               className="control-btn z-plus"
               onClick={() => sendMovementCommand('Z', 1)}
               title="Z+"
+              disabled={!isConnected}
             >
               <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none">
                 <polyline points="18 15 12 9 6 15"></polyline>
@@ -546,6 +755,7 @@ const ControlPanel = () => {
               className="control-btn home-z"
               onClick={() => homeAxes('z')}
               title="Home Z"
+              disabled={!isConnected}
             >
               <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none">
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
@@ -557,6 +767,7 @@ const ControlPanel = () => {
               className="control-btn z-minus"
               onClick={() => sendMovementCommand('Z', -1)}
               title="Z-"
+              disabled={!isConnected}
             >
               <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none">
                 <polyline points="6 9 12 15 18 9"></polyline>
@@ -570,6 +781,7 @@ const ControlPanel = () => {
           <button
             className="global-btn home-all"
             onClick={() => homeAxes('all')}
+            disabled={!isConnected}
           >
             <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none">
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
@@ -582,6 +794,7 @@ const ControlPanel = () => {
             className="global-btn set-zero"
             onClick={() => setWorkZero('all')}
             title="Set current position as work zero"
+            disabled={!isConnected}
           >
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="10" />
@@ -595,6 +808,7 @@ const ControlPanel = () => {
             className="global-btn move-to-zero"
             onClick={moveToWorkZero}
             title="Move to work zero position"
+            disabled={!isConnected}
           >
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
               <polygon points="5 3 19 12 5 21 5 3"></polygon>
@@ -605,6 +819,7 @@ const ControlPanel = () => {
           <button
             className="global-btn stop-btn"
             onClick={handleStop}
+            disabled={!isConnected}
           >
             <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
@@ -690,6 +905,7 @@ const ControlPanel = () => {
               type="checkbox"
               checked={activeTool}
               onChange={handleToolToggle}
+              disabled={!isConnected}
             />
             <span className="toggle-slider">
               <span className="toggle-knob">
@@ -713,4 +929,4 @@ const ControlPanel = () => {
   )};
 
 
-  export default ControlPanel;
+export default ControlPanel;
