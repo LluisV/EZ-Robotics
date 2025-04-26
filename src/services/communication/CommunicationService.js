@@ -634,6 +634,11 @@ class CommunicationService extends EventEmitter {
       if (line.startsWith('<') && line.endsWith('>')) {
         this._parseGrblStatus(line);
       }
+
+      
+      if (line.startsWith('[TELEMETRY]')) {
+        this.emit('position-telemetry', { response: line });
+      }
     }
     
     // Check for status characters (these don't end with newline)
@@ -644,6 +649,7 @@ class CommunicationService extends EventEmitter {
       
       // Log the received status
       console.log(`Received status: ${statusLine}`);
+
       
       // Emit the received status as a response
       this.emit('response', { response: statusLine });
