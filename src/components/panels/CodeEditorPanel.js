@@ -8,9 +8,9 @@ import { useGCode } from '../../contexts/GCodeContext';
 const CodeEditorPanel = () => {
   // Default basic G-code example
   const DEFAULT_GCODE = '; Basic G-code Example\nG28 ; Home all axes\nG90 ; Set absolute positioning\nG1 Z5 F1000 ; Raise head\nG1 X10 Y10 F2000 ; Move to start position\nG1 Z0.5 ; Lower to working height\nG1 X50 Y10 ; Draw line\nG1 X50 Y50 ; Draw line\nG1 X10 Y50 ; Draw line\nG1 X10 Y10 ; Return to start\nG1 Z5 ; Raise head';
-  
+
   const { gcode, setGCode, selectedLine, setSelectedLine, transformValues, setTransformValues } = useGCode();
-  
+
   // Initialize using the context value or default
   const [originalCode, setOriginalCode] = useState(() => gcode || DEFAULT_GCODE);
   const [code, setCode] = useState(() => gcode || DEFAULT_GCODE);
@@ -25,7 +25,7 @@ const CodeEditorPanel = () => {
   const [warnings, setWarnings] = useState([]);
   const [transformMode, setTransformMode] = useState(null); // 'scale', 'move', 'rotate'
   const [statusMessage, setStatusMessage] = useState('');
-  
+
   const editorRef = useRef(null);
   const lineNumbersRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -46,12 +46,12 @@ const CodeEditorPanel = () => {
     setOriginalCode(newCode);  // Update the original code
     setGCode(newCode);         // Update the global context immediately
     setModified(true);
-    
+
     // Debounced validation
     if (validationTimeoutRef.current) {
       clearTimeout(validationTimeoutRef.current);
     }
-    
+
     validationTimeoutRef.current = setTimeout(() => {
       validateCode(newCode);
     }, 500); // 500ms debounce to avoid excessive validation
@@ -60,37 +60,37 @@ const CodeEditorPanel = () => {
   // Calculate boundary dimensions of the G-code for transformations
   const calculateBoundaries = useCallback((codeToAnalyze) => {
     if (!codeToAnalyze) return { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0, centerX: 0, centerY: 0 };
-    
+
     const lines = codeToAnalyze.split('\n');
     let minX = Infinity, maxX = -Infinity;
     let minY = Infinity, maxY = -Infinity;
     let minZ = Infinity, maxZ = -Infinity;
     let hasCoordinates = false;
-    
+
     lines.forEach(line => {
       // Skip comments and non-movement commands
       if (line.trim().startsWith(';') || !line.trim()) return;
       if (!/G[0-1]/.test(line)) return;
-      
+
       // Extract X, Y, Z coordinates
       const xMatch = line.match(/X(-?\d+\.?\d*)/);
       const yMatch = line.match(/Y(-?\d+\.?\d*)/);
       const zMatch = line.match(/Z(-?\d+\.?\d*)/);
-      
+
       if (xMatch) {
         const x = parseFloat(xMatch[1]);
         minX = Math.min(minX, x);
         maxX = Math.max(maxX, x);
         hasCoordinates = true;
       }
-      
+
       if (yMatch) {
         const y = parseFloat(yMatch[1]);
         minY = Math.min(minY, y);
         maxY = Math.max(maxY, y);
         hasCoordinates = true;
       }
-      
+
       if (zMatch) {
         const z = parseFloat(zMatch[1]);
         minZ = Math.min(minZ, z);
@@ -98,16 +98,16 @@ const CodeEditorPanel = () => {
         hasCoordinates = true;
       }
     });
-    
+
     // If no coordinates found, return default values
     if (!hasCoordinates) {
       return { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0, centerX: 0, centerY: 0 };
     }
-    
+
     // Calculate the geometric center
     const centerX = (minX + maxX) / 2;
     const centerY = (minY + maxY) / 2;
-    
+
     return { minX, maxX, minY, maxY, minZ, maxZ, centerX, centerY };
   }, []);
 
@@ -125,10 +125,10 @@ const CodeEditorPanel = () => {
 
   useEffect(() => {
     if (!code) return;
-    
+
     const lines = code.split('\n');
     setTotalLines(lines.length);
-    
+
     // Update line numbers
     if (lineNumbersRef.current) {
       lineNumbersRef.current.innerHTML = lines
@@ -139,20 +139,20 @@ const CodeEditorPanel = () => {
           const errorMsg = errors.find(err => err.line === lineNum)?.message || '';
           const warningMsg = warnings.find(warn => warn.line === lineNum)?.message || '';
           const tooltipMsg = errorMsg || warningMsg;
-          
+
           let className = "line-number";
-          
+
           if (lineNum === highlightedLine) className += ' active';
           if (hasError) className += ' error';
           if (hasWarning) className += ' warning';
-          
+
           const tooltipAttr = tooltipMsg ? ` data-tooltip="${tooltipMsg}"` : '';
-          
+
           return `<div class="${className}"${tooltipAttr} title="${tooltipMsg || ''}">${lineNum}</div>`;
         })
         .join('');
     }
-  
+
     // Calculate approximate file size
     const sizeInBytes = new Blob([code]).size;
     if (sizeInBytes < 1024) {
@@ -162,7 +162,7 @@ const CodeEditorPanel = () => {
     } else {
       setFileSize(`${(sizeInBytes / (1024 * 1024)).toFixed(1)} MB`);
     }
-    
+
     // Ensure the editor and line numbers have the same scroll position
     if (editorRef.current && lineNumbersRef.current) {
       lineNumbersRef.current.scrollTop = editorRef.current.scrollTop;
@@ -173,29 +173,29 @@ const CodeEditorPanel = () => {
   useEffect(() => {
     if (selectedLine >= 0 && selectedLine !== highlightedLine) {
       setHighlightedLine(selectedLine);
-      
+
       // Position cursor at the beginning of the line
       if (editorRef.current) {
         const lines = code.split('\n');
         let position = 0;
-        
+
         for (let i = 0; i < selectedLine - 1; i++) {
           position += (lines[i] || '').length + 1; // +1 for newline
         }
-        
+
         editorRef.current.focus();
         editorRef.current.setSelectionRange(position, position);
-        
+
         // Also scroll to the line
         const lineHeight = 20; // Approximate line height in pixels
         if (lineNumbersRef.current) {
           lineNumbersRef.current.scrollTop = (selectedLine - 5) * lineHeight; // -5 to show some context
         }
-        
+
         // Show error message for the selected line if it has an error
         const error = errors.find(err => err.line === selectedLine);
         const warning = warnings.find(warn => warn.line === selectedLine);
-        
+
         if (error) {
           setStatusMessage(`Error (Line ${selectedLine}): ${error.message}`);
         } else if (warning) {
@@ -218,15 +218,15 @@ const CodeEditorPanel = () => {
   const handleLineNumberClick = (lineNumber) => {
     setHighlightedLine(lineNumber);
     setSelectedLine(lineNumber);
-    
+
     // Place cursor at the beginning of the selected line
     const lines = code.split('\n');
     let position = 0;
-    
+
     for (let i = 0; i < lineNumber - 1; i++) {
       position += lines[i].length + 1; // +1 for newline
     }
-    
+
     if (editorRef.current) {
       editorRef.current.focus();
       editorRef.current.setSelectionRange(position, position);
@@ -236,64 +236,64 @@ const CodeEditorPanel = () => {
   // Apply syntax highlighting for G-code
   const getHighlightedCode = (text) => {
     if (!text) return '';
-    
+
     const lines = text.split('\n');
-    
+
     // Highlight each line
     const highlightedLines = lines.map((line, i) => {
       const lineNum = i + 1;
       const hasError = errors.some(err => err.line === lineNum);
       const hasWarning = warnings.some(warn => warn.line === lineNum);
-      
+
       // Get specific error/warning message
       const errorMsg = errors.find(err => err.line === lineNum)?.message || '';
       const warningMsg = warnings.find(warn => warn.line === lineNum)?.message || '';
       const tooltipMsg = errorMsg || warningMsg;
-      
+
       // Highlight comments
       let highlightedLine = line.replace(/;(.*)$/, '<span class="code-comment">;$1</span>');
-      
+
       // Highlight G and M commands
       highlightedLine = highlightedLine.replace(/\b([GM]\d+)\b/g, '<span class="code-command">$1</span>');
-      
+
       // Highlight parameters (X100, Y50, Z10, F1000)
       highlightedLine = highlightedLine.replace(/\b([XYZFIJKRPQ])(-?\d+\.?\d*)/g, '<span class="code-param">$1</span><span class="code-value">$2</span>');
-      
+
       let lineClass = "code-line";
       if (lineNum === highlightedLine) lineClass += ' highlighted-line';
       if (hasError) lineClass += ' error-line';
       if (hasWarning) lineClass += ' warning-line';
-      
+
       // Add tooltip with error/warning message
       const tooltipAttr = tooltipMsg ? ` data-tooltip="${tooltipMsg}"` : '';
-      
+
       // Ensure consistent content for empty lines
       return `<div class="${lineClass}"${tooltipAttr}>${highlightedLine || ' '}</div>`;
     });
-    
+
     return highlightedLines.join('');
   };
 
   // Handle cursor position and update error status
   const handleCursorPosition = () => {
     if (!editorRef.current) return;
-    
+
     const pos = editorRef.current.selectionStart;
     const codeUpToCursor = code.substring(0, pos);
     const linesUpToCursor = codeUpToCursor.split('\n');
-    
+
     const line = linesUpToCursor.length;
     const col = linesUpToCursor[linesUpToCursor.length - 1].length + 1;
-    
+
     setCurrentLine(line);
     setCurrentColumn(col);
     setHighlightedLine(line);
     setSelectedLine(line);
-    
+
     // Update status message if current line has errors/warnings
     const lineError = errors.find(err => err.line === line);
     const lineWarning = warnings.find(warn => warn.line === line);
-    
+
     if (lineError) {
       setStatusMessage(`Error (Line ${line}): ${lineError.message}`);
     } else if (lineWarning) {
@@ -307,26 +307,26 @@ const CodeEditorPanel = () => {
   const validateCode = (codeToValidate) => {
     const validationErrors = [];
     const validationWarnings = [];
-  
+
     const VALID_PREFIXES = ['G', 'M', 'X', 'Y', 'Z', 'F', 'I', 'J', 'K', 'R', 'P', 'Q', 'E'];
-  
+
     const lines = codeToValidate.split('\n');
     lines.forEach((line, i) => {
       const lineNum = i + 1;
-  
+
       // Remove inline comments
       let cleanedLine = line.replace(/\(.*?\)/g, ''); // remove (comment)
       cleanedLine = cleanedLine.split(';')[0];        // remove ;comment
       cleanedLine = cleanedLine.trim();
-  
+
       if (!cleanedLine) return;
-  
+
       // Tokenize and validate
       const tokens = cleanedLine.split(/\s+/);
       tokens.forEach(token => {
         const prefix = token.charAt(0).toUpperCase();
         const value = token.slice(1);
-  
+
         if (!VALID_PREFIXES.includes(prefix)) {
           validationErrors.push({
             line: lineNum,
@@ -344,46 +344,46 @@ const CodeEditorPanel = () => {
           });
         }
       });
-  
+
       // G0/G1 checks
       if (/\bG0\b/.test(cleanedLine) || /\bG1\b/.test(cleanedLine)) {
         if (!/[XYZE]/.test(cleanedLine)) {
-          validationWarnings.push({ 
-            line: lineNum, 
-            message: 'G0/G1 command has no axis movement specified' 
+          validationWarnings.push({
+            line: lineNum,
+            message: 'G0/G1 command has no axis movement specified'
           });
         }
       }
-  
+
       // High speed warning
       const speedMatch = cleanedLine.match(/F(\d+)/);
       if (speedMatch) {
         const speed = parseInt(speedMatch[1]);
         if (speed > 5000) {
-          validationWarnings.push({ 
-            line: lineNum, 
-            message: `Very high speed (F${speed}) may cause issues` 
+          validationWarnings.push({
+            line: lineNum,
+            message: `Very high speed (F${speed}) may cause issues`
           });
         }
       }
-  
+
       // G2/G3 arc parameter check
       if (/\bG2\b/.test(cleanedLine) || /\bG3\b/.test(cleanedLine)) {
         if (!/[IJR]/.test(cleanedLine)) {
-          validationErrors.push({ 
-            line: lineNum, 
-            message: 'Arc command missing I/J or R parameter' 
+          validationErrors.push({
+            line: lineNum,
+            message: 'Arc command missing I/J or R parameter'
           });
         }
       }
     });
-  
+
     setErrors(validationErrors);
     setWarnings(validationWarnings);
-  
+
     const currentError = validationErrors.find(err => err.line === currentLine);
     const currentWarning = validationWarnings.find(warn => warn.line === currentLine);
-  
+
     if (currentError) {
       setStatusMessage(`Error (Line ${currentLine}): ${currentError.message}`);
     } else if (currentWarning) {
@@ -392,7 +392,7 @@ const CodeEditorPanel = () => {
       setStatusMessage('');
     }
   };
-  
+
 
   // Format G-code
   const formatCode = () => {
@@ -400,26 +400,26 @@ const CodeEditorPanel = () => {
     const formattedLines = lines.map(line => {
       // Skip empty lines or pure comments
       if (!line.trim() || line.trim().startsWith(';')) return line;
-      
+
       // Separate commands and comments
       const parts = line.split(';');
       const command = parts[0].trim();
       const comment = parts.length > 1 ? parts.slice(1).join(';') : '';
-      
+
       // Format command with consistent spacing
       let formattedCommand = command;
       formattedCommand = formattedCommand.replace(/([GM]\d+)/, '$1 ');
       formattedCommand = formattedCommand.replace(/([XYZFIJKRPQ])(-?\d+\.?\d*)(?!\S)/g, '$1$2 ');
-      
+
       // Reconstruct the line with comment
       let formattedLine = formattedCommand.trim();
       if (comment) {
         formattedLine += ' ; ' + comment.trim();
       }
-      
+
       return formattedLine;
     });
-    
+
     const formattedCode = formattedLines.join('\n');
     setCode(formattedCode);
     setGCode(formattedCode); // Update context immediately
@@ -438,7 +438,7 @@ const CodeEditorPanel = () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    
+
     setModified(false);
   };
 
@@ -451,9 +451,9 @@ const CodeEditorPanel = () => {
   const handleFileSelected = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    
+
     setFileName(file.name);
-    
+
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target.result;
@@ -462,7 +462,7 @@ const CodeEditorPanel = () => {
       setGCode(content);         // Update the global context immediately
       setModified(false);
       validateCode(content);
-      
+
       // Update file size based on actual file size
       if (file.size < 1024) {
         setFileSize(`${file.size} B`);
@@ -471,10 +471,10 @@ const CodeEditorPanel = () => {
       } else {
         setFileSize(`${(file.size / (1024 * 1024)).toFixed(1)} MB`);
       }
-      
+
       // Update line count
       setTotalLines(content.split('\n').length);
-      
+
       // Calculate G-code boundaries for transformations
       const boundaries = calculateBoundaries(content);
       setTransformValues(prev => ({
@@ -482,7 +482,7 @@ const CodeEditorPanel = () => {
         centerX: boundaries.centerX,
         centerY: boundaries.centerY
       }));
-      
+
       // Reset transformations
       setTransformValues(prev => ({
         ...prev,
@@ -498,7 +498,7 @@ const CodeEditorPanel = () => {
       }));
     };
     reader.readAsText(file);
-    
+
     // Reset the file input to allow selecting the same file again
     e.target.value = null;
   };
@@ -506,113 +506,316 @@ const CodeEditorPanel = () => {
   // Generate transformed G-code based on current transformation parameters
   const generateTransformedGCode = () => {
     if (!originalCode) return '';
-    
+
     const lines = originalCode.split('\n');
     const transformedLines = lines.map(line => {
       // Skip comments and non-movement commands
       if (line.trim().startsWith(';') || !line.trim()) return line;
       if (!/G[0-1]/.test(line)) return line;
-      
+
       // Extract X, Y, Z coordinates
       let transformedLine = line;
       const xMatch = line.match(/X(-?\d+\.?\d*)/);
       const yMatch = line.match(/Y(-?\d+\.?\d*)/);
       const zMatch = line.match(/Z(-?\d+\.?\d*)/);
-      
+
       let x = xMatch ? parseFloat(xMatch[1]) : null;
       let y = yMatch ? parseFloat(yMatch[1]) : null;
       let z = zMatch ? parseFloat(zMatch[1]) : null;
-      
+
       // Apply transformations in sequence: scale, rotate, then move
       if (x !== null && y !== null) {
         // First apply scaling relative to center
         if (transformValues.scaleX !== 1.0 && x !== null) {
           x = (x - transformValues.centerX) * transformValues.scaleX + transformValues.centerX;
         }
-        
+
         if (transformValues.scaleY !== 1.0 && y !== null) {
           y = (y - transformValues.centerY) * transformValues.scaleY + transformValues.centerY;
         }
-        
+
         // Then apply rotation around center
         if (transformValues.rotateAngle !== 0 && x !== null && y !== null) {
           const relX = x - transformValues.centerX;
           const relY = y - transformValues.centerY;
           const angleRad = (transformValues.rotateAngle * Math.PI) / 180;
-          
+
           const rotatedX = relX * Math.cos(angleRad) - relY * Math.sin(angleRad) + transformValues.centerX;
           const rotatedY = relX * Math.sin(angleRad) + relY * Math.cos(angleRad) + transformValues.centerY;
-          
+
           x = rotatedX;
           y = rotatedY;
         }
-        
+
         // Finally apply translation
         if (transformValues.moveX !== 0 && x !== null) {
           x += transformValues.moveX;
         }
-        
+
         if (transformValues.moveY !== 0 && y !== null) {
           y += transformValues.moveY;
         }
       }
-      
+
       // Apply Z scaling and movement
       if (z !== null) {
         if (transformValues.scaleZ !== 1.0) {
           z = z * transformValues.scaleZ;
         }
-        
+
         if (transformValues.moveZ !== 0) {
           z += transformValues.moveZ;
         }
       }
-      
+
       // Replace coordinates in the line
       if (x !== null) {
         transformedLine = transformedLine.replace(/X(-?\d+\.?\d*)/, `X${x.toFixed(3)}`);
       }
-      
+
       if (y !== null) {
         transformedLine = transformedLine.replace(/Y(-?\d+\.?\d*)/, `Y${y.toFixed(3)}`);
       }
-      
+
       if (z !== null) {
         transformedLine = transformedLine.replace(/Z(-?\d+\.?\d*)/, `Z${z.toFixed(3)}`);
       }
-      
+
       return transformedLine;
     });
-    
+
     return transformedLines.join('\n');
   };
 
   const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-  // Send G-code to robot
-  // Replace just the sendToRobot method in the CodeEditorPanel.js
-// This updated version will work with GRBL protocol
+ // Send G-code to robot
+// This implementation sends GCode line-by-line to the FluidNC controller
 
 /**
  * Send G-code to robot using GRBL protocol
  */
 const sendToRobot = async () => {
- 
+  // Define helper function to log messages to the console panel
+  const logToConsole = (type, message) => {
+    // Create a custom event to log to console panel
+    const event = new CustomEvent('consoleEntry', { 
+      detail: { type, content: message }
+    });
+    document.dispatchEvent(event);
+  };
+
+  // Check if the serialService is available and connected
+  if (!window.serialService || !window.serialService.getConnectionStatus()) {
+    const errorMsg = "Cannot send G-code: Not connected to machine";
+    logToConsole('error', errorMsg);
+    setStatusMessage(errorMsg);
+    setTransferError(errorMsg);
+    return;
+  }
+
+  const gCodeToSend = code;
+  if (!gCodeToSend.trim()) {
+    const emptyMsg = "No G-code content to send";
+    logToConsole('error', emptyMsg);
+    setStatusMessage(emptyMsg);
+    return;
+  }
+
+  try {
+    // Start file transfer
+    setIsTransferring(true);
+    setTransferProgress(0);
+    setTransferError(null);
+    
+    // Split G-code into lines and clean up
+    const lines = gCodeToSend
+      .split('\n')
+      .map(line => {
+        // Remove comments and trim whitespace
+        const commentIndex = line.indexOf(';');
+        return (commentIndex >= 0 ? line.substring(0, commentIndex) : line).trim();
+      })
+      .filter(line => line); // Remove empty lines
+    
+    const totalLines = lines.length;
+    const totalBytes = new Blob([gCodeToSend]).size;
+    
+    // Log to console panel that we're starting transfer
+    logToConsole('system', `Starting transfer: ${fileName} (${totalBytes} bytes, ${totalLines} lines)`);
+    
+    let sentBytes = 0;
+    let linesSent = 0;
+
+    // Report transfer started
+    handleFileTransferProgress({
+      status: 'started',
+      fileName: fileName,
+      bytesTotal: totalBytes
+    });
+
+    // Set up a simple queue with a configurable line buffer
+    const MAX_BUFFER_SIZE = 5; // Max number of unacknowledged lines
+    let unacknowledgedLines = 0;
+    let cancelled = false;
+
+    // Add event listener for response from FluidNC
+    const handleResponse = (event) => {
+      const data = event.detail;
+      if (data && data.type === 'response' && data.data) {
+        const response = data.data.trim();
+        
+        // Check for common responses
+        if (response === 'ok') {
+          // One line was processed successfully
+          unacknowledgedLines--;
+          
+          // Now we can send the next line
+          setTimeout(() => sendNextLine(), 50); // Add a small delay between commands
+        } else if (response.startsWith('error:')) {
+          // Error occurred
+          document.removeEventListener('serialdata', handleResponse);
+          const errorMessage = `Error: ${response.substring(6)}`;
+          logToConsole('error', `Transfer error: ${errorMessage}`);
+          setTransferError(errorMessage);
+          setIsTransferring(false);
+          cancelled = true;
+        } else if (response.startsWith('ALARM:')) {
+          // Alarm triggered
+          document.removeEventListener('serialdata', handleResponse);
+          const alarmMessage = `Machine alarm: ${response}`;
+          logToConsole('error', `Transfer interrupted: ${alarmMessage}`);
+          setTransferError(alarmMessage);
+          setIsTransferring(false);
+          cancelled = true;
+        }
+      }
+    };
+    
+    document.addEventListener('serialdata', handleResponse);
+
+    // Function to send the next line when ready
+    const sendNextLine = async () => {
+      // Check if transfer was cancelled
+      if (cancelled) return;
+      
+      // Check if we've reached the end
+      if (linesSent >= totalLines) {
+        if (unacknowledgedLines === 0) {
+          // All lines were sent and acknowledged
+          handleFileTransferProgress({
+            status: 'completed',
+            fileName: fileName,
+            bytesTotal: totalBytes,
+            bytesTransferred: totalBytes,
+            progress: 100
+          });
+          
+          const completeMsg = `Transfer completed: ${fileName} (${totalLines} lines)`;
+          logToConsole('system', completeMsg);
+          setIsTransferring(false);
+          document.removeEventListener('serialdata', handleResponse);
+          setStatusMessage(completeMsg);
+        }
+        return;
+      }
+      
+      // Check if we need to wait for acknowledgements
+      if (unacknowledgedLines >= MAX_BUFFER_SIZE) {
+        return; // Wait for more acknowledgements
+      }
+      
+      // Send the next line
+      const line = lines[linesSent];
+      
+      // Skip empty lines
+      if (!line) {
+        linesSent++;
+        sendNextLine();
+        return;
+      }
+      
+      try {
+        const success = await window.serialService.send(line);
+        
+        if (success) {
+          const lineBytes = new Blob([line + '\n']).size;
+          sentBytes += lineBytes;
+          linesSent++;
+          unacknowledgedLines++;
+          
+          // Update progress
+          const progress = (sentBytes / totalBytes) * 100;
+          setTransferProgress(progress);
+          
+          // Report progress
+          handleFileTransferProgress({
+            status: 'progress',
+            bytesTransferred: sentBytes,
+            bytesTotal: totalBytes,
+            linesTransferred: linesSent,
+            linesTotal: totalLines,
+            progress: progress.toFixed(1)
+          });
+          
+          // Check if we can send more lines
+          sendNextLine();
+        } else {
+          const commError = "Communication error: Failed to send data";
+          logToConsole('error', commError);
+          setTransferError(commError);
+          setIsTransferring(false);
+          document.removeEventListener('serialdata', handleResponse);
+          cancelled = true;
+        }
+      } catch (error) {
+        const errorMsg = `Error sending line ${linesSent}: ${error.message}`;
+        console.error(errorMsg);
+        logToConsole('error', errorMsg);
+        setTransferError(`Error: ${error.message}`);
+        setIsTransferring(false);
+        document.removeEventListener('serialdata', handleResponse);
+        cancelled = true;
+      }
+    };
+    
+    // Start sending lines
+    for (let i = 0; i < Math.min(MAX_BUFFER_SIZE, totalLines); i++) {
+      sendNextLine();
+    }
+    
+    // Add cancellation logic to the return statement
+    return () => {
+      document.removeEventListener('serialdata', handleResponse);
+      cancelled = true;
+      setIsTransferring(false);
+    };
+    
+  } catch (error) {
+    const errorMsg = `Error sending G-code to robot: ${error.message}`;
+    console.error(errorMsg);
+    logToConsole('error', errorMsg);
+    setTransferError(`Error: ${error.message}`);
+    setIsTransferring(false);
+  }
+  
+
 };
+
 
   const [isTransferring, setIsTransferring] = useState(false);
   const [transferProgress, setTransferProgress] = useState(0);
   const [transferError, setTransferError] = useState(null);
-  
+
   const formatBytes = (bytes, decimals = 2) => {
     if (bytes === 0) return '0 B';
-    
+
     const k = 1024;
     const dm = decimals < 0 ? 0 : decimals;
     const sizes = ['B', 'KB', 'MB', 'GB'];
-    
+
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    
+
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
   };
 
@@ -629,17 +832,17 @@ const sendToRobot = async () => {
         setStatusMessage(`Starting transfer of ${data.fileName}...`);
         setTransferProgress(0);
         break;
-      
+
       case 'progress':
         setStatusMessage(`Transferring: ${data.progress}% (${formatBytes(data.bytesTransferred)} / ${formatBytes(data.bytesTotal)})`);
         setTransferProgress(data.progress);
         break;
-      
+
       case 'completed':
         setStatusMessage(`Transfer completed: ${data.fileName}`);
         setTransferProgress(100);
         break;
-      
+
       case 'error':
       case 'cancelled':
         setTransferError(data.error || data.reason || 'Unknown error');
@@ -647,7 +850,7 @@ const sendToRobot = async () => {
         break;
     }
   };
-  
+
 
   // Preview transformation - shows what the transformed G-code would look like
   const previewTransformation = () => {
@@ -656,7 +859,7 @@ const sendToRobot = async () => {
     setGCode(transformedCode); // Update context immediately
     setModified(true);
   };
-  
+
   // Reset transformations and restore original code
   const resetTransformations = () => {
     setTransformValues({
@@ -670,7 +873,7 @@ const sendToRobot = async () => {
       centerX: transformValues.centerX,  // Keep the same center
       centerY: transformValues.centerY
     });
-    
+
     // Restore original code
     setCode(originalCode);
     setGCode(originalCode); // Update context immediately
@@ -684,10 +887,10 @@ const sendToRobot = async () => {
       ...transformValues,
       [name]: parseFloat(value)
     };
-    
+
     // Update the context with new transform values
     setTransformValues(newValues);
-    
+
     // Generate preview code without updating the editor
     // This allows the toolpath to update immediately
     const previewCode = generateTransformedGCode();
@@ -698,14 +901,14 @@ const sendToRobot = async () => {
   const cancelTransform = () => {
     setTransformMode(null);
   };
-  
+
   // Save the code with transformations applied
   const saveWithTransformations = () => {
     const transformedCode = generateTransformedGCode();
     setCode(transformedCode);
     setOriginalCode(transformedCode);  // This becomes the new original code
     setGCode(transformedCode);        // Update context immediately
-    
+
     // Reset transformations since they're now part of the code
     setTransformValues({
       scaleX: 1.0,
@@ -718,21 +921,21 @@ const sendToRobot = async () => {
       centerX: transformValues.centerX,
       centerY: transformValues.centerY
     });
-    
+
     setModified(true);
   };
 
   return (
     <div className="gcode-editor-panel">
       {/* Hidden file input for file opening */}
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        style={{ display: 'none' }} 
-        onChange={handleFileSelected} 
+      <input
+        type="file"
+        ref={fileInputRef}
+        style={{ display: 'none' }}
+        onChange={handleFileSelected}
         accept=".gcode,.nc,.ngc"
       />
-      
+
       {/* Toolbar at the top */}
       <div className="editor-toolbar">
         <div className="toolbar-section">
@@ -760,8 +963,8 @@ const sendToRobot = async () => {
           </button>
           <span className="toolbar-divider"></span>
           {/* Transform Tools */}
-          <button 
-            className={`toolbar-btn ${transformMode === 'scale' ? 'active' : ''}`} 
+          <button
+            className={`toolbar-btn ${transformMode === 'scale' ? 'active' : ''}`}
             onClick={() => setTransformMode(transformMode === 'scale' ? null : 'scale')}
             title="Scale G-code"
           >
@@ -771,8 +974,8 @@ const sendToRobot = async () => {
               <path d="M16 16l6 6"></path>
             </svg>
           </button>
-          <button 
-            className={`toolbar-btn ${transformMode === 'move' ? 'active' : ''}`} 
+          <button
+            className={`toolbar-btn ${transformMode === 'move' ? 'active' : ''}`}
             onClick={() => setTransformMode(transformMode === 'move' ? null : 'move')}
             title="Move G-code"
           >
@@ -785,8 +988,8 @@ const sendToRobot = async () => {
               <path d="M12 2v20"></path>
             </svg>
           </button>
-          <button 
-            className={`toolbar-btn ${transformMode === 'rotate' ? 'active' : ''}`} 
+          <button
+            className={`toolbar-btn ${transformMode === 'rotate' ? 'active' : ''}`}
             onClick={() => setTransformMode(transformMode === 'rotate' ? null : 'rotate')}
             title="Rotate G-code"
           >
@@ -804,7 +1007,7 @@ const sendToRobot = async () => {
             </svg>
           </button>
         </div>
-        
+
         <div className="file-info">
           <div className="file-name">
             <span className="file-icon">
@@ -824,29 +1027,29 @@ const sendToRobot = async () => {
 
       {/* File Transfer Progress UI */}
       {isTransferring && (
-  <div className="transfer-progress-container">
-    <div className="transfer-status">
-      <div className="status-indicator"></div>
-      <span>{statusMessage || `Transferring: ${fileName}`}</span>
-    </div>
-    <div className="progress-bar">
-      <div 
-        className="progress-fill" 
-        style={{ width: `${transferProgress}%` }}
-      ></div>
-    </div>
-    <div className="progress-text">
-      {`${transferProgress.toFixed(1)}% completed`}
-    </div>
-    {transferError && (
-      <div className="transfer-error">
-        <div className="error-message">{transferError}</div>
-        <button onClick={retryTransfer} className="retry-btn">Retry</button>
-      </div>
-    )}
-  </div>
-)}
-      
+        <div className="transfer-progress-container">
+          <div className="transfer-status">
+            <div className="status-indicator"></div>
+            <span>{statusMessage || `Transferring: ${fileName}`}</span>
+          </div>
+          <div className="progress-bar">
+            <div
+              className="progress-fill"
+              style={{ width: `${transferProgress}%` }}
+            ></div>
+          </div>
+          <div className="progress-text">
+            {`${transferProgress.toFixed(1)}% completed`}
+          </div>
+          {transferError && (
+            <div className="transfer-error">
+              <div className="error-message">{transferError}</div>
+              <button onClick={retryTransfer} className="retry-btn">Retry</button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Transformation panel */}
       {transformMode && (
         <div className="transform-panel">
@@ -859,147 +1062,147 @@ const sendToRobot = async () => {
               <>
                 <div className="control-group">
                   <label>Scale X:</label>
-                  <input 
-                    type="number" 
-                    name="scaleX" 
-                    value={transformValues.scaleX} 
-                    onChange={handleTransformValueChange} 
+                  <input
+                    type="number"
+                    name="scaleX"
+                    value={transformValues.scaleX}
+                    onChange={handleTransformValueChange}
                     step="0.1"
                     min="0.1"
                   />
                 </div>
                 <div className="control-group">
                   <label>Scale Y:</label>
-                  <input 
-                    type="number" 
-                    name="scaleY" 
-                    value={transformValues.scaleY} 
-                    onChange={handleTransformValueChange} 
+                  <input
+                    type="number"
+                    name="scaleY"
+                    value={transformValues.scaleY}
+                    onChange={handleTransformValueChange}
                     step="0.1"
                     min="0.1"
                   />
                 </div>
                 <div className="control-group">
                   <label>Scale Z:</label>
-                  <input 
-                    type="number" 
-                    name="scaleZ" 
-                    value={transformValues.scaleZ} 
-                    onChange={handleTransformValueChange} 
+                  <input
+                    type="number"
+                    name="scaleZ"
+                    value={transformValues.scaleZ}
+                    onChange={handleTransformValueChange}
                     step="0.1"
                     min="0.1"
                   />
                 </div>
                 <div className="control-group">
                   <label>Center X:</label>
-                  <input 
-                    type="number" 
-                    name="centerX" 
-                    value={transformValues.centerX} 
-                    onChange={handleTransformValueChange} 
+                  <input
+                    type="number"
+                    name="centerX"
+                    value={transformValues.centerX}
+                    onChange={handleTransformValueChange}
                     step="1"
                   />
                 </div>
                 <div className="control-group">
                   <label>Center Y:</label>
-                  <input 
-                    type="number" 
-                    name="centerY" 
-                    value={transformValues.centerY} 
-                    onChange={handleTransformValueChange} 
+                  <input
+                    type="number"
+                    name="centerY"
+                    value={transformValues.centerY}
+                    onChange={handleTransformValueChange}
                     step="1"
                   />
                 </div>
               </>
             )}
-            
+
             {transformMode === 'move' && (
               <>
                 <div className="control-group">
                   <label>Move X:</label>
-                  <input 
-                    type="number" 
-                    name="moveX" 
-                    value={transformValues.moveX} 
-                    onChange={handleTransformValueChange} 
+                  <input
+                    type="number"
+                    name="moveX"
+                    value={transformValues.moveX}
+                    onChange={handleTransformValueChange}
                     step="1"
                   />
                 </div>
                 <div className="control-group">
                   <label>Move Y:</label>
-                  <input 
-                    type="number" 
-                    name="moveY" 
-                    value={transformValues.moveY} 
-                    onChange={handleTransformValueChange} 
+                  <input
+                    type="number"
+                    name="moveY"
+                    value={transformValues.moveY}
+                    onChange={handleTransformValueChange}
                     step="1"
                   />
                 </div>
                 <div className="control-group">
                   <label>Move Z:</label>
-                  <input 
-                    type="number" 
-                    name="moveZ" 
-                    value={transformValues.moveZ} 
-                    onChange={handleTransformValueChange} 
+                  <input
+                    type="number"
+                    name="moveZ"
+                    value={transformValues.moveZ}
+                    onChange={handleTransformValueChange}
                     step="1"
                   />
                 </div>
               </>
             )}
-            
+
             {transformMode === 'rotate' && (
               <>
                 <div className="control-group">
                   <label>Angle (degrees):</label>
-                  <input 
-                    type="number" 
-                    name="rotateAngle" 
-                    value={transformValues.rotateAngle} 
-                    onChange={handleTransformValueChange} 
+                  <input
+                    type="number"
+                    name="rotateAngle"
+                    value={transformValues.rotateAngle}
+                    onChange={handleTransformValueChange}
                     step="1"
                   />
                 </div>
                 <div className="control-group">
                   <label>Center X:</label>
-                  <input 
-                    type="number" 
-                    name="centerX" 
-                    value={transformValues.centerX} 
-                    onChange={handleTransformValueChange} 
+                  <input
+                    type="number"
+                    name="centerX"
+                    value={transformValues.centerX}
+                    onChange={handleTransformValueChange}
                     step="1"
                   />
                 </div>
                 <div className="control-group">
                   <label>Center Y:</label>
-                  <input 
-                    type="number" 
-                    name="centerY" 
-                    value={transformValues.centerY} 
-                    onChange={handleTransformValueChange} 
+                  <input
+                    type="number"
+                    name="centerY"
+                    value={transformValues.centerY}
+                    onChange={handleTransformValueChange}
                     step="1"
                   />
                 </div>
               </>
             )}
-            
+
             <div className="transform-actions">
-              <button 
-                className="preview-transform-btn" 
+              <button
+                className="preview-transform-btn"
                 onClick={previewTransformation}
                 title="Preview transformations in the editor"
               >
                 Preview
               </button>
-              <button 
-                className="apply-transform-btn" 
+              <button
+                className="apply-transform-btn"
                 onClick={saveWithTransformations}
                 title="Apply transformations permanently to the code"
               >
                 Apply
               </button>
-              <button 
-                className="reset-transform-btn" 
+              <button
+                className="reset-transform-btn"
                 onClick={resetTransformations}
                 title="Reset to original code"
               >
@@ -1009,10 +1212,10 @@ const sendToRobot = async () => {
           </div>
         </div>
       )}
-      
+
       {/* Editor container */}
       <div className="editor-container">
-        <div 
+        <div
           className="line-numbers"
           ref={lineNumbersRef}
           onClick={(e) => {
@@ -1036,7 +1239,7 @@ const sendToRobot = async () => {
           <pre className="editor-highlighting" dangerouslySetInnerHTML={{ __html: getHighlightedCode(code) }}></pre>
         </div>
       </div>
-      
+
       {/* Status bar (footer) */}
       <div className="editor-footer">
         <div className="editor-status-bar">
@@ -1049,7 +1252,7 @@ const sendToRobot = async () => {
               Ln {currentLine}, Col {currentColumn}
             </span>
           </div>
-          
+
           {statusMessage && (
             <div className="status-section message-section">
               <span className={`status-message ${errors.some(e => e.line === currentLine) ? 'error' : 'warning'}`}>
@@ -1057,7 +1260,7 @@ const sendToRobot = async () => {
               </span>
             </div>
           )}
-          
+
           <div className="status-section editor-info">
             <span className="info-item">{totalLines} lines</span>
             <span className="status-divider">|</span>
@@ -1079,7 +1282,7 @@ const sendToRobot = async () => {
               </>
             )}
           </div>
-          
+
           <div className="status-section editor-mode">
             <span className={`mode-indicator ${modified ? 'modified' : ''}`}>
               {modified ? 'Modified' : 'Saved'}
