@@ -28,6 +28,10 @@ const CodeEditorPanel = () => {
   const [transformMode, setTransformMode] = useState(null); // 'scale', 'move', 'rotate'
   const [statusMessage, setStatusMessage] = useState('');
   const [isPaused, setIsPaused] = useState(false);
+  const [isTransferring, setIsTransferring] = useState(false);
+  const [transferProgress, setTransferProgress] = useState(0);
+  const [transferError, setTransferError] = useState(null);
+  const [lastProgress, setLastProgress] = useState(0); // Progress tracking for logging
 
   const editorRef = useRef(null);
   const lineNumbersRef = useRef(null);
@@ -413,7 +417,6 @@ const CodeEditorPanel = () => {
     }
   };
 
-
   // Format G-code
   const formatCode = () => {
     const lines = code.split('\n');
@@ -609,19 +612,19 @@ const CodeEditorPanel = () => {
 
   const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+  // Helper function to log messages to the console panel
+  const logToConsole = (type, message) => {
+    // Create a custom event to log to console panel
+    const event = new CustomEvent('consoleEntry', { 
+      detail: { type, content: message }
+    });
+    document.dispatchEvent(event);
+  };
+
   /**
    * Send G-code to robot using GRBL protocol with improved reliability
    */
   const sendToRobot = async () => {
-    // Define helper function to log messages to the console panel
-    const logToConsole = (type, message) => {
-      // Create a custom event to log to console panel
-      const event = new CustomEvent('consoleEntry', { 
-        detail: { type, content: message }
-      });
-      document.dispatchEvent(event);
-    };
-  
     // Check if the serialService is available and connected
     if (!window.serialService || !window.serialService.getConnectionStatus()) {
       const errorMsg = "Cannot send G-code: Not connected to machine";
@@ -645,12 +648,11 @@ const CodeEditorPanel = () => {
       setTransferProgress(0);
       setTransferError(null);
       setIsPaused(false);
+      setLastProgress(0); // Reset last logged progress
       
-      // Initialize our simple GCode sender
-      if (!gcodeSender) {
-        // This assumes GCodeSender is imported at the top of the file
-        gcodeSender = new GCodeSender();
-      }
+      // Set buffer size based on controller type - can be configured in settings
+      // Default is 127 bytes which works for most GRBL controllers
+      gcodeSender.setBufferSize(127);
       
       // Load the G-code
       const totalLines = gcodeSender.loadGCode(gCodeToSend);
@@ -659,23 +661,30 @@ const CodeEditorPanel = () => {
       // Log to console panel that we're starting transfer
       logToConsole('system', `Starting transfer: ${fileName} (${totalBytes} bytes, ${totalLines} lines)`);
       
-      // Set up the callbacks
+      // Set up the callbacks with comprehensive status reporting
       gcodeSender.setCallbacks({
         onProgress: (data) => {
           // Update progress UI
           setTransferProgress(data.progress);
           
-          // Format progress message with line information
-          setStatusMessage(`Transferring: ${data.progress.toFixed(1)}% (${data.acknowledged}/${data.total} lines)`);
+          // Format progress message with detailed information
+          setStatusMessage(
+            `Transferring: ${data.progress.toFixed(1)}% (${data.acknowledged}/${data.total} lines) | Buffer: ${data.bufferUsed}/${data.bufferSize} bytes`
+          );
           
-          // Log progress occasionally (e.g., every 5-10%)
-          if (data.acknowledged % Math.max(1, Math.floor(totalLines / 20)) === 0) {
-            logToConsole('info', `Transfer progress: ${data.progress.toFixed(1)}% (${data.acknowledged}/${data.total} lines)`);
+          // Log progress occasionally (every 5%)
+          const currentProgressFloor = Math.floor(data.progress);
+          if (currentProgressFloor % 5 === 0 && 
+              currentProgressFloor !== Math.floor(lastProgress)) {
+            logToConsole('info', 
+              `Transfer progress: ${data.progress.toFixed(1)}% (${data.acknowledged}/${data.total} lines)`
+            );
+            setLastProgress(data.progress);
           }
           
-          // Optional: Highlight current line in editor
+          // Highlight current line in editor
           if (data.acknowledged > 0 && data.acknowledged <= totalLines) {
-            setSelectedLine(data.acknowledged);
+            //setSelectedLine(data.acknowledged);
           }
         },
         
@@ -698,8 +707,23 @@ const CodeEditorPanel = () => {
           // Log error
           logToConsole('error', `Transfer error: ${error}`);
           
-          // Update error message in UI but continue transferring
+          // Update error message in UI
           setTransferError(error);
+        },
+        
+        onLineSuccess: (lineIndex, lineContent) => {
+          // Occasionally log successful lines if needed
+          if (lineIndex % 100 === 0) {
+            logToConsole('debug', `Sent line ${lineIndex+1}: ${lineContent}`);
+          }
+        },
+        
+        onLineError: (lineIndex, lineContent, errorMessage) => {
+          // Always log line errors
+          logToConsole('error', `Error at line ${lineIndex+1}: ${errorMessage} - ${lineContent}`);
+          
+          // Highlight the line with error
+          setSelectedLine(lineIndex + 1);
         },
         
         onPause: (reason) => {
@@ -712,29 +736,39 @@ const CodeEditorPanel = () => {
           logToConsole('info', 'Transfer resumed');
           setIsPaused(false);
           setStatusMessage(`Transfer resumed`);
+        },
+        
+        onStatusUpdate: (status) => {
+          // Update machine status display with controller state
+          const statusText = `Machine state: ${status.state} | Position: X${status.position[0].toFixed(3)} Y${status.position[1].toFixed(3)} Z${status.position[2].toFixed(3)} | Feed rate: ${status.feedRate}`;
+          
+          // Update status display in UI
+          // This could update a separate status component
+          document.dispatchEvent(new CustomEvent('machineStatus', { 
+            detail: status 
+          }));
         }
       });
       
-      // Start the transfer
-      const success = await gcodeSender.start(window.serialService);
+      // Start the transfer - the 'false' parameter means not to use check mode
+      // Could add a checkbox option for check mode in the UI
+      const success = await gcodeSender.start(window.serialService, false);
       
       if (!success) {
         throw new Error("Failed to start G-code transfer");
       }
       
-      // The transfer is now running asynchronously
+      // The transfer is now running asynchronously with buffer management
       
     } catch (error) {
-      const errorMsg = `Error sending G-code to robot: ${error.message}`;
+      const errorMsg = `Error sending G-code to machine: ${error.message}`;
       console.error(errorMsg);
       logToConsole('error', errorMsg);
       setTransferError(`Error: ${error.message}`);
       setIsTransferring(false);
       
       // Make sure to stop the sender
-      if (gcodeSender) {
-        gcodeSender.stop();
-      }
+      gcodeSender.stop();
     }
   };
 
@@ -742,9 +776,15 @@ const CodeEditorPanel = () => {
    * Pause the current transfer
    */
   const pauseTransfer = () => {
-    if (gcodeSender.pause()) {
-      setIsPaused(true);
-      setStatusMessage('Transfer paused');
+    if (gcodeSender && gcodeSender.pause) {
+      const success = gcodeSender.pause();
+      if (success) {
+        setIsPaused(true);
+        setStatusMessage('Transfer paused - machine feed hold active');
+        
+        // Log to console panel
+        logToConsole('warning', 'Transfer paused by user');
+      }
     }
   };
 
@@ -752,9 +792,15 @@ const CodeEditorPanel = () => {
    * Resume the current transfer
    */
   const resumeTransfer = () => {
-    if (gcodeSender.resume()) {
-      setIsPaused(false);
-      setStatusMessage('Transfer resumed');
+    if (gcodeSender && gcodeSender.resume) {
+      const success = gcodeSender.resume();
+      if (success) {
+        setIsPaused(false);
+        setStatusMessage('Transfer resumed - continuing from paused position');
+        
+        // Log to console panel
+        logToConsole('info', 'Transfer resumed by user');
+      }
     }
   };
 
@@ -762,10 +808,18 @@ const CodeEditorPanel = () => {
    * Stop/cancel the current transfer
    */
   const stopTransfer = () => {
-    if (gcodeSender.stop()) {
-      setIsPaused(false);
-      setIsTransferring(false);
-      setStatusMessage('Transfer stopped by user');
+    if (gcodeSender && gcodeSender.stop) {
+      const success = gcodeSender.stop();
+      if (success) {
+        setIsPaused(false);
+        setIsTransferring(false);
+        setTransferProgress(0);
+        setStatusMessage('Transfer stopped - machine operation cancelled');
+        
+        // Log to console panel
+        logToConsole('error', 'Transfer stopped by user');
+        
+      }
     }
   };
 
@@ -779,10 +833,23 @@ const CodeEditorPanel = () => {
     }
   };
 
-
-  const [isTransferring, setIsTransferring] = useState(false);
-  const [transferProgress, setTransferProgress] = useState(0);
-  const [transferError, setTransferError] = useState(null);
+  /**
+   * Display detailed status information for the transfer
+   */
+  const showDetailedStatus = () => {
+    const status = gcodeSender.getStatus();
+    const statusMsg = `
+      Progress: ${status.progress.toFixed(1)}%
+      Lines sent: ${status.linesSent}/${status.totalLines}
+      Lines acknowledged: ${status.linesAcknowledged}/${status.totalLines}
+      Buffer usage: ${status.bufferUsed}/${status.bufferSize} bytes (${status.bufferUsagePercent.toFixed(1)}%)
+      Remaining lines: ${status.remainingLines}
+      Unacknowledged lines: ${status.unacknowledgedLines}
+    `;
+    
+    // This could show in a modal or status panel
+    logToConsole('info', statusMsg);
+  };
 
   const formatBytes = (bytes, decimals = 2) => {
     if (bytes === 0) return '0 B';
@@ -821,7 +888,6 @@ const CodeEditorPanel = () => {
         break;
     }
   };
-
 
   // Preview transformation - shows what the transformed G-code would look like
   const previewTransformation = () => {
@@ -907,305 +973,313 @@ const CodeEditorPanel = () => {
         accept=".gcode,.nc,.ngc"
       />
 
-{/* Toolbar at the top */}
-<div className="editor-toolbar">
-  <div className="toolbar-section">
-    {/* File operations */}
-    <button className="toolbar-btn" onClick={openFile}>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h6"/>
-        <path d="M14 15v4M12 17h4"/>
-      </svg>
-    </button>
-    <button className="toolbar-btn" onClick={saveFile}>
-      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
-        <polyline points="17 21 17 13 7 13 7 21"/>
-        <polyline points="7 3 7 8 15 8"/>
-      </svg>
-    </button>
-    
-    <span className="toolbar-divider"></span>
-    
-    {/* Code operations */}
-    <button className="toolbar-btn" onClick={formatCode}>
-      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M21 10H3M21 6H3M21 14H3M21 18H3"/>
-      </svg>
-    </button>
-    
-    {/* Single transform button */}
-    <button
-      className={`toolbar-btn ${transformMode ? 'active' : ''}`}
-      onClick={() => transformMode ? setTransformMode(null) : setTransformMode('transform')}
-    >
-      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-        <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-      </svg>
-    </button>
-    
-    <span className="toolbar-divider"></span>
-    
-    {/* Execution controls with colored icons */}
-    <button 
-      className="toolbar-btn action-btn" 
-      onClick={sendToRobot}
-    >
-      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="var(--play-color, #4CAF50)" strokeWidth="2">
-        <polygon points="5 3 19 12 5 21 5 3"></polygon>
-      </svg>
-    </button>
-    
-    <button 
-      className="toolbar-btn action-btn" 
-      onClick={isPaused ? resumeTransfer : pauseTransfer}
-    >
-      {isPaused ? (
-        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="var(--resume-color, #2196F3)" strokeWidth="2">
-          <polygon points="5 3 19 12 5 21 5 3"></polygon>
-        </svg>
-      ) : (
-        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="var(--pause-color, #FF9800)" strokeWidth="2">
-          <rect x="6" y="4" width="4" height="16"></rect>
-          <rect x="14" y="4" width="4" height="16"></rect>
-        </svg>
-      )}
-    </button>
-    
-    <button 
-      className="toolbar-btn action-btn" 
-      onClick={stopTransfer}
-    >
-      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="var(--stop-color, #F44336)" strokeWidth="2">
-        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-      </svg>
-    </button>
-  </div>
+      {/* Toolbar at the top */}
+      <div className="editor-toolbar">
+        <div className="toolbar-section">
+          {/* File operations */}
+          <button className="toolbar-btn" onClick={openFile}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h6"/>
+              <path d="M14 15v4M12 17h4"/>
+            </svg>
+          </button>
+          <button className="toolbar-btn" onClick={saveFile}>
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+              <polyline points="17 21 17 13 7 13 7 21"/>
+              <polyline points="7 3 7 8 15 8"/>
+            </svg>
+          </button>
+          
+          <span className="toolbar-divider"></span>
+          
+          {/* Code operations */}
+          <button className="toolbar-btn" onClick={formatCode}>
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 10H3M21 6H3M21 14H3M21 18H3"/>
+            </svg>
+          </button>
+          
+          {/* Single transform button */}
+          <button
+            className={`toolbar-btn ${transformMode ? 'active' : ''}`}
+            onClick={() => transformMode ? setTransformMode(null) : setTransformMode('transform')}
+          >
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+          </button>
+          
+          <span className="toolbar-divider"></span>
+          
+          {/* Execution controls with colored icons */}
+          <button 
+            className="toolbar-btn action-btn" 
+            onClick={sendToRobot}
+          >
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="var(--play-color, #4CAF50)" strokeWidth="2">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+          </button>
+          
+          <button 
+            className="toolbar-btn action-btn" 
+            onClick={isPaused ? resumeTransfer : pauseTransfer}
+          >
+            {isPaused ? (
+              <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="var(--resume-color, #2196F3)" strokeWidth="2">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="var(--pause-color, #FF9800)" strokeWidth="2">
+                <rect x="6" y="4" width="4" height="16"></rect>
+                <rect x="14" y="4" width="4" height="16"></rect>
+              </svg>
+            )}
+          </button>
+          
+          <button 
+            className="toolbar-btn action-btn" 
+            onClick={stopTransfer}
+          >
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="var(--stop-color, #F44336)" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            </svg>
+          </button>
+        </div>
 
-  <div className="file-info">
-    <div className="file-name">
-      <span className="file-icon">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-          <polyline points="14 2 14 8 20 8"></polyline>
-          <line x1="16" y1="13" x2="8" y2="13"></line>
-          <line x1="16" y1="17" x2="8" y2="17"></line>
-          <polyline points="10 9 9 9 8 9"></polyline>
-        </svg>
-      </span>
-      <span className="name">{fileName}</span>
-      {modified && <span className="modified-indicator">●</span>}
-    </div>
-  </div>
-</div>
+        <div className="file-info">
+          <div className="file-name">
+            <span className="file-icon">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10 9 9 9 8 9"></polyline>
+              </svg>
+            </span>
+            <span className="name">{fileName}</span>
+            {modified && <span className="modified-indicator">●</span>}
+          </div>
+        </div>
+      </div>
 
       {/* File Transfer Progress UI */}
       {isTransferring && (
-        <div className="transfer-progress-container">
-          <div className="transfer-status">
-            <div className="status-indicator"></div>
-            <span>{statusMessage || `Transferring: ${fileName}`}</span>
+  <div className="transfer-container">
+    <div className="transfer-progress-container">
+      <div className="transfer-status">
+        <div className="status-indicator-wrapper">
+          <div className="status-indicator"></div>
+          <span className="status-text">{statusMessage || `Transferring: ${fileName}`}</span>
+        </div>
 
-            {/* Control buttons - match the toolbar button style */}
-            <div className="transfer-controls">
-              <button
-                className="toolbar-btn"
-                onClick={isPaused ? resumeTransfer : pauseTransfer}
-                title={isPaused ? "Resume transfer" : "Pause transfer"}
-                style={{ padding: '4px 8px', fontSize: '11px' }}
-              >
-                {isPaused ? (
-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
-                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="6" y="4" width="4" height="16"></rect>
-                    <rect x="14" y="4" width="4" height="16"></rect>
-                  </svg>
-                )}
-              </button>
-
-              <button
-                className="toolbar-btn danger"
-                onClick={stopTransfer}
-                title="Stop transfer"
-                style={{ padding: '4px 8px', fontSize: '11px' }}
-              >
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <div className="progress-bar">
-            <div
-              className="progress-fill"
-              style={{ width: `${transferProgress}%` }}
-            ></div>
-          </div>
-
-          <div className="progress-text">
-            {`${transferProgress.toFixed(1)}% completed`}
-          </div>
-
-          {transferError && (
-            <div className="transfer-error">
-              <div className="error-message">{transferError}</div>
-              <button onClick={retryTransfer} className="retry-btn">Retry</button>
-            </div>
+        {/* Control buttons - fixed position on right */}
+        <div className="transfer-controls">
+          {isPaused ? (
+            <button
+              className="toolbar-btn resume-btn"
+              onClick={resumeTransfer}
+              title="Resume transfer"
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--resume-color, #2196F3)" strokeWidth="2">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+            </button>
+          ) : (
+            <button
+              className="toolbar-btn pause-btn"
+              onClick={pauseTransfer}
+              title="Pause transfer"
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--pause-color, #FF9800)" strokeWidth="2">
+                <rect x="6" y="4" width="4" height="16"></rect>
+                <rect x="14" y="4" width="4" height="16"></rect>
+              </svg>
+            </button>
           )}
+
+          <button
+            className="toolbar-btn stop-btn"
+            onClick={stopTransfer}
+            title="Stop transfer"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--stop-color, #F44336)" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div className="progress-bar">
+        <div
+          className="progress-fill"
+          style={{ width: `${transferProgress}%` }}
+        ></div>
+      </div>
+
+      <div className="progress-text">
+        {`${transferProgress.toFixed(1)}% completed`}
+      </div>
+
+      {transferError && (
+        <div className="transfer-error">
+          <div className="error-message">{transferError}</div>
+          <button onClick={retryTransfer} className="retry-btn">Retry</button>
         </div>
       )}
-
-{/* Transformation panel - combined into one unified interface */}
-{transformMode === 'transform' && (
-  <div className="transform-panel">
-    <div className="transform-header">
-      <h3>Transform G-code</h3>
-      <button className="close-btn" onClick={() => setTransformMode(null)}>×</button>
-    </div>
-    
-    <div className="transform-controls">
-      {/* Scale section */}
-      <div className="transform-section">
-        <h4>Scale</h4>
-        <div className="control-group">
-          <label>X Axis:</label>
-          <input
-            type="number"
-            name="scaleX"
-            value={transformValues.scaleX}
-            onChange={handleTransformValueChange}
-            step="0.1"
-            min="0.1"
-          />
-        </div>
-        <div className="control-group">
-          <label>Y Axis:</label>
-          <input
-            type="number"
-            name="scaleY"
-            value={transformValues.scaleY}
-            onChange={handleTransformValueChange}
-            step="0.1"
-            min="0.1"
-          />
-        </div>
-        <div className="control-group">
-          <label>Z Axis:</label>
-          <input
-            type="number"
-            name="scaleZ"
-            value={transformValues.scaleZ}
-            onChange={handleTransformValueChange}
-            step="0.1"
-            min="0.1"
-          />
-        </div>
-      </div>
-
-      {/* Move section */}
-      <div className="transform-section">
-        <h4>Move</h4>
-        <div className="control-group">
-          <label>X Offset:</label>
-          <input
-            type="number"
-            name="moveX"
-            value={transformValues.moveX}
-            onChange={handleTransformValueChange}
-            step="1"
-          />
-        </div>
-        <div className="control-group">
-          <label>Y Offset:</label>
-          <input
-            type="number"
-            name="moveY"
-            value={transformValues.moveY}
-            onChange={handleTransformValueChange}
-            step="1"
-          />
-        </div>
-        <div className="control-group">
-          <label>Z Offset:</label>
-          <input
-            type="number"
-            name="moveZ"
-            value={transformValues.moveZ}
-            onChange={handleTransformValueChange}
-            step="1"
-          />
-        </div>
-      </div>
-
-      {/* Rotate section */}
-      <div className="transform-section">
-        <h4>Rotate</h4>
-        <div className="control-group">
-          <label>Angle (degrees):</label>
-          <input
-            type="number"
-            name="rotateAngle"
-            value={transformValues.rotateAngle}
-            onChange={handleTransformValueChange}
-            step="1"
-          />
-        </div>
-      </div>
-
-      {/* Center Point */}
-      <div className="transform-section">
-        <h4>Center Point</h4>
-        <div className="control-group">
-          <label>X Center:</label>
-          <input
-            type="number"
-            name="centerX"
-            value={transformValues.centerX}
-            onChange={handleTransformValueChange}
-            step="1"
-          />
-        </div>
-        <div className="control-group">
-          <label>Y Center:</label>
-          <input
-            type="number"
-            name="centerY"
-            value={transformValues.centerY}
-            onChange={handleTransformValueChange}
-            step="1"
-          />
-        </div>
-      </div>
-      
-      {/* Action buttons */}
-      <div className="transform-actions">
-        <button
-          className="transform-btn preview-btn"
-          onClick={previewTransformation}
-        >
-          Preview
-        </button>
-        <button
-          className="transform-btn apply-btn"
-          onClick={saveWithTransformations}
-        >
-          Apply
-        </button>
-        <button
-          className="transform-btn reset-btn"
-          onClick={resetTransformations}
-        >
-          Reset
-        </button>
-      </div>
     </div>
   </div>
 )}
+
+      {/* Transformation panel - combined into one unified interface */}
+      {transformMode === 'transform' && (
+        <div className="transform-panel">
+          <div className="transform-header">
+            <h3>Transform G-code</h3>
+            <button className="close-btn" onClick={() => setTransformMode(null)}>×</button>
+          </div>
+          
+          <div className="transform-controls">
+            {/* Scale section */}
+            <div className="transform-section">
+              <h4>Scale</h4>
+              <div className="control-group">
+                <label>X Axis:</label>
+                <input
+                  type="number"
+                  name="scaleX"
+                  value={transformValues.scaleX}
+                  onChange={handleTransformValueChange}
+                  step="0.1"
+                  min="0.1"
+                />
+              </div>
+              <div className="control-group">
+                <label>Y Axis:</label>
+                <input
+                  type="number"
+                  name="scaleY"
+                  value={transformValues.scaleY}
+                  onChange={handleTransformValueChange}
+                  step="0.1"
+                  min="0.1"
+                />
+              </div>
+              <div className="control-group">
+                <label>Z Axis:</label>
+                <input
+                  type="number"
+                  name="scaleZ"
+                  value={transformValues.scaleZ}
+                  onChange={handleTransformValueChange}
+                  step="0.1"
+                  min="0.1"
+                />
+              </div>
+            </div>
+
+            {/* Move section */}
+            <div className="transform-section">
+              <h4>Move</h4>
+              <div className="control-group">
+                <label>X Offset:</label>
+                <input
+                  type="number"
+                  name="moveX"
+                  value={transformValues.moveX}
+                  onChange={handleTransformValueChange}
+                  step="1"
+                />
+              </div>
+              <div className="control-group">
+                <label>Y Offset:</label>
+                <input
+                  type="number"
+                  name="moveY"
+                  value={transformValues.moveY}
+                  onChange={handleTransformValueChange}
+                  step="1"
+                />
+              </div>
+              <div className="control-group">
+                <label>Z Offset:</label>
+                <input
+                  type="number"
+                  name="moveZ"
+                  value={transformValues.moveZ}
+                  onChange={handleTransformValueChange}
+                  step="1"
+                />
+              </div>
+            </div>
+
+            {/* Rotate section */}
+            <div className="transform-section">
+              <h4>Rotate</h4>
+              <div className="control-group">
+                <label>Angle (degrees):</label>
+                <input
+                  type="number"
+                  name="rotateAngle"
+                  value={transformValues.rotateAngle}
+                  onChange={handleTransformValueChange}
+                  step="1"
+                />
+              </div>
+            </div>
+
+            {/* Center Point */}
+            <div className="transform-section">
+              <h4>Center Point</h4>
+              <div className="control-group">
+                <label>X Center:</label>
+                <input
+                  type="number"
+                  name="centerX"
+                  value={transformValues.centerX}
+                  onChange={handleTransformValueChange}
+                  step="1"
+                />
+              </div>
+              <div className="control-group">
+                <label>Y Center:</label>
+                <input
+                  type="number"
+                  name="centerY"
+                  value={transformValues.centerY}
+                  onChange={handleTransformValueChange}
+                  step="1"
+                />
+              </div>
+            </div>
+            
+            {/* Action buttons */}
+            <div className="transform-actions">
+              <button
+                className="transform-btn preview-btn"
+                onClick={previewTransformation}
+              >
+                Preview
+              </button>
+              <button
+                className="transform-btn apply-btn"
+                onClick={saveWithTransformations}
+              >
+                Apply
+              </button>
+              <button
+                className="transform-btn reset-btn"
+                onClick={resetTransformations}
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Editor container */}
       <div className="editor-container">
