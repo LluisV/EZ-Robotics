@@ -28,7 +28,8 @@ class SerialCommunicationService {
     this.MAX_RECONNECT_ATTEMPTS = 3;
     this.isReconnecting = false;
     
-
+    // Status polling
+    this.positionPollingInterval = null;
     this.watchdogInterval = null;
     this.connectionTimeout = null;
     
@@ -54,7 +55,37 @@ class SerialCommunicationService {
     return navigator && navigator.serial;
   }
 
-
+  /**
+   * Start polling for position updates
+   * @param {number} interval - Polling interval in milliseconds
+   */
+  startPositionPolling(interval = 250) {
+    this.stopPositionPolling();
+    
+    this.positionPollingInterval = setInterval(() => {
+      if (this.isConnected) {
+        this.send('?').catch(err => {
+          console.warn('Failed to send position query:', err);
+        });
+      }
+    }, interval);
+    
+    // Start watchdog to detect connection issues
+    this.startWatchdog();
+  }
+  
+  /**
+   * Stop polling for position updates
+   */
+  stopPositionPolling() {
+    if (this.positionPollingInterval) {
+      clearInterval(this.positionPollingInterval);
+      this.positionPollingInterval = null;
+    }
+    
+    this.stopWatchdog();
+  }
+  
   /**
    * Start watchdog timer to detect connection issues
    */
@@ -206,6 +237,9 @@ class SerialCommunicationService {
         
         // Start reading from the port
         this.startReading();
+        
+        // Start position polling with a more responsive rate
+        this.startPositionPolling(250);
 
         // Notify listeners
         this.notifyListeners('connect', { port: this.port.getInfo() });
@@ -214,7 +248,7 @@ class SerialCommunicationService {
         await new Promise(resolve => setTimeout(resolve, 500));
         
         // Reset the controller for a clean state
-        //await this.send('\x18'); // Soft reset (Ctrl+X)
+        await this.send('\x18'); // Soft reset (Ctrl+X)
         
         // Wait for reset to complete
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -222,7 +256,7 @@ class SerialCommunicationService {
         // Send initial queries to FluidNC
         await this.send("$I"); // Request system information
         await this.send("$#"); // Request parameters
-        await this.send("$Report/Interval=50"); // Set status report interval to 50ms
+        await this.send("$Report/Interval=0"); // Set status report interval to 50ms
         
         resolve(true);
       } catch (error) {
@@ -257,6 +291,8 @@ class SerialCommunicationService {
       return true;
     }
     
+    // Stop polling and watchdog
+    this.stopPositionPolling();
     this.stopWatchdog();
     
     // Clear any timeouts

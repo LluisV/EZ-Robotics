@@ -190,19 +190,27 @@ const ControlPanel = () => {
       showToast('Cannot set zero: Not connected to machine');
       return;
     }
-
-    let gcode = '';
+  
+    let gcode = 'G10 L20 P0'; // Always start with G10 L20 P0
+  
     if (axes === 'all') {
-      // FluidNC uses G10 L20 P0 X0 Y0 Z0 to set work offset for the current WCS
-      gcode = 'G10 L20 P0 X0 Y0 Z0 A0';
+      // Set all common axes to zero
+      gcode += ' X0 Y0 Z0'; // Add A0 here if your machine uses an A axis
       logToConsole('command', 'Setting current position as work zero for all axes');
     } else {
-      // Set zero only for specified axes
-      const axesArray = axes.split('');
-      gcode = `G10 L20 P0 ${axesArray.map(axis => `${axis.toUpperCase()}0`).join(' ')}`;
-      logToConsole('command', `Setting current position as work zero for ${axes.toUpperCase()} axes`);
+      // Only set specified axes
+      const axesArray = axes.toUpperCase().split('');
+      const validAxes = ['X', 'Y', 'Z', 'A']; // List of valid axes
+      const filteredAxes = axesArray.filter(axis => validAxes.includes(axis));
+      if (filteredAxes.length === 0) {
+        logToConsole('error', 'No valid axes specified');
+        showToast('No valid axes specified');
+        return;
+      }
+      gcode += filteredAxes.map(axis => ` ${axis}0`).join('');
+      logToConsole('command', `Setting current position as work zero for axes: ${filteredAxes.join(', ')}`);
     }
-
+  
     // Send the command to the serial port
     serialService.send(gcode)
       .then(success => {
@@ -216,6 +224,7 @@ const ControlPanel = () => {
         logToConsole('error', `Error setting work zero: ${error.message}`);
       });
   };
+  
 
   // Function to move to work zero position in FluidNC
   const moveToWorkZero = () => {
