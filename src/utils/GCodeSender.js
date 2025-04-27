@@ -1,46 +1,37 @@
 /**
- * G-Code Sender for GRBL/FluidNC machines
+ * Simplified G-Code Sender for GRBL/FluidNC machines
  * 
- * Implements buffer-based streaming similar to UGS and other professional senders.
- * This approach keeps the controller's buffer full but not overflowed, maximizing
- * throughput while maintaining reliability.
+ * Implements a safe line-by-line approach where each line must be
+ * acknowledged before the next one is sent.
  */
 class GCodeSender {
   constructor() {
     // Core state
-    this.lines = [];                 // Array of GCode lines to send
-    this.linesSent = [];             // Array of line objects with metadata
-    this.currentLineIndex = 0;       // Current line index to send
-    this.lastAcknowledgedIndex = -1; // Last acknowledged line index
-    this.isSending = false;          // Whether we're currently sending
-    this.isPaused = false;           // Whether sending is paused
-    this.isChecking = false;         // Whether we're in check mode
+    this.lines = [];                // Array of GCode lines to send
+    this.currentLineIndex = 0;      // Current line index to send
+    this.isSending = false;         // Whether we're currently sending
+    this.isPaused = false;          // Whether sending is paused
+    this.isChecking = false;        // Whether we're in check mode
     
-    // Buffer management
-    this.bufferSize = 127;          // GRBL's default RX buffer size (most machines)
-    this.bufferUsed = 0;            // Currently used buffer space (bytes)
+    // Retry configuration
+    this.MAX_RETRIES = 3;           // Maximum number of retries per line
+    this.RETRY_DELAY = 1000;        // 1 second delay before retry
+    this.currentRetries = 0;        // Current retry count for current line
     
-    // Status tracking
-    this.statusPollInterval = null;  // Interval for status polling (fallback)
-    this.STATUS_POLL_RATE = 200;     // How often to poll for status (ms) if needed
-    this.lastStatusTime = null;      // Last time we received a status update
-    
-    // Timeout handling
+    // Response timeout
     this.responseTimeout = null;
-    this.MAX_RESPONSE_WAIT = 30000;  // 30 seconds max wait for response
-    this.RETRY_DELAY = 1000;         // 1 second delay before retry
-    this.MAX_RETRIES = 3;            // Maximum number of retries per line
+    this.MAX_RESPONSE_WAIT = 30000; // 30 seconds max wait for response
     
     // Callback functions
     this.callbacks = {
-      onProgress: null,       // Called when progress is made
-      onComplete: null,       // Called when all sending is complete
-      onError: null,          // Called when errors occur
-      onLineSuccess: null,    // Called when a line is successfully sent
-      onLineError: null,      // Called when a line fails
-      onPause: null,          // Called when sending is paused
-      onResume: null,         // Called when sending is resumed
-      onStatusUpdate: null    // Called when machine status updates
+      onProgress: null,      // Called when progress is made
+      onComplete: null,      // Called when all sending is complete
+      onError: null,         // Called when errors occur
+      onLineSuccess: null,   // Called when a line is successfully sent
+      onLineError: null,     // Called when a line fails
+      onPause: null,         // Called when sending is paused
+      onResume: null,        // Called when sending is resumed
+      onStatusUpdate: null   // Called when machine status updates
     };
     
     // Serial service reference
@@ -58,7 +49,7 @@ class GCodeSender {
    */
   log(...args) {
     if (this.debug) {
-      console.log("[GCodeSender]", ...args);
+      console.log("[SimpleGCodeSender]", ...args);
     }
   }
   
@@ -70,9 +61,6 @@ class GCodeSender {
   loadGCode(gcode) {
     // Reset state
     this.currentLineIndex = 0;
-    this.lastAcknowledgedIndex = -1;
-    this.bufferUsed = 0;
-    this.linesSent = [];
     
     // Split G-code into lines and clean them
     this.lines = gcode.split('\n')
@@ -93,18 +81,6 @@ class GCodeSender {
    */
   setCallbacks(callbacks) {
     this.callbacks = { ...this.callbacks, ...callbacks };
-  }
-  
-  /**
-   * Set GRBL buffer size (for different controller versions)
-   * @param {number} size - Buffer size in bytes
-   */
-  setBufferSize(size) {
-    // Validate buffer size (most GRBL variants use 127-byte buffer)
-    if (typeof size === 'number' && size > 0) {
-      this.bufferSize = size;
-      this.log(`Set GRBL buffer size to ${size} bytes`);
-    }
   }
   
   /**
@@ -140,11 +116,8 @@ class GCodeSender {
     this.isSending = true;
     this.isPaused = false;
     this.isChecking = checkMode;
-    this.bufferUsed = 0;
     this.currentLineIndex = 0;
-    this.lastAcknowledgedIndex = -1;
-    this.linesSent = [];
-    this.lastStatusTime = null;
+    this.currentRetries = 0;
     
     // Clear any existing timeout
     if (this.responseTimeout) {
@@ -171,16 +144,14 @@ class GCodeSender {
       await this.serialService.flush();
       this.log("Flushed controller buffer before starting transfer");
       
-      // Send a single status query to check if auto-reporting is active
-      // The controller will respond immediately, and we'll decide if polling is needed
-      // based on whether we get automatic reports afterward
+      // Send a single status query
       await this.serialService.send('?');
       
-      // Wait a moment to see if auto-reporting kicks in
+      // Wait a moment to ensure controller is ready
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      // Begin filling the buffer
-      await this.fillBuffer();
+      // Send the first line
+      await this.sendNextLine();
       
       return true;
     } catch (error) {
@@ -194,110 +165,55 @@ class GCodeSender {
   }
   
   /**
-   * Fill the buffer with as many lines as possible
-   * This is the core of the streaming algorithm used by UGS and other professional senders
+   * Send the next line of GCode
    */
-  async fillBuffer() {
+  async sendNextLine() {
     if (!this.isSending || this.isPaused) {
       return;
     }
     
-    // If we've sent all lines, don't try to send more
+    // Check if we've reached the end of the lines
     if (this.currentLineIndex >= this.lines.length) {
+      this.onSendingComplete();
       return;
     }
     
-    // Process as many lines as will fit in the buffer
-    while (this.currentLineIndex < this.lines.length && !this.isPaused) {
-      const line = this.lines[this.currentLineIndex];
-      const lineLength = this.getLineLength(line);
-      
-      // Check if this line would overflow the buffer
-      if (this.bufferUsed + lineLength > this.bufferSize) {
-        this.log(`Buffer nearly full (${this.bufferUsed}/${this.bufferSize}), waiting for acknowledgments...`);
-        break;
-      }
-      
-      try {
-        // Log what we're sending for debugging
-        this.log(`Sending line ${this.currentLineIndex+1}/${this.lines.length}: ${line}`);
-        
-        // Send the line
-        await this.serialService.send(line);
-        
-        // Track this line in our sent lines array with metadata
-        this.linesSent.push({
-          index: this.currentLineIndex,
-          content: line,
-          length: lineLength,
-          sent: true,
-          acknowledged: false,
-          timestamp: Date.now(),
-          retries: 0
-        });
-        
-        // Update buffer usage
-        this.bufferUsed += lineLength;
-        this.log(`Buffer usage: ${this.bufferUsed}/${this.bufferSize} bytes`);
-        
-        // Update line index
-        this.currentLineIndex++;
-        
-        // Notify progress
-        if (this.callbacks.onProgress) {
-          // Calculate progress percentage - sent vs. total lines
-          const progress = Math.min(
-            ((this.currentLineIndex) / this.lines.length) * 100,
-            100
-          );
-          
-          this.callbacks.onProgress({
-            sent: this.currentLineIndex,
-            acknowledged: this.lastAcknowledgedIndex + 1,
-            total: this.lines.length,
-            progress: progress,
-            bufferUsed: this.bufferUsed,
-            bufferSize: this.bufferSize
-          });
-        }
-        
-        if (this.callbacks.onLineSuccess) {
-          this.callbacks.onLineSuccess(this.currentLineIndex - 1, line);
-        }
-      } catch (error) {
-        console.error(`Error sending line: ${error.message}`);
-        
-        if (this.callbacks.onError) {
-          this.callbacks.onError(`Error sending line: ${error.message}`);
-        }
-        
-        // Pause on error
-        this.pause("Send error: " + error.message);
-        break;
-      }
-    }
+    const line = this.lines[this.currentLineIndex];
     
-    // If we've sent the last line and all lines are acknowledged, we're done
-    if (this.currentLineIndex >= this.lines.length && 
-        this.lastAcknowledgedIndex >= this.lines.length - 1) {
-      this.onSendingComplete();
-    }
-    // If we're blocking on buffer but have unacknowledged lines, set a timeout
-    else if (this.linesSent.length > 0 && 
-             !this.linesSent.every(line => line.acknowledged)) {
+    try {
+      // Log what we're sending for debugging
+      this.log(`Sending line ${this.currentLineIndex+1}/${this.lines.length}: ${line}`);
+      
+      // Send the line
+      await this.serialService.send(line);
+      
+      // Set a timeout for response
       this.setResponseTimeout();
+      
+      // Notify line sending
+      if (this.callbacks.onProgress) {
+        const progress = Math.min(
+          (this.currentLineIndex / this.lines.length) * 100,
+          100
+        );
+        
+        this.callbacks.onProgress({
+          sent: this.currentLineIndex,
+          acknowledged: this.currentLineIndex,
+          total: this.lines.length,
+          progress: progress
+        });
+      }
+    } catch (error) {
+      console.error(`Error sending line: ${error.message}`);
+      
+      if (this.callbacks.onError) {
+        this.callbacks.onError(`Error sending line: ${error.message}`);
+      }
+      
+      // Pause on error
+      this.pause("Send error: " + error.message);
     }
-  }
-  
-  /**
-   * Calculate the line length in bytes, considering GRBL's line counting
-   * @param {string} line - The G-code line
-   * @returns {number} - Length in bytes
-   */
-  getLineLength(line) {
-    // GRBL counts the length of the line including the terminating newline
-    // We add 1 to account for the newline character
-    return new TextEncoder().encode(line + '\n').length;
   }
   
   /**
@@ -316,28 +232,19 @@ class GCodeSender {
   }
   
   /**
-   * Handle timeout when not enough responses are received
+   * Handle timeout when response is not received
    */
   handleTimeout() {
-    // Check if we're still in a sending state
     if (!this.isSending) {
       return;
     }
     
-    // Find the earliest unacknowledged line
-    const unacknowledgedLine = this.linesSent.find(line => !line.acknowledged);
-    
-    if (!unacknowledgedLine) {
-      this.log("Timeout but no unacknowledged lines found");
-      return;
-    }
-    
-    const timeElapsed = Date.now() - unacknowledgedLine.timestamp;
-    this.log(`Command timeout - no response for line ${unacknowledgedLine.index + 1} after ${timeElapsed/1000} seconds`);
+    this.log(`Command timeout - no response for line ${this.currentLineIndex + 1}`);
     
     // If we've reached the maximum retries, report error and pause
-    if (unacknowledgedLine.retries >= this.MAX_RETRIES) {
-      const errorMessage = `Maximum retries (${this.MAX_RETRIES}) reached for line ${unacknowledgedLine.index + 1}: ${unacknowledgedLine.content}`;
+    if (this.currentRetries >= this.MAX_RETRIES) {
+      const line = this.lines[this.currentLineIndex];
+      const errorMessage = `Maximum retries (${this.MAX_RETRIES}) reached for line ${this.currentLineIndex + 1}: ${line}`;
       console.error(errorMessage);
       
       if (this.callbacks.onError) {
@@ -345,82 +252,25 @@ class GCodeSender {
       }
       
       if (this.callbacks.onLineError) {
-        this.callbacks.onLineError(unacknowledgedLine.index, unacknowledgedLine.content, "Maximum retries reached");
+        this.callbacks.onLineError(this.currentLineIndex, line, "Maximum retries reached");
       }
       
       this.pause("Response timeout after maximum retries");
       return;
     }
     
-    // Try sending a status query to check if the controller is responsive
-    this.log(`Attempting recovery for line ${unacknowledgedLine.index + 1}, retry ${unacknowledgedLine.retries + 1}/${this.MAX_RETRIES}`);
-    
-    this.serialService.send('?').catch(() => {
-      this.log("Status query failed during recovery");
-    });
-    
     // Increment retry count
-    unacknowledgedLine.retries++;
+    this.currentRetries++;
     
-    // Set a new timeout with a longer delay for the retry
-    this.responseTimeout = setTimeout(() => {
-      // If still not acknowledged, try more aggressive recovery
-      if (!unacknowledgedLine.acknowledged) {
-        this.attemptRecovery();
+    // Try sending a status query to check if the controller is responsive
+    this.log(`Attempting retry ${this.currentRetries}/${this.MAX_RETRIES} for line ${this.currentLineIndex + 1}`);
+    
+    // Try to send the line again after a delay
+    setTimeout(() => {
+      if (this.isSending && !this.isPaused) {
+        this.sendNextLine(); // Resend the current line
       }
     }, this.RETRY_DELAY);
-  }
-  
-  /**
-   * Attempt to recover from a stalled state
-   */
-  async attemptRecovery() {
-    this.log("Attempting connection recovery");
-    
-    try {
-      // First try a soft reset
-      this.log("Sending soft reset (Ctrl+X)");
-      await this.serialService.send('\x18');
-      
-      // Wait a moment for reset to complete
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Check if we're still connected
-      if (!this.serialService.getConnectionStatus()) {
-        this.log("Lost connection during recovery");
-        this.pause("Connection lost");
-        return;
-      }
-      
-      // Reset our state
-      this.log("Resetting sender state after recovery");
-      this.bufferUsed = 0;
-      
-      // Mark all sent but unacknowledged lines as not sent
-      this.linesSent.forEach(line => {
-        if (!line.acknowledged) {
-          line.sent = false;
-        }
-      });
-      
-      // Reset current line index to the earliest unacknowledged line
-      const earliestUnacked = this.linesSent.findIndex(line => !line.acknowledged);
-      if (earliestUnacked >= 0) {
-        this.currentLineIndex = this.linesSent[earliestUnacked].index;
-      }
-      
-      this.log(`Resuming from line ${this.currentLineIndex + 1}`);
-      
-      // Resume sending
-      if (this.isPaused) {
-        this.resume();
-      } else {
-        this.fillBuffer();
-      }
-    } catch (error) {
-      console.error("Recovery failed:", error);
-      this.pause("Recovery failed: " + error.message);
-    }
   }
   
   /**
@@ -449,87 +299,78 @@ class GCodeSender {
     
     this.log("Received response:", response);
     
-    // Reset the response timeout since we got a response
+    // Clear the response timeout since we got a response
     if (this.responseTimeout) {
       clearTimeout(this.responseTimeout);
       this.responseTimeout = null;
     }
     
     if (response === 'ok') {
-      // Line was processed successfully - acknowledge the oldest unacknowledged line
-      const lineToAck = this.linesSent.find(line => !line.acknowledged);
+      // Line was processed successfully
+      this.log(`Line ${this.currentLineIndex + 1} acknowledged with 'ok'`);
       
-      if (lineToAck) {
-        this.log(`Line ${lineToAck.index + 1} acknowledged with 'ok'`);
+      // Reset retry counter for next line
+      this.currentRetries = 0;
+      
+      // Notify line success
+      if (this.callbacks.onLineSuccess) {
+        this.callbacks.onLineSuccess(this.currentLineIndex, this.lines[this.currentLineIndex]);
+      }
+      
+      // Move to next line
+      this.currentLineIndex++;
+      
+      // Update progress
+      if (this.callbacks.onProgress) {
+        const progress = Math.min(
+          (this.currentLineIndex / this.lines.length) * 100,
+          100
+        );
         
-        // Mark as acknowledged
-        lineToAck.acknowledged = true;
-        
-        // Update last acknowledged index
-        this.lastAcknowledgedIndex = lineToAck.index;
-        
-        // Free up buffer space
-        this.bufferUsed -= lineToAck.length;
-        this.log(`Buffer usage after ack: ${this.bufferUsed}/${this.bufferSize} bytes`);
-        
-        // Update progress
-        if (this.callbacks.onProgress) {
-          // Calculate progress - acknowledged vs. total lines
-          const progress = Math.min(
-            ((this.lastAcknowledgedIndex + 1) / this.lines.length) * 100,
-            100
-          );
-          
-          this.callbacks.onProgress({
-            sent: this.currentLineIndex,
-            acknowledged: this.lastAcknowledgedIndex + 1,
-            total: this.lines.length,
-            progress: progress,
-            bufferUsed: this.bufferUsed,
-            bufferSize: this.bufferSize
-          });
-        }
-        
-        // Continue filling the buffer if not paused
-        if (!this.isPaused) {
-          this.fillBuffer();
-        }
-      } else {
-        this.log("Received 'ok' but no unacknowledged line found");
+        this.callbacks.onProgress({
+          sent: this.currentLineIndex,
+          acknowledged: this.currentLineIndex,
+          total: this.lines.length,
+          progress: progress
+        });
+      }
+      
+      // Check if we're done
+      if (this.currentLineIndex >= this.lines.length) {
+        this.onSendingComplete();
+      } 
+      // Send next line if not paused
+      else if (!this.isPaused) {
+        this.sendNextLine();
       }
     } 
     else if (response.startsWith('error:')) {
-      // Error occurred - identify the line that caused it
-      const lineWithError = this.linesSent.find(line => !line.acknowledged);
+      const errorMessage = `Error: ${response.substring(6)} at line ${this.currentLineIndex + 1}: ${this.lines[this.currentLineIndex]}`;
+      console.error(errorMessage);
       
-      if (lineWithError) {
-        const errorMessage = `Error: ${response.substring(6)} at line ${lineWithError.index + 1}: ${lineWithError.content}`;
-        console.error(errorMessage);
+      // Notify callbacks
+      if (this.callbacks.onError) {
+        this.callbacks.onError(errorMessage);
+      }
+      
+      if (this.callbacks.onLineError) {
+        this.callbacks.onLineError(this.currentLineIndex, this.lines[this.currentLineIndex], response.substring(6));
+      }
+      
+      // If we haven't reached max retries, retry the line
+      if (this.currentRetries < this.MAX_RETRIES) {
+        this.currentRetries++;
+        this.log(`Retrying line ${this.currentLineIndex + 1}, attempt ${this.currentRetries}/${this.MAX_RETRIES}`);
         
-        // Notify callbacks
-        if (this.callbacks.onError) {
-          this.callbacks.onError(errorMessage);
-        }
-        
-        if (this.callbacks.onLineError) {
-          this.callbacks.onLineError(lineWithError.index, lineWithError.content, response.substring(6));
-        }
-        
-        // Mark the line as acknowledged (error is still an acknowledgment)
-        lineWithError.acknowledged = true;
-        
-        // Update last acknowledged index
-        this.lastAcknowledgedIndex = lineWithError.index;
-        
-        // Free up buffer space
-        this.bufferUsed -= lineWithError.length;
-        
-        // Continue sending if not paused
-        if (!this.isPaused) {
-          this.fillBuffer();
-        }
+        // Retry after a delay
+        setTimeout(() => {
+          if (this.isSending && !this.isPaused) {
+            this.sendNextLine(); // Resend the current line
+          }
+        }, this.RETRY_DELAY);
       } else {
-        this.log("Received error but no unacknowledged line found");
+        // Max retries reached, pause sending
+        this.pause(`Maximum retries reached on error: ${response}`);
       }
     }
     else if (response.startsWith('ALARM:')) {
@@ -543,29 +384,6 @@ class GCodeSender {
       
       this.pause("Alarm triggered");
     }
-    else {
-      // Unrecognized response - could be startup message or other info
-      this.log(`Received unrecognized response: ${response}`);
-      
-      // We don't acknowledge any line for unrecognized responses,
-      // but we may need to continue filling the buffer
-      if (!this.isPaused) {
-        this.fillBuffer();
-      }
-    }
-    
-    // Check if we need to set a new timeout
-    if (this.isSending && 
-        !this.isPaused && 
-        this.linesSent.some(line => !line.acknowledged)) {
-      this.setResponseTimeout();
-    }
-    
-    // Check if we're done
-    if (this.currentLineIndex >= this.lines.length && 
-        (this.lastAcknowledgedIndex >= this.lines.length - 1 || this.linesSent.every(line => line.acknowledged))) {
-      this.onSendingComplete();
-    }
   }
   
   /**
@@ -575,9 +393,6 @@ class GCodeSender {
   handleStatusResponse(status) {
     // Parse status response (e.g., "<Idle|MPos:0.000,0.000,0.000|FS:0,0|WCO:0.000,0.000,0.000>")
     try {
-      // Record that we received an automatic status update
-      this.lastStatusTime = Date.now();
-      
       // Extract state
       const stateMatch = status.match(/<([^|>]+)/);
       const state = stateMatch ? stateMatch[1] : "Unknown";
@@ -614,48 +429,6 @@ class GCodeSender {
   }
   
   /**
-   * Start polling for status (if needed)
-   * Note: With FluidNC's automatic reporting (every 50ms), this is usually not necessary
-   */
-  startStatusPolling() {
-    // With FluidNC's automatic reporting, we typically don't need to poll
-    // This method is kept for compatibility with controllers that don't auto-report
-    
-    // Check if we've received an automatic status report recently
-    const now = Date.now();
-    if (this.lastStatusTime && now - this.lastStatusTime < 500) {
-      // We're already getting automatic reports, no need to poll
-      this.log("Automatic status reporting detected, skipping polling");
-      return;
-    }
-    
-    // Only start polling if automatic reporting isn't detected
-    this.stopStatusPolling();
-    this.statusPollInterval = setInterval(() => {
-      if (!this.isSending) {
-        this.stopStatusPolling();
-        return;
-      }
-      
-      try {
-        this.serialService.send('?').catch(() => {});
-      } catch (error) {
-        this.log("Error sending status query:", error);
-      }
-    }, this.STATUS_POLL_RATE);
-  }
-  
-  /**
-   * Stop polling for status
-   */
-  stopStatusPolling() {
-    if (this.statusPollInterval) {
-      clearInterval(this.statusPollInterval);
-      this.statusPollInterval = null;
-    }
-  }
-  
-  /**
    * Called when all sending is complete
    */
   onSendingComplete() {
@@ -676,7 +449,6 @@ class GCodeSender {
     
     // Clean up
     document.removeEventListener('serialdata', this.responseHandler);
-    this.stopStatusPolling();
     
     // Cancel any timeout
     if (this.responseTimeout) {
@@ -686,8 +458,7 @@ class GCodeSender {
     
     if (this.callbacks.onComplete) {
       this.callbacks.onComplete({
-        sent: this.lines.length,
-        acknowledged: this.lastAcknowledgedIndex + 1,
+        sent: this.currentLineIndex,
         total: this.lines.length
       });
     }
@@ -746,8 +517,8 @@ class GCodeSender {
     
     this.log("Sending resumed");
     
-    // Continue processing the queue
-    this.fillBuffer();
+    // Continue processing
+    this.sendNextLine();
     
     return true;
   }
@@ -765,7 +536,6 @@ class GCodeSender {
     
     // Clean up
     document.removeEventListener('serialdata', this.responseHandler);
-    this.stopStatusPolling();
     
     // Cancel any timeout
     if (this.responseTimeout) {
@@ -788,9 +558,6 @@ class GCodeSender {
       this.log("Error during stop sequence:", error);
     }
     
-    // Reset any status tracking
-    this.lastStatusTime = null;
-    
     return true;
   }
   
@@ -803,30 +570,23 @@ class GCodeSender {
     let progress = 0;
     if (this.lines.length > 0) {
       progress = Math.min(
-        ((this.lastAcknowledgedIndex + 1) / this.lines.length) * 100,
+        (this.currentLineIndex / this.lines.length) * 100,
         100
       );
     }
-    
-    // Calculate buffer usage percentage
-    const bufferUsagePercent = this.bufferSize > 0 ? 
-      (this.bufferUsed / this.bufferSize) * 100 : 0;
     
     return {
       isSending: this.isSending,
       isPaused: this.isPaused,
       isChecking: this.isChecking,
-      linesSent: this.currentLineIndex,
-      linesAcknowledged: this.lastAcknowledgedIndex + 1,
-      totalLines: this.lines.length,
-      progress: progress,
-      bufferUsed: this.bufferUsed,
-      bufferSize: this.bufferSize,
-      bufferUsagePercent: bufferUsagePercent,
       currentLine: this.currentLineIndex < this.lines.length ? 
         this.lines[this.currentLineIndex] : null,
-      remainingLines: this.lines.length - (this.lastAcknowledgedIndex + 1),
-      unacknowledgedLines: this.linesSent.filter(line => !line.acknowledged).length
+      currentLineIndex: this.currentLineIndex,
+      totalLines: this.lines.length,
+      progress: progress,
+      remainingLines: this.lines.length - this.currentLineIndex,
+      retryCount: this.currentRetries,
+      maxRetries: this.MAX_RETRIES
     };
   }
 }

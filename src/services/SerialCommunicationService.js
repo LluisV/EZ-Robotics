@@ -214,7 +214,7 @@ class SerialCommunicationService {
         await new Promise(resolve => setTimeout(resolve, 500));
         
         // Reset the controller for a clean state
-        await this.send('\x18'); // Soft reset (Ctrl+X)
+        //await this.send('\x18'); // Soft reset (Ctrl+X)
         
         // Wait for reset to complete
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -222,6 +222,7 @@ class SerialCommunicationService {
         // Send initial queries to FluidNC
         await this.send("$I"); // Request system information
         await this.send("$#"); // Request parameters
+        await this.send("$Report/Interval=50"); // Set status report interval to 50ms
         
         resolve(true);
       } catch (error) {

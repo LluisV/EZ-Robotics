@@ -650,10 +650,6 @@ const CodeEditorPanel = () => {
       setIsPaused(false);
       setLastProgress(0); // Reset last logged progress
       
-      // Set buffer size based on controller type - can be configured in settings
-      // Default is 127 bytes which works for most GRBL controllers
-      gcodeSender.setBufferSize(127);
-      
       // Load the G-code
       const totalLines = gcodeSender.loadGCode(gCodeToSend);
       const totalBytes = new Blob([gCodeToSend]).size;
@@ -661,15 +657,15 @@ const CodeEditorPanel = () => {
       // Log to console panel that we're starting transfer
       logToConsole('system', `Starting transfer: ${fileName} (${totalBytes} bytes, ${totalLines} lines)`);
       
-      // Set up the callbacks with comprehensive status reporting
+      // Set up the callbacks for simplified sender
       gcodeSender.setCallbacks({
         onProgress: (data) => {
           // Update progress UI
           setTransferProgress(data.progress);
           
-          // Format progress message with detailed information
+          // Format progress message with line information
           setStatusMessage(
-            `Transferring: ${data.progress.toFixed(1)}% (${data.acknowledged}/${data.total} lines) | Buffer: ${data.bufferUsed}/${data.bufferSize} bytes`
+            `Transferring: ${data.progress.toFixed(1)}% (${data.acknowledged}/${data.total} lines)`
           );
           
           // Log progress occasionally (every 5%)
@@ -712,10 +708,8 @@ const CodeEditorPanel = () => {
         },
         
         onLineSuccess: (lineIndex, lineContent) => {
-          // Occasionally log successful lines if needed
-          if (lineIndex % 100 === 0) {
-            logToConsole('debug', `Sent line ${lineIndex+1}: ${lineContent}`);
-          }
+          // Log each successful line (more detailed logging for line-by-line mode)
+          logToConsole('debug', `Sent line ${lineIndex+1}: ${lineContent}`);
         },
         
         onLineError: (lineIndex, lineContent, errorMessage) => {
@@ -724,6 +718,10 @@ const CodeEditorPanel = () => {
           
           // Highlight the line with error
           setSelectedLine(lineIndex + 1);
+          
+          // Add retry information to status
+          const status = gcodeSender.getStatus();
+          setStatusMessage(`Error at line ${lineIndex+1} - Retry ${status.retryCount}/${status.maxRetries}`);
         },
         
         onPause: (reason) => {
@@ -743,7 +741,6 @@ const CodeEditorPanel = () => {
           const statusText = `Machine state: ${status.state} | Position: X${status.position[0].toFixed(3)} Y${status.position[1].toFixed(3)} Z${status.position[2].toFixed(3)} | Feed rate: ${status.feedRate}`;
           
           // Update status display in UI
-          // This could update a separate status component
           document.dispatchEvent(new CustomEvent('machineStatus', { 
             detail: status 
           }));
@@ -751,14 +748,13 @@ const CodeEditorPanel = () => {
       });
       
       // Start the transfer - the 'false' parameter means not to use check mode
-      // Could add a checkbox option for check mode in the UI
       const success = await gcodeSender.start(window.serialService, false);
       
       if (!success) {
         throw new Error("Failed to start G-code transfer");
       }
       
-      // The transfer is now running asynchronously with buffer management
+      // The transfer is now running asynchronously line-by-line
       
     } catch (error) {
       const errorMsg = `Error sending G-code to machine: ${error.message}`;
@@ -863,31 +859,6 @@ const CodeEditorPanel = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
   };
 
-  // Handler for file transfer progress events
-  const handleFileTransferProgress = (data) => {
-    switch (data.status) {
-      case 'started':
-        setStatusMessage(`Starting transfer of ${data.fileName}...`);
-        setTransferProgress(0);
-        break;
-
-      case 'progress':
-        setStatusMessage(`Transferring: ${data.progress}% (${formatBytes(data.bytesTransferred)} / ${formatBytes(data.bytesTotal)})`);
-        setTransferProgress(data.progress);
-        break;
-
-      case 'completed':
-        setStatusMessage(`Transfer completed: ${data.fileName}`);
-        setTransferProgress(100);
-        break;
-
-      case 'error':
-      case 'cancelled':
-        setTransferError(data.error || data.reason || 'Unknown error');
-        setStatusMessage(`Transfer failed: ${data.error || data.reason || 'Unknown error'}`);
-        break;
-    }
-  };
 
   // Preview transformation - shows what the transformed G-code would look like
   const previewTransformation = () => {
