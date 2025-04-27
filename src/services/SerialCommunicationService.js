@@ -1,22 +1,45 @@
+/**
+ * Enhanced Serial Communication Service for FluidNC/GRBL machines
+ * This implementation prioritizes reliability and proper line handling
+ */
 class SerialCommunicationService {
   constructor() {
+    // Serial port references
     this.port = null;
     this.reader = null;
-    this.writer = null;
     this.readingTask = null;
+    
+    // Status tracking
     this.isConnected = false;
     this.baudRate = 115200;
+    this.buffer = '';
+    this.lastReceivedTime = 0;
+    
+    // Text encoding/decoding
     this.encoder = new TextEncoder();
     this.decoder = new TextDecoder();
-    this.listeners = [];
-    this.connectionPromise = null;
-    this.buffer = '';
     
-    // Fixed-length queue for commands
+    // Event listeners
+    this.listeners = [];
+    
+    // Connection management
+    this.connectionPromise = null;
+    this.reconnectAttempts = 0;
+    this.MAX_RECONNECT_ATTEMPTS = 3;
+    this.isReconnecting = false;
+    
+    // Status polling
+    this.positionPollingInterval = null;
+    this.watchdogInterval = null;
+    this.connectionTimeout = null;
+    
+    // Command queue for proper sequencing
     this.commandQueue = [];
     this.processingCommand = false;
+    this.lastCommandTime = 0;
+    this.MIN_COMMAND_INTERVAL = 50; // ms between commands for reliable transmission
     
-    // Bind methods
+    // Bind methods to maintain context
     this.connect = this.connect.bind(this);
     this.disconnect = this.disconnect.bind(this);
     this.send = this.send.bind(this);
@@ -36,10 +59,8 @@ class SerialCommunicationService {
    * Start polling for position updates
    * @param {number} interval - Polling interval in milliseconds
    */
-  startPositionPolling(interval = 1000) {
-    if (this.positionPollingInterval) {
-      clearInterval(this.positionPollingInterval);
-    }
+  startPositionPolling(interval = 250) {
+    this.stopPositionPolling();
     
     this.positionPollingInterval = setInterval(() => {
       if (this.isConnected) {
@@ -48,6 +69,9 @@ class SerialCommunicationService {
         });
       }
     }, interval);
+    
+    // Start watchdog to detect connection issues
+    this.startWatchdog();
   }
   
   /**
@@ -57,6 +81,111 @@ class SerialCommunicationService {
     if (this.positionPollingInterval) {
       clearInterval(this.positionPollingInterval);
       this.positionPollingInterval = null;
+    }
+    
+    this.stopWatchdog();
+  }
+  
+  /**
+   * Start watchdog timer to detect connection issues
+   */
+  startWatchdog() {
+    this.stopWatchdog();
+    
+    this.watchdogInterval = setInterval(() => {
+      if (!this.isConnected) return;
+      
+      const now = Date.now();
+      // If we haven't received data in 3 seconds while connected, attempt recovery
+      if (this.lastReceivedTime > 0 && now - this.lastReceivedTime > 3000) {
+        console.warn("Connection watchdog triggered - no data received for 3 seconds");
+        this.attemptRecovery();
+      }
+    }, 1000);
+  }
+  
+  /**
+   * Stop watchdog timer
+   */
+  stopWatchdog() {
+    if (this.watchdogInterval) {
+      clearInterval(this.watchdogInterval);
+      this.watchdogInterval = null;
+    }
+  }
+  
+  /**
+   * Attempt to recover from a stalled connection
+   */
+  async attemptRecovery() {
+    if (this.isReconnecting) return;
+    
+    console.log("Attempting connection recovery...");
+    this.isReconnecting = true;
+    
+    try {
+      // First try sending a status query to see if connection is still alive
+      await this.send('?');
+      
+      // Set a timeout to check if we get a response
+      this.connectionTimeout = setTimeout(async () => {
+        console.warn("No response to recovery attempt, trying soft reset");
+        try {
+          // Try a soft reset
+          await this.send('\x18');
+          
+          // Set another timeout to check if reset helped
+          this.connectionTimeout = setTimeout(async () => {
+            console.error("Recovery failed, attempting reconnection");
+            
+            // Last resort - disconnect and reconnect
+            if (this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
+              this.reconnectAttempts++;
+              
+              const portInfo = this.port ? this.port.getInfo() : null;
+              await this.disconnect();
+              
+              // Wait a moment before reconnecting
+              setTimeout(async () => {
+                if (portInfo) {
+                  try {
+                    // Try to reconnect to the same port
+                    this.port = await navigator.serial.getPorts()
+                      .then(ports => ports.find(p => 
+                        p.getInfo().usbProductId === portInfo.usbProductId &&
+                        p.getInfo().usbVendorId === portInfo.usbVendorId
+                      ));
+                      
+                    if (this.port) {
+                      await this.connect(this.baudRate);
+                    }
+                  } catch (e) {
+                    console.error("Automatic reconnection failed:", e);
+                    this.notifyListeners('error', { 
+                      error: e, 
+                      message: "Automatic reconnection failed" 
+                    });
+                  }
+                }
+                
+                this.isReconnecting = false;
+              }, 1000);
+            } else {
+              console.error("Maximum reconnection attempts reached");
+              this.notifyListeners('error', { 
+                message: "Maximum reconnection attempts reached. Please reconnect manually." 
+              });
+              this.isReconnecting = false;
+            }
+          }, 2000);
+        } catch (e) {
+          console.error("Recovery attempt failed:", e);
+          this.isReconnecting = false;
+        }
+      }, 1000);
+    } catch (e) {
+      console.error("Initial recovery attempt failed:", e);
+      this.isReconnecting = false;
     }
   }
 
@@ -83,31 +212,49 @@ class SerialCommunicationService {
           await this.disconnect();
         }
         
-        // Request a port from the user
-        this.port = await navigator.serial.requestPort();
+        // Reset reconnect counter
+        this.reconnectAttempts = 0;
+        
+        // Request a port from the user if we don't have one
+        if (!this.port) {
+          this.port = await navigator.serial.requestPort();
+        }
+        
         this.baudRate = baudRate;
         
-        // Open the port
+        // Open the port with explicit settings for better compatibility
         await this.port.open({
           baudRate: parseInt(baudRate, 10),
           dataBits: 8,
           stopBits: 1,
           parity: "none",
-          flowControl: "none"
+          flowControl: "none",
+          bufferSize: 4096  // Larger buffer for reliability
         });
         
         this.isConnected = true;
+        this.lastReceivedTime = Date.now();
         
         // Start reading from the port
         this.startReading();
-                
-        // Start position polling
-        this.startPositionPolling(100);
+        
+        // Start position polling with a more responsive rate
+        this.startPositionPolling(250);
 
         // Notify listeners
         this.notifyListeners('connect', { port: this.port.getInfo() });
        
-        // Send initial query to FluidNC
+        // Wait for controller to initialize
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Reset the controller for a clean state
+        await this.send('\x18'); // Soft reset (Ctrl+X)
+        
+        // Wait for reset to complete
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Send initial queries to FluidNC
+        await this.send("$I"); // Request system information
         await this.send("$#"); // Request parameters
         
         resolve(true);
@@ -115,6 +262,16 @@ class SerialCommunicationService {
         console.error("Serial connection error:", error);
         this.notifyListeners('error', { error });
         this.isConnected = false;
+        
+        // Make sure port is properly closed
+        if (this.port) {
+          try {
+            await this.port.close();
+          } catch (e) {
+            console.warn("Error closing port after failed connection:", e);
+          }
+        }
+        
         resolve(false);
       } finally {
         this.connectionPromise = null;
@@ -131,6 +288,16 @@ class SerialCommunicationService {
   async disconnect() {
     if (!this.port || !this.isConnected) {
       return true;
+    }
+    
+    // Stop polling and watchdog
+    this.stopPositionPolling();
+    this.stopWatchdog();
+    
+    // Clear any timeouts
+    if (this.connectionTimeout) {
+      clearTimeout(this.connectionTimeout);
+      this.connectionTimeout = null;
     }
     
     try {
@@ -154,12 +321,8 @@ class SerialCommunicationService {
       await this.port.close();
       
       this.isConnected = false;
-      this.port = null;
-      this.readingTask = null;
       this.commandQueue = [];
       this.processingCommand = false;
-
-      this.stopPositionPolling();
       
       // Notify listeners
       this.notifyListeners('disconnect', {});
@@ -181,7 +344,7 @@ class SerialCommunicationService {
   }
 
   /**
-   * Send data to the serial port
+   * Send data to the serial port with improved reliability
    * @param {string} data - The string data to send
    * @returns {Promise<boolean>} Success status
    */
@@ -190,8 +353,8 @@ class SerialCommunicationService {
       return false;
     }
     
-    // Add newline if not already present
-    if (!data.endsWith('\n')) {
+    // Add newline if not already present and not a soft reset
+    if (data !== '\x18' && !data.endsWith('\n')) {
       data += '\n';
     }
     
@@ -200,6 +363,7 @@ class SerialCommunicationService {
       this.commandQueue.push({
         data,
         resolve,
+        timestamp: Date.now()
       });
       
       // Start processing if not already processing
@@ -210,7 +374,7 @@ class SerialCommunicationService {
   }
   
   /**
-   * Process the command queue
+   * Process the command queue with improved timing for reliability
    */
   async processQueue() {
     if (this.commandQueue.length === 0) {
@@ -219,6 +383,18 @@ class SerialCommunicationService {
     }
     
     this.processingCommand = true;
+    
+    // Check if we need to wait to maintain minimum command interval
+    const now = Date.now();
+    const timeSinceLastCommand = now - this.lastCommandTime;
+    
+    if (timeSinceLastCommand < this.MIN_COMMAND_INTERVAL) {
+      // Wait until minimum interval has passed
+      await new Promise(resolve => 
+        setTimeout(resolve, this.MIN_COMMAND_INTERVAL - timeSinceLastCommand)
+      );
+    }
+    
     const command = this.commandQueue.shift();
     
     try {
@@ -228,10 +404,20 @@ class SerialCommunicationService {
         return;
       }
       
+      // Get writer and ensure it's released after
       const writer = this.port.writable.getWriter();
       
       try {
-        await writer.write(this.encoder.encode(command.data));
+        // Convert to bytes
+        const dataToSend = command.data === '\x18' ? 
+          new Uint8Array([24]) : // Ctrl+X (ASCII 24)
+          this.encoder.encode(command.data);
+        
+        // Write with explicit flush
+        await writer.write(dataToSend);
+        
+        // Update last command time
+        this.lastCommandTime = Date.now();
         
         // Notify command sent
         this.notifyListeners('send', { data: command.data });
@@ -242,11 +428,11 @@ class SerialCommunicationService {
         writer.releaseLock();
       }
       
-      // Process next command after a small delay
-      // This delay helps with timing issues on some controllers
+      // Process next command after a controlled interval
+      // This helps maintain reliable timing with FluidNC/GRBL
       setTimeout(() => {
         this.processQueue();
-      }, 50);
+      }, this.MIN_COMMAND_INTERVAL);
       
     } catch (error) {
       console.error("Error sending data:", error);
@@ -262,7 +448,7 @@ class SerialCommunicationService {
   }
 
   /**
-   * Start reading data from the port
+   * Start reading data from the port with improved error handling
    */
   startReading() {
     if (!this.port || !this.isConnected) {
@@ -287,6 +473,9 @@ class SerialCommunicationService {
             break;
           }
           
+          // Update last received time for watchdog
+          this.lastReceivedTime = Date.now();
+          
           // Decode the received data
           const text = this.decoder.decode(value);
           this.buffer += text;
@@ -298,14 +487,15 @@ class SerialCommunicationService {
           
           // Process each complete line
           for (const line of lines) {
-            if (line.trim()) {
+            const trimmedLine = line.trim();
+            if (trimmedLine) {
               // Determine if this is a status/telemetry message
-              const isStatusMessage = line.trim().startsWith('<') && line.includes('|MPos:');
+              const isStatusMessage = trimmedLine.startsWith('<') && trimmedLine.includes('|MPos:');
               
               // Notify listeners with type information
               this.notifyListeners('data', { 
-                data: line.trim(),
-                isStatusMessage  // Add this flag
+                data: trimmedLine,
+                isStatusMessage
               });
             }
           }
@@ -371,6 +561,22 @@ class SerialCommunicationService {
         console.error("Error in serial event listener:", error);
       }
     }
+    
+    // Also dispatch standard events for compatibility
+    document.dispatchEvent(new CustomEvent('serialdata', { 
+      detail: event === 'data' ? data : null 
+    }));
+    
+    document.dispatchEvent(new CustomEvent('serialconnection', { 
+      detail: event === 'connect' ? { connected: true, port: data.port } : 
+              event === 'disconnect' ? { connected: false } : null 
+    }));
+    
+    if (event === 'error') {
+      document.dispatchEvent(new CustomEvent('serialerror', { 
+        detail: data 
+      }));
+    }
   }
 
   /**
@@ -390,7 +596,7 @@ class SerialCommunicationService {
   }
   
   /**
-   * Flush any pending commands
+   * Flush any pending commands and reset the controller
    * @returns {Promise<boolean>} Success status
    */
   async flush() {
@@ -402,12 +608,97 @@ class SerialCommunicationService {
     }
     
     try {
+      // Pause briefly to ensure any in-progress commands complete
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       // Send a soft reset to clear the device buffer
       // CTRL+X (ASCII 24)
       await this.send('\x18');
+      
+      // Wait for reset to complete
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       return true;
     } catch (error) {
       console.error("Error flushing output:", error);
+      return false;
+    }
+  }
+  
+  /**
+   * Send a query to check machine status
+   * @returns {Promise<boolean>} Success status
+   */
+  async queryStatus() {
+    if (!this.isConnected) {
+      return false;
+    }
+    
+    try {
+      return await this.send('?');
+    } catch (error) {
+      console.error("Error querying status:", error);
+      return false;
+    }
+  }
+  
+  /**
+   * Send a command to unlock the machine
+   * @returns {Promise<boolean>} Success status
+   */
+  async unlockMachine() {
+    if (!this.isConnected) {
+      return false;
+    }
+    
+    try {
+      return await this.send('$X');
+    } catch (error) {
+      console.error("Error unlocking machine:", error);
+      return false;
+    }
+  }
+  
+  /**
+   * Send a feed hold command (pause)
+   * @returns {Promise<boolean>} Success status
+   */
+  async feedHold() {
+    if (!this.isConnected) {
+      return false;
+    }
+    
+    try {
+      // Send '!' character (feed hold)
+      const writer = this.port.writable.getWriter();
+      await writer.write(new Uint8Array([33]));
+      writer.releaseLock();
+      
+      return true;
+    } catch (error) {
+      console.error("Error sending feed hold:", error);
+      return false;
+    }
+  }
+  
+  /**
+   * Send a resume command
+   * @returns {Promise<boolean>} Success status
+   */
+  async resumeFromHold() {
+    if (!this.isConnected) {
+      return false;
+    }
+    
+    try {
+      // Send '~' character (cycle start/resume)
+      const writer = this.port.writable.getWriter();
+      await writer.write(new Uint8Array([126]));
+      writer.releaseLock();
+      
+      return true;
+    } catch (error) {
+      console.error("Error sending resume:", error);
       return false;
     }
   }
@@ -416,7 +707,15 @@ class SerialCommunicationService {
 // Create singleton instance
 const serialService = new SerialCommunicationService();
 
-// Register global access
+// Register global access for easy debugging and scripting
 window.serialService = serialService;
+
+// For backwards compatibility
+window.sendSerialData = async (data) => {
+  if (!serialService.isConnected) {
+    return false;
+  }
+  return serialService.send(data);
+};
 
 export default serialService;

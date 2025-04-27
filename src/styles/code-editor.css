@@ -75,23 +75,17 @@
 }
 
 .toolbar-btn {
+  width: 50px;
+  height: 50px;
+  padding: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  background-color: transparent;
-  border: none;
-  color: var(--editor-fg);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  position: relative;
 }
 
 .toolbar-btn svg {
-  width: 20px;
-  height: 20px;
+  width: 34px;
+  height: 34px;
 }
 
 .toolbar-btn:hover {
@@ -155,8 +149,8 @@
 .transform-panel {
   border-bottom: var(--editor-border);
   background-color: var(--editor-bg);
-  padding: 10px;
-  max-height: 300px;
+  padding: 16px;
+  max-height: 400px;
   overflow-y: auto;
 }
 
@@ -194,8 +188,8 @@
 
 .transform-controls {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
 }
 
 .control-group {
@@ -332,6 +326,85 @@
   overflow-y: hidden;  /* Remove vertical scrolling from editor wrapper */
   height: fit-content;  /* Allow it to grow with content */
   min-height: 100%;
+}
+
+.transform-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 6px;
+  background-color: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.preview-btn {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--editor-fg);
+}
+
+.preview-btn:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.apply-btn {
+  background-color: var(--editor-btn-primary);
+  color: white;
+}
+
+.apply-btn:hover {
+  filter: brightness(1.1);
+}
+
+.reset-btn {
+  background-color: rgba(255, 100, 100, 0.1);
+  color: rgba(255, 100, 100, 0.8);
+}
+
+.reset-btn:hover {
+  background-color: rgba(255, 100, 100, 0.2);
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+  .transform-controls {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .transform-controls {
+    grid-template-columns: 1fr;
+  }
+}
+
+.transform-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.transform-actions button {
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.transform-section h4 {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 4px;
 }
 
 .line-numbers::-webkit-scrollbar {
@@ -659,5 +732,216 @@
   }
   100% {
     opacity: 1;
+  }
+}
+
+/* Enhanced toolbar styles - more IDE-like */
+.toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  background-color: transparent;
+  border: none;
+  color: var(--editor-fg);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  position: relative;
+  margin: 0 1px;
+}
+
+.toolbar-btn:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.toolbar-btn:active {
+  background-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(1px);
+}
+
+.toolbar-btn.active {
+  background-color: rgba(var(--editor-btn-active-rgb, 65, 105, 225), 0.15);
+  box-shadow: inset 0 -2px 0 var(--editor-btn-active, royalblue);
+}
+
+.toolbar-btn svg {
+  width: 26px;
+  height: 26px;
+}
+
+/* Remove tooltip */
+[data-tooltip]:hover::after {
+  display: none;
+}
+
+/* Action button styles with theme colors */
+.action-btn {
+  position: relative;
+}
+
+.action-btn:after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 2px;
+  transition: width 0.2s ease;
+}
+
+.action-btn:hover:after {
+  width: 80%;
+}
+
+.action-btn:hover svg {
+  filter: brightness(1.2);
+}
+
+/* Button states */
+.toolbar-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.toolbar-section {
+  display: flex;
+  align-items: center;
+  margin: 0 2px;
+  padding: 0 2px;
+}
+
+:root {
+  /* Use theme variables with fallbacks */
+  --play-color: var(--editor-btn-primary, #4CAF50);
+  --pause-color: var(--warning-color, #FF9800);
+  --resume-color: var(--editor-btn-primary, #2196F3);
+  --stop-color: var(--error-color, #F44336);
+  
+  /* Convert main colors to RGB for transparency operations */
+  --editor-btn-active-rgb: 65, 105, 225;
+}
+
+/* Enhanced transform panel styles - IDE-like */
+.transform-panel {
+  border-bottom: var(--editor-border);
+  background-color: var(--editor-bg);
+  padding: 12px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.transform-controls {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.transform-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 4px;
+  background-color: rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.transform-section h4 {
+  margin: 0 0 6px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 4px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+/* Make transform panels stack vertically on smaller screens */
+@media (max-width: 1200px) {
+  .transform-controls {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .transform-controls {
+    grid-template-columns: 1fr;
+  }
+}
+
+.transform-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.transform-btn {
+  padding: 5px 10px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-width: 70px;
+  max-width: 90px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.transform-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 0 1px rgba(0, 0, 0, 0.2);
+}
+
+.preview-btn {
+  background-color: var(--editor-bg);
+  color: var(--editor-fg);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.preview-btn:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.apply-btn {
+  background-color: var(--editor-btn-primary);
+  color: white;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.apply-btn:hover {
+  filter: brightness(1.1);
+}
+
+.reset-btn {
+  background-color: transparent;
+  color: var(--error-color, #F44336);
+  border: 1px solid rgba(var(--error-color-rgb, 244, 67, 54), 0.3);
+}
+
+.reset-btn:hover {
+  background-color: rgba(var(--error-color-rgb, 244, 67, 54), 0.05);
+  border-color: rgba(var(--error-color-rgb, 244, 67, 54), 0.5);
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+  .transform-controls {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .transform-controls {
+    grid-template-columns: 1fr;
   }
 }

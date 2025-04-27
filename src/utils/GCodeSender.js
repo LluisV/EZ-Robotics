@@ -1,626 +1,528 @@
 /**
- * Professional G-Code Sender with advanced buffer management
- * Based on techniques used in UGS, bCNC, and other professional senders
+ * Simple GCode Sender for GRBL/FluidNC machines
+ * Sends one line at a time and waits for confirmation before sending the next.
  */
-class GCodeSender {
-    constructor() {
-      // Queue to store lines to be sent
-      this.queue = [];
+class SimpleGCodeSender {
+  constructor() {
+    // Core state
+    this.lines = [];          // Array of GCode lines to send
+    this.currentLineIndex = 0; // Current line being processed
+    this.isSending = false;   // Whether we're currently sending
+    this.isPaused = false;    // Whether sending is paused
+    
+    // Callback functions
+    this.callbacks = {
+      onProgress: null,       // Called when progress is made
+      onComplete: null,       // Called when all sending is complete
+      onError: null,          // Called when errors occur
+      onLineSuccess: null,    // Called when a line is successfully sent
+      onPause: null,          // Called when sending is paused
+      onResume: null          // Called when sending is resumed
+    };
+    
+    // Timeout handling
+    this.responseTimeout = null;
+    this.MAX_RESPONSE_WAIT = 20000; // 20 seconds max wait for response
+    this.waitingForResponse = false; // Flag to track if we're waiting for a response
+    
+    // Response handler reference
+    this.lineResponseHandler = this.handleLineResponse.bind(this);
+    
+    // Debug logging
+    this.debug = true; // Set to false to disable debug logging
+  }
+  
+  /**
+   * Log debugging information if debug mode is enabled
+   */
+  log(...args) {
+    if (this.debug) {
+      console.log("[GCodeSender]", ...args);
+    }
+  }
+  
+  /**
+   * Load GCode from a string
+   * @param {string} gcode - The G-code text to load
+   * @returns {number} - Number of lines loaded
+   */
+  loadGCode(gcode) {
+    // Reset state
+    this.currentLineIndex = 0;
+    this.retryCount = 0;
+    
+    // Split G-code into lines and clean them
+    this.lines = gcode.split('\n')
+      .map(line => {
+        // Remove comments and trim whitespace
+        const commentIndex = line.indexOf(';');
+        return (commentIndex >= 0 ? line.substring(0, commentIndex) : line).trim();
+      })
+      .filter(line => line); // Remove empty lines
+
+    // Add a finishing line that will set the machine to a safe state
+    if (this.lines.length > 0 && !this.lines.includes('G28')) {
+      // Add a move to a safe height and home command at the end if not already present
+      if (!this.lines[this.lines.length - 1].startsWith('G1 Z')) {
+        this.lines.push('G1 Z10 F1000 ; Move to safe height');
+      }
+    }
       
-      // Tracking variables
-      this.isSending = false;
-      this.isPaused = false;
-      this.linesSent = 0;
-      this.linesAcknowledged = 0;
-      this.totalLines = 0;
-      
-      // Response handler reference
-      this.responseHandler = null;
-      
-      // Callbacks for status updates
-      this.callbacks = {
-        onProgress: null,
-        onComplete: null,
-        onError: null,
-        onLineSuccess: null,
-        onPause: null,
-        onResume: null
-      };
-      
-      // Advanced buffer management
-      this.serialBuffer = {
-        size: 128,           // Default GRBL buffer size is 128 bytes
-        used: 0,             // Current bytes in buffer
-        maxCommands: 5,      // Maximum number of unacknowledged commands
-        activeCommands: 0,   // Current unacknowledged commands
-        lastResponseTime: 0, // Time of last response
-        avgResponseTime: 500 // Moving average of response times (ms)
-      };
-      
-      // Timeout management
-      this.timeoutTimers = [];
-      this.COMMAND_TIMEOUT = 20000;  // 20 seconds - much longer for slow operations
-      this.MAX_COMMAND_RETRIES = 3;  // Max retries for a failed command
-      this.commandRetries = 0;
-      
-      // Status polling
-      this.statusPollingInterval = null;
-      this.STATUS_POLLING_RATE = 1000; // ms
+    this.log(`Loaded ${this.lines.length} lines of G-code`);
+    return this.lines.length;
+  }
+  
+  /**
+   * Set event callbacks
+   * @param {Object} callbacks - Object containing callback functions
+   */
+  setCallbacks(callbacks) {
+    this.callbacks = { ...this.callbacks, ...callbacks };
+  }
+  
+  /**
+   * Start sending the G-code
+   * @param {Object} serialService - The serial service to use for sending
+   * @returns {Promise<boolean>} - Success status
+   */
+  async start(serialService) {
+    if (this.isSending) {
+      this.log("Already sending G-code");
+      return false;
     }
     
-    /**
-     * Load G-code from a string
-     * @param {string} gcode - The G-code to load
-     */
-    loadGCode(gcode) {
-      // Reset state
-      this.queue = [];
-      this.linesSent = 0;
-      this.linesAcknowledged = 0;
-      this.serialBuffer.used = 0;
-      this.serialBuffer.activeCommands = 0;
-      this.commandRetries = 0;
-      
-      // Split G-code into lines and clean them
-      const lines = gcode.split('\n');
-      
-      // Process each line
-      this.queue = lines
-        .map(line => {
-          // Remove comments and trim whitespace
-          const commentIndex = line.indexOf(';');
-          return (commentIndex >= 0 ? line.substring(0, commentIndex) : line).trim();
-        })
-        .filter(line => line); // Remove empty lines
-        
-      this.totalLines = this.queue.length;
-      
-      // Log info about loaded file
-      console.log(`Loaded ${this.totalLines} lines of G-code`);
-      
-      return this.totalLines;
+    if (!serialService || typeof serialService.send !== 'function') {
+      console.error("Invalid serial service provided");
+      if (this.callbacks.onError) {
+        this.callbacks.onError("Invalid serial service");
+      }
+      return false;
     }
     
-    /**
-     * Set event callbacks
-     * @param {Object} callbacks - Object containing callback functions
-     */
-    setCallbacks(callbacks) {
-      this.callbacks = { ...this.callbacks, ...callbacks };
+    if (this.lines.length === 0) {
+      this.log("No G-code loaded");
+      if (this.callbacks.onError) {
+        this.callbacks.onError("No G-code loaded");
+      }
+      return false;
     }
     
-    /**
-     * Start sending the G-code
-     * @param {Object} serialService - The serial service to use for sending
-     * @returns {Promise} A promise that resolves when sending is complete
-     */
-    async start(serialService) {
-      if (this.isSending) {
-        console.warn("Already sending G-code");
-        return false;
-      }
-      
-      if (!serialService || typeof serialService.send !== 'function') {
-        console.error("Invalid serial service provided");
-        
-        if (this.callbacks.onError) {
-          this.callbacks.onError("Invalid serial service");
-        }
-        
-        return false;
-      }
-      
-      if (this.queue.length === 0) {
-        console.warn("No G-code loaded");
-        
-        if (this.callbacks.onError) {
-          this.callbacks.onError("No G-code loaded");
-        }
-        
-        return false;
-      }
-      
-      // Setup
-      this.isSending = true;
-      this.isPaused = false;
-      this.serialService = serialService;
-      
-      // Reset counters and buffer tracking
-      this.linesSent = 0;
-      this.linesAcknowledged = 0;
-      this.serialBuffer.used = 0;
-      this.serialBuffer.activeCommands = 0;
-      this.commandRetries = 0;
-      
-      // Cancel any existing timeout timers
-      this.timeoutTimers.forEach(timer => clearTimeout(timer));
-      this.timeoutTimers = [];
-      
-      // Setup response handler
-      this.setupResponseHandler();
-      
-      // Start status polling
-      this.startStatusPolling();
-      
-      // Start sending
-      await this.fillBuffer();
-      
+    // Setup
+    this.isSending = true;
+    this.isPaused = false;
+    this.waitingForResponse = false;
+    this.retryCount = 0;
+    this.serialService = serialService;
+    this.currentLineIndex = 0;
+    
+    // Clear any existing timeout
+    if (this.responseTimeout) {
+      clearTimeout(this.responseTimeout);
+      this.responseTimeout = null;
+    }
+    
+    // Remove any existing event listener to avoid duplicates
+    document.removeEventListener('serialdata', this.lineResponseHandler);
+    
+    // Set up event listener for responses
+    document.addEventListener('serialdata', this.lineResponseHandler);
+    
+    this.log(`Starting G-code transfer: ${this.lines.length} lines`);
+    
+    // Flush any pending commands in the controller's buffer
+    try {
+      await this.serialService.flush();
+      this.log("Flushed controller buffer before starting transfer");
+    } catch (error) {
+      this.log("Failed to flush controller buffer, proceeding anyway:", error);
+    }
+    
+    // Send the first line
+    try {
+      await this.sendNextLine();
       return true;
+    } catch (error) {
+      console.error("Error starting G-code transfer:", error);
+      if (this.callbacks.onError) {
+        this.callbacks.onError("Error starting G-code transfer: " + error.message);
+      }
+      this.stop();
+      return false;
+    }
+  }
+  
+  /**
+   * Send the next line in the queue
+   */
+  async sendNextLine() {
+    if (!this.isSending || this.isPaused) {
+      this.log("Not sending due to pause or stopped state");
+      return;
     }
     
-    /**
-     * Start polling for status to keep the connection alive
-     */
-    startStatusPolling() {
-      if (this.statusPollingInterval) {
-        clearInterval(this.statusPollingInterval);
-      }
-      
-      this.statusPollingInterval = setInterval(() => {
-        if (this.isSending && this.serialService) {
-          this.serialService.send('?').catch(err => {
-            console.warn('Error sending status request:', err);
-          });
-        }
-      }, this.STATUS_POLLING_RATE);
+    // Check if we're done
+    if (this.currentLineIndex >= this.lines.length) {
+      this.log("All lines sent, completing transfer");
+      this.onSendingComplete();
+      return;
     }
     
-    /**
-     * Stop status polling
-     */
-    stopStatusPolling() {
-      if (this.statusPollingInterval) {
-        clearInterval(this.statusPollingInterval);
-        this.statusPollingInterval = null;
-      }
+    // Check if we're already waiting for a response
+    if (this.waitingForResponse) {
+      this.log("Already waiting for a response, won't send another line");
+      return;
     }
     
-    /**
-     * Setup the response handler for the serial communication
-     */
-    setupResponseHandler() {
-      // Cleanup existing handler if any
-      if (this.responseHandler) {
-        document.removeEventListener('serialdata', this.responseHandler);
-      }
-      
-      // Create new handler
-      this.responseHandler = (event) => {
-        const data = event.detail;
-        
-        if (!data || !data.data) return;
-        
-        const response = data.data.trim();
-        const now = Date.now();
-        
-        // Calculate response time for adaptive timing
-        if (this.serialBuffer.lastResponseTime > 0) {
-          const responseTime = now - this.serialBuffer.lastResponseTime;
-          
-          // Update moving average (80% old value, 20% new value)
-          this.serialBuffer.avgResponseTime = 
-            (this.serialBuffer.avgResponseTime * 0.8) + (responseTime * 0.2);
-        }
-        
-        this.serialBuffer.lastResponseTime = now;
-        
-        // Cancel any timeout timers for this response
-        if (this.timeoutTimers.length > 0) {
-          clearTimeout(this.timeoutTimers[0]);
-          this.timeoutTimers.shift();
-        }
-        
-        // Parse response
-        if (response === 'ok') {
-          // Line was processed successfully
-          this.linesAcknowledged++;
-          this.serialBuffer.activeCommands--;
-          
-          // Reduce the buffer usage (approximate size of command + CRLF)
-          const approximateCommandSize = this.getApproximateCommandSize(
-            this.queue[this.linesAcknowledged - 1] || ''
-          );
-          
-          this.serialBuffer.used = Math.max(0, this.serialBuffer.used - approximateCommandSize);
-          
-          if (this.callbacks.onLineSuccess) {
-            this.callbacks.onLineSuccess(this.linesAcknowledged);
-          }
-          
-          if (this.callbacks.onProgress) {
-            this.callbacks.onProgress({
-              sent: this.linesSent,
-              acknowledged: this.linesAcknowledged,
-              total: this.totalLines,
-              progress: (this.linesAcknowledged / this.totalLines) * 100
-            });
-          }
-          
-          // Reset retry counter after successful command
-          this.commandRetries = 0;
-          
-          // Continue sending if not paused
-          if (!this.isPaused) {
-            this.fillBuffer();
-          }
-        } 
-        else if (response.startsWith('error:')) {
-          // Error occurred
-          const errorCode = parseInt(response.substring(6)) || 0;
-          const errorMessage = `Error: ${response.substring(6)}`;
-          console.error(errorMessage);
-          
-          this.serialBuffer.activeCommands--;
-          
-          // Handle different error types
-          if ([8, 9, 10, 11].includes(errorCode)) {
-            // These are fatal errors, pause the sending
-            this.isPaused = true;
-            
-            if (this.callbacks.onPause) {
-              this.callbacks.onPause(`Fatal error: ${errorMessage}`);
-            }
-            
-            if (this.callbacks.onError) {
-              this.callbacks.onError(errorMessage);
-            }
-          } else {
-            // Non-fatal errors, we can continue
-            // Reduce the buffer usage (approximate size of command + CRLF)
-            const approximateCommandSize = this.getApproximateCommandSize(
-              this.queue[this.linesAcknowledged] || ''
-            );
-            
-            this.serialBuffer.used = Math.max(0, this.serialBuffer.used - approximateCommandSize);
-            
-            // Increment acknowledged lines to move past the error
-            this.linesAcknowledged++;
-            
-            if (this.callbacks.onError) {
-              this.callbacks.onError(errorMessage);
-            }
-            
-            // Continue sending if not paused
-            if (!this.isPaused) {
-              this.fillBuffer();
-            }
-          }
-        }
-        // Handle other responses (like status reports)
-        else if (response.startsWith('<')) {
-          // Status report - we don't wait for these
-          this.parseStatusResponse(response);
-        }
-        else if (response.startsWith('ALARM:')) {
-          // Alarm state - this is serious 
-          const alarmMessage = `Machine alarm: ${response}`;
-          console.error(alarmMessage);
-          
-          this.isPaused = true;
-          
-          if (this.callbacks.onError) {
-            this.callbacks.onError(alarmMessage);
-          }
-          
-          if (this.callbacks.onPause) {
-            this.callbacks.onPause("Alarm triggered");
-          }
-        }
-      };
-      
-      // Register the handler
-      document.addEventListener('serialdata', this.responseHandler);
+    const line = this.lines[this.currentLineIndex];
+    
+    // Make sure we're not waiting for a response already
+    if (this.responseTimeout) {
+      this.log("Canceling previous timeout before sending new line");
+      clearTimeout(this.responseTimeout);
+      this.responseTimeout = null;
     }
     
-    /**
-     * Parse status response from GRBL
-     * @param {string} response - The status response
-     */
-    parseStatusResponse(response) {
-      // Example implementation - could be expanded for more detailed status tracking
-      try {
-        // Extract machine state
-        const stateMatch = response.match(/<([^|]+)\|/);
-        if (stateMatch) {
-          const state = stateMatch[1].trim();
-          
-          // Handle different states
-          if (state === 'Alarm') {
-            this.isPaused = true;
-            
-            if (this.callbacks.onPause) {
-              this.callbacks.onPause("Machine is in ALARM state");
-            }
-          }
-        }
-      } catch (error) {
-        console.warn("Error parsing status response:", error);
-      }
-    }
-    
-    /**
-     * Fill the buffer with commands up to the limit
-     */
-    async fillBuffer() {
-      // Check if we're done sending
-      if (this.linesSent >= this.totalLines) {
-        if (this.linesAcknowledged >= this.totalLines) {
-          this.onSendingComplete();
-        }
-        return;
-      }
+    try {
+      // Log what we're sending for debugging
+      this.log(`Sending line ${this.currentLineIndex+1}/${this.lines.length}: ${line}`);
       
-      // Check if we're paused
-      if (this.isPaused) {
-        return;
-      }
+      // Set waiting flag before sending
+      this.waitingForResponse = true;
       
-      // Calculate how many commands we can send
-      const availableBufferSize = this.serialBuffer.size - this.serialBuffer.used;
+      // Send the line
+      await this.serialService.send(line);
       
-      // Send commands until buffer is full or we hit the activeCommands limit
-      while (
-        this.linesSent < this.totalLines && 
-        this.serialBuffer.activeCommands < this.serialBuffer.maxCommands
-      ) {
-        const line = this.queue[this.linesSent];
-        
-        // Skip empty lines
-        if (!line) {
-          this.linesSent++;
-          continue;
-        }
-        
-        // Calculate approximate size of this command
-        const commandSize = this.getApproximateCommandSize(line);
-        
-        // Check if it will fit in the buffer
-        if (commandSize > availableBufferSize && this.serialBuffer.activeCommands > 0) {
-          // Buffer would overflow, wait for more acknowledgments
-          break;
-        }
-        
-        // Send the line
-        await this.sendLine(line);
-        
-        // Update tracking
-        this.linesSent++;
-        this.serialBuffer.activeCommands++;
-        this.serialBuffer.used += commandSize;
-      }
-    }
-    
-    /**
-     * Send a single line of G-code
-     * @param {string} line - The line to send
-     */
-    async sendLine(line) {
-      try {
-        // Send the line
-        await this.serialService.send(line);
-        
-        // Set timeout for acknowledgment
-        const timeoutDuration = Math.max(
-          this.COMMAND_TIMEOUT,
-          this.serialBuffer.avgResponseTime * 10 // At least 10x the average response time
+      // Notify that we sent a line
+      if (this.callbacks.onProgress) {
+        // Calculate progress safely
+        const progress = Math.min(
+          ((this.currentLineIndex + 1) / this.lines.length) * 100,
+          100
         );
         
-        const timeoutTimer = setTimeout(() => {
-          this.handleTimeout();
-        }, timeoutDuration);
-        
-        this.timeoutTimers.push(timeoutTimer);
-        
-      } catch (error) {
-        console.error(`Error sending line: ${error.message}`);
-        
-        if (this.callbacks.onError) {
-          this.callbacks.onError(`Error sending line: ${error.message}`);
-        }
-        
-        // Retry logic
-        if (this.commandRetries < this.MAX_COMMAND_RETRIES) {
-          this.commandRetries++;
-          
-          // Wait a moment before retrying
-          setTimeout(() => {
-            this.linesSent--; // Back up one line to retry
-            this.serialBuffer.activeCommands--; // Don't count this as an active command
-            this.fillBuffer(); // Try again
-          }, 1000);
-        } else {
-          // Too many retries, pause sending
-          this.isPaused = true;
-          
-          if (this.callbacks.onPause) {
-            this.callbacks.onPause(`Too many retries (${this.MAX_COMMAND_RETRIES})`);
-          }
-        }
-      }
-    }
-    
-    /**
-     * Calculate the approximate size of a command in the serial buffer
-     * @param {string} command - The command to measure
-     * @returns {number} The approximate size in bytes
-     */
-    getApproximateCommandSize(command) {
-      // Each character is 1 byte, plus 2 bytes for CRLF
-      return command.length + 2;
-    }
-    
-    /**
-     * Handle timeout when no response is received
-     */
-    handleTimeout() {
-      console.warn("Command timeout - no response received");
-      
-      if (this.callbacks.onError) {
-        this.callbacks.onError("Command timeout - no response received");
-      }
-      
-      // Try sending a status query to see if the machine is responsive
-      this.serialService.send('?').catch(() => {});
-      
-      // Retry logic
-      if (this.commandRetries < this.MAX_COMMAND_RETRIES) {
-        this.commandRetries++;
-        
-        // Reduce active commands and try again
-        this.serialBuffer.activeCommands = Math.max(0, this.serialBuffer.activeCommands - 1);
-        
-        if (!this.isPaused) {
-          this.fillBuffer();
-        }
-      } else {
-        // Too many retries, pause sending
-        this.isPaused = true;
-        
-        if (this.callbacks.onPause) {
-          this.callbacks.onPause(`Command timeout after ${this.MAX_COMMAND_RETRIES} retries`);
-        }
-      }
-    }
-    
-    /**
-     * Called when all sending is complete
-     */
-    onSendingComplete() {
-      this.isSending = false;
-      
-      // Clean up
-      if (this.responseHandler) {
-        document.removeEventListener('serialdata', this.responseHandler);
-        this.responseHandler = null;
-      }
-      
-      // Cancel all timeout timers
-      this.timeoutTimers.forEach(timer => clearTimeout(timer));
-      this.timeoutTimers = [];
-      
-      // Stop status polling
-      this.stopStatusPolling();
-      
-      console.log("G-code sending complete");
-      
-      if (this.callbacks.onComplete) {
-        this.callbacks.onComplete({
-          sent: this.linesSent,
-          acknowledged: this.linesAcknowledged,
-          total: this.totalLines
+        this.callbacks.onProgress({
+          sent: this.currentLineIndex + 1,
+          acknowledged: this.currentLineIndex,
+          total: this.lines.length,
+          progress: progress
         });
       }
-    }
-    
-    /**
-     * Reset the serial buffer state
-     */
-    resetBufferState() {
-      this.serialBuffer.used = 0;
-      this.serialBuffer.activeCommands = 0;
       
-      // Cancel all timeout timers
-      this.timeoutTimers.forEach(timer => clearTimeout(timer));
-      this.timeoutTimers = [];
-    }
-    
-    /**
-     * Pause sending
-     */
-    pause() {
-      if (!this.isSending || this.isPaused) return false;
-      
-      this.isPaused = true;
-      
-      if (this.callbacks.onPause) {
-        this.callbacks.onPause();
+      if (this.callbacks.onLineSuccess) {
+        this.callbacks.onLineSuccess(this.currentLineIndex);
       }
       
-      return true;
+      // Set timeout for response
+      this.responseTimeout = setTimeout(() => {
+        this.handleTimeout();
+      }, this.MAX_RESPONSE_WAIT);
+      
+    } catch (error) {
+      console.error(`Error sending line: ${error.message}`);
+      this.waitingForResponse = false;
+      
+      if (this.callbacks.onError) {
+        this.callbacks.onError(`Error sending line: ${error.message}`);
+      }
+      // Pause on error
+      this.pause("Send error: " + error.message);
+    }
+  }
+  
+  /**
+   * Handle response from the controller
+   */
+  handleLineResponse(event) {
+    const data = event.detail;
+    
+    if (!data || !data.data) return;
+    
+    const response = data.data.trim();
+    
+    // Skip empty responses
+    if (!response) return;
+    
+    // Debug logging to help identify response issues
+    this.log("Serial response:", response);
+    
+    // Skip status responses and handle them separately
+    if (response.startsWith('<')) {
+      // This is a status response, not an 'ok' for our command
+      return;
     }
     
-    /**
-     * Resume sending
-     */
-    resume() {
-      if (!this.isSending || !this.isPaused) return false;
+    // Make sure we're still in sending mode
+    if (!this.isSending) {
+      this.log("Received response but not in sending mode:", response);
+      return;
+    }
+    
+    // Check if we're waiting for a response
+    if (!this.waitingForResponse) {
+      this.log("Received response but not waiting for one:", response);
+      return;
+    }
+    
+    // Clear any timeout since we got a response
+    if (this.responseTimeout) {
+      clearTimeout(this.responseTimeout);
+      this.responseTimeout = null;
+    }
+    
+    // Reset waiting flag and retry count
+    this.waitingForResponse = false;
+    this.retryCount = 0;
+    
+    if (response === 'ok') {
+      // Line was processed successfully
+      this.log(`Line ${this.currentLineIndex+1} acknowledged with 'ok'`);
       
-      this.isPaused = false;
+      this.currentLineIndex++;
       
-      if (this.callbacks.onResume) {
-        this.callbacks.onResume();
+      // Safety check: don't let currentLine exceed total lines
+      if (this.currentLineIndex > this.lines.length) {
+        console.error("Index exceeded line count. Fixing currentLineIndex.");
+        this.currentLineIndex = this.lines.length;
       }
       
-      // Continue sending
-      this.fillBuffer();
+      // Calculate progress - make sure it can't exceed 100%
+      const progress = Math.min(
+        (this.currentLineIndex / this.lines.length) * 100, 
+        100
+      );
       
-      return true;
-    }
-    
-    /**
-     * Stop sending
-     */
-    stop() {
-      if (!this.isSending) return false;
-      
-      this.isSending = false;
-      this.isPaused = false;
-      
-      // Clean up
-      if (this.responseHandler) {
-        document.removeEventListener('serialdata', this.responseHandler);
-        this.responseHandler = null;
+      if (this.callbacks.onProgress) {
+        this.callbacks.onProgress({
+          sent: this.currentLineIndex,
+          acknowledged: this.currentLineIndex,
+          total: this.lines.length,
+          progress: progress
+        });
       }
       
-      // Cancel all timeout timers
-      this.timeoutTimers.forEach(timer => clearTimeout(timer));
-      this.timeoutTimers = [];
+      // Continue sending if not paused
+      if (!this.isPaused) {
+        this.sendNextLine();
+      }
+    } 
+    else if (response.startsWith('error:')) {
+      // Error occurred
+      const errorMessage = `Error: ${response.substring(6)} at line ${this.currentLineIndex + 1}: ${this.lines[this.currentLineIndex]}`;
+      console.error(errorMessage);
       
-      // Stop status polling
-      this.stopStatusPolling();
+      if (this.callbacks.onError) {
+        this.callbacks.onError(errorMessage);
+      }
       
-      console.log("G-code sending stopped");
+      // Move to next line despite the error, or we could pause here if preferred
+      this.currentLineIndex++;
       
-      return true;
+      // Safety check: don't let currentLine exceed total lines
+      if (this.currentLineIndex > this.lines.length) {
+        console.error("Index exceeded line count. Fixing currentLineIndex.");
+        this.currentLineIndex = this.lines.length;
+      }
+      
+      if (!this.isPaused) {
+        this.sendNextLine();
+      }
     }
-    
-    /**
-     * Get the current status
-     */
-    getStatus() {
-      return {
-        isSending: this.isSending,
-        isPaused: this.isPaused,
-        linesSent: this.linesSent,
-        linesAcknowledged: this.linesAcknowledged,
-        totalLines: this.totalLines,
-        progress: this.totalLines > 0 ? (this.linesAcknowledged / this.totalLines) * 100 : 0,
-        bufferUsage: this.serialBuffer.used,
-        bufferCapacity: this.serialBuffer.size,
-        activeCommands: this.serialBuffer.activeCommands
-      };
-    }
-    
-    /**
-     * Flush the controller's buffer
-     * This sends a soft reset (Ctrl-X) to clear any pending commands
-     */
-    async flush() {
-      if (!this.serialService) return false;
+    else if (response.startsWith('ALARM:')) {
+      // Alarm state - this is serious
+      const alarmMessage = `Machine alarm: ${response}`;
+      console.error(alarmMessage);
       
-      try {
-        // Send soft reset
-        await this.serialService.send('\x18');
-        
-        // Reset our internal state
-        this.resetBufferState();
-        
-        return true;
-      } catch (error) {
-        console.error("Error flushing controller buffer:", error);
-        return false;
+      if (this.callbacks.onError) {
+        this.callbacks.onError(alarmMessage);
+      }
+      
+      this.pause("Alarm triggered");
+    }
+    else {
+      // Unrecognized response - most likely informational
+      this.log(`Received unrecognized response: ${response}`);
+      
+      // We still need to continue with the next line
+      // This happens with GRBL when it sends informational messages that aren't errors
+      if (!this.isPaused) {
+        this.sendNextLine();
       }
     }
   }
   
-  export default GCodeSender;
+  /**
+   * Handle timeout when no response is received
+   */
+  handleTimeout() {
+    this.log(`Command timeout - no response received after ${this.MAX_RESPONSE_WAIT/1000} seconds`);
+    
+    // Make sure we're still in a sending state
+    if (!this.isSending) {
+      this.log("Timeout triggered but not in sending mode anymore");
+      return;
+    }
+    
+    // Check for index out of bounds
+    if (this.currentLineIndex >= this.lines.length) {
+      console.error("Current index is beyond line count in timeout handler");
+      this.onSendingComplete();
+      return;
+    }
+    
+    // Report the timeout
+    const lineNum = this.currentLineIndex + 1;
+    const lineContent = this.lines[this.currentLineIndex];
+    const timeoutMessage = `Timeout waiting for response to line ${lineNum}: ${lineContent}`;
+    console.error(timeoutMessage);
+    
+    if (this.callbacks.onError) {
+      this.callbacks.onError(timeoutMessage);
+    }
+    
+    // Reset the timeout and waiting status
+    this.responseTimeout = null;
+    this.waitingForResponse = false;
+    
+    // Try to retry the command before giving up
+    if (!this.retryCount) this.retryCount = 0;
+    
+    if (this.retryCount < 10) {
+      this.retryCount++;
+      this.log(`Retrying line ${lineNum} (attempt ${this.retryCount}/10)`);
+      
+      // Try sending a status query to see if the machine is responsive
+      try {
+        this.serialService.send('?').catch(() => {});
+      } catch (e) {
+        console.error("Failed to send status query:", e);
+      }
+      
+      // Retry sending the same line after a short delay
+      setTimeout(() => {
+        if (this.isSending && !this.isPaused) {
+          this.sendNextLine(); // This will resend the current line since we didn't increment currentLineIndex
+        }
+      }, 1000);
+      
+      return;
+    }
+    
+    // Reset retry count
+    this.retryCount = 0;
+    
+    // Pause sending due to timeout after retries
+    this.pause("Response timeout after 10 retries");
+  }
+  
+  /**
+   * Called when all sending is complete
+   */
+  onSendingComplete() {
+    this.log("G-code sending complete");
+    
+    this.isSending = false;
+    this.waitingForResponse = false;
+    
+    // Clean up
+    document.removeEventListener('serialdata', this.lineResponseHandler);
+    
+    // Cancel any timeout
+    if (this.responseTimeout) {
+      clearTimeout(this.responseTimeout);
+      this.responseTimeout = null;
+    }
+    
+    if (this.callbacks.onComplete) {
+      this.callbacks.onComplete({
+        sent: this.currentLineIndex,
+        acknowledged: this.currentLineIndex,
+        total: this.lines.length
+      });
+    }
+  }
+  
+  /**
+   * Pause sending
+   * @param {string} reason - Reason for pausing
+   */
+  pause(reason = "User requested") {
+    if (!this.isSending || this.isPaused) return false;
+    
+    this.isPaused = true;
+    
+    if (this.callbacks.onPause) {
+      this.callbacks.onPause(reason);
+    }
+    
+    return true;
+  }
+  
+  /**
+   * Resume sending
+   */
+  resume() {
+    if (!this.isSending || !this.isPaused) return false;
+    
+    this.isPaused = false;
+    
+    if (this.callbacks.onResume) {
+      this.callbacks.onResume();
+    }
+    
+    // Continue sending
+    this.sendNextLine();
+    
+    return true;
+  }
+  
+  /**
+   * Stop sending
+   */
+  stop() {
+    if (!this.isSending) return false;
+    
+    this.isSending = false;
+    this.isPaused = false;
+    
+    // Clean up
+    document.removeEventListener('serialdata', this.lineResponseHandler);
+    
+    // Cancel any timeout
+    if (this.responseTimeout) {
+      clearTimeout(this.responseTimeout);
+      this.responseTimeout = null;
+    }
+    
+    console.log("G-code sending stopped");
+    
+    return true;
+  }
+  
+  /**
+   * Get the current status
+   */
+  getStatus() {
+    // Calculate progress safely
+    let progress = 0;
+    if (this.lines.length > 0) {
+      progress = Math.min(
+        (this.currentLineIndex / this.lines.length) * 100,
+        100
+      );
+    }
+    
+    return {
+      isSending: this.isSending,
+      isPaused: this.isPaused,
+      waitingForResponse: this.waitingForResponse,
+      linesSent: this.currentLineIndex,
+      linesAcknowledged: this.currentLineIndex,
+      totalLines: this.lines.length,
+      progress: progress,
+      currentLine: this.currentLineIndex < this.lines.length ? this.lines[this.currentLineIndex] : null
+    };
+  }
+}
+
+// Export the class
+export default SimpleGCodeSender;
