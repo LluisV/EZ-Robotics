@@ -33,6 +33,21 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     depth: 150 // Default depth value
   });
   
+  useEffect(() => {
+    // Create a global scaling update function that the animation loop can call
+    window.updateGridScaling = (distance) => {
+      if (sceneRef.current && sceneRef.current.gridManagerRef && sceneRef.current.gridManagerRef.current) {
+        // Update the grid manager's camera distance
+        sceneRef.current.gridManagerRef.current.setCameraDistance(distance);
+      }
+    };
+    
+    return () => {
+      // Clean up the global function when component unmounts
+      delete window.updateGridScaling;
+    };
+  }, []);
+
   const [showWorldCoords, setShowWorldCoords] = useState(true);
 
   // References

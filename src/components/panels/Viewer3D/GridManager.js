@@ -171,14 +171,14 @@ export class GridManager {
     const xLinesCount = Math.ceil(gridWidth / gridSpacing) + 1;
     const yLinesCount = Math.ceil(gridHeight / gridSpacing) + 1;
 
-    // Materials for grid lines - make them slightly thicker
+    // Materials for grid lines - make them slightly thicker but not too thick
     const primaryMaterial = new THREE.LineBasicMaterial({ 
       color: new THREE.Color(this.themeColors.gridPrimary),
-      linewidth: 2 // Thicker primary lines
+      linewidth: 1.75 // Moderately thicker primary lines
     });
     const secondaryMaterial = new THREE.LineBasicMaterial({ 
       color: new THREE.Color(this.themeColors.gridSecondary),
-      linewidth: 1.5 // Slightly thicker secondary lines 
+      linewidth: 1.25 // Slightly thicker secondary lines 
     });
 
     // Create X grid lines (vertical lines running along Y-axis)
@@ -233,19 +233,42 @@ export class GridManager {
     this.gridPlaneRef = plane;
   }
 
+
   /**
-   * Calculate text scale factor based on camera distance
-   * Make text INVERSELY proportional to zoom level (larger when zoomed out)
-   * @param {number} distance Camera distance
-   * @returns {number} Scale factor
+   * Add a label for an axis end point (X, Y, or Z)
+   * @param {THREE.Group} group Group to add the label to
+   * @param {string} text Label text (X, Y, or Z)
+   * @param {number} x Position X
+   * @param {number} y Position Y
+   * @param {number} z Position Z
+   * @param {string} color Text color
+   * @param {number} scaleFactor Text scale factor
    */
-  calculateTextScaleFactor(distance = this.cameraDistance) {
-    // Inverse scaling - text gets larger as camera moves away
-    // Base scale at distance 10, then inversely proportional
-    const baseFactor = 10 / Math.max(5, Math.min(distance, 50));
-    
-    // Clamp the result between 0.5 and 2.0
-    return Math.max(0.5, Math.min(2.0, baseFactor));
+  addAxisLabel(group, text, x, y, z, color, scaleFactor) {
+    const labelCanvas = document.createElement('canvas');
+    labelCanvas.width = 256;
+    labelCanvas.height = 256;
+    const ctx = labelCanvas.getContext('2d');
+    ctx.fillStyle = color;
+    ctx.font = 'Bold 200px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, 128, 128);
+
+    const labelTexture = new THREE.CanvasTexture(labelCanvas);
+    const labelMaterial = new THREE.SpriteMaterial({
+      map: labelTexture,
+      transparent: true
+    });
+
+    const label = new THREE.Sprite(labelMaterial);
+    label.position.set(x, y, z);
+    label.scale.set(
+      4.0 * this.sceneScale * scaleFactor,
+      4.0 * this.sceneScale * scaleFactor,
+      1
+    );
+    group.add(label);
   }
 
   /**
@@ -260,21 +283,22 @@ export class GridManager {
     const length = 60 * this.sceneScale; // Shorter axes (was 100)
     const headLength = 3.5 * this.sceneScale; // Smaller head (was 5.0)
     const headWidth = 2.0 * this.sceneScale; // Smaller width (was 3.0)
+    
+    // Store the camera distance for use in the animation loop
+    window.lastCameraDistance = this.cameraDistance;
 
-    // Calculate scale factor for text and rulers based on camera distance
-    // Now INVERSELY proportional to zoom level
-    const textScaleFactor = this.calculateTextScaleFactor();
+    const textScaleFactor = 2;
     
     // Define tick dimensions - MAKE THEM BIGGER and OUTSIDE the workspace
     const tickSpacing = 10 * this.sceneScale; // 10mm spacing
     const majorTickEvery = 5; // Major tick with label every 50mm
-    const minorTickLength = 2.0 * this.sceneScale * textScaleFactor; // Scale with zoom
-    const majorTickLength = 4.0 * this.sceneScale * textScaleFactor; // Scale with zoom
+    const minorTickLength = 3.0 * this.sceneScale * textScaleFactor; // Scale with zoom - increased from 2.0
+    const majorTickLength = 6.0 * this.sceneScale * textScaleFactor; // Scale with zoom - increased from 4.0
     
     // Place ticks outside of workspace - move them outward by an offset
-    const xRulerOffset = 8.0 * this.sceneScale * textScaleFactor; // Offset for X axis ruler
-    const yRulerOffset = 8.0 * this.sceneScale * textScaleFactor; // Offset for Y axis ruler
-    const zRulerOffset = 8.0 * this.sceneScale * textScaleFactor; // Offset for Z axis ruler
+    const xRulerOffset = 10.0 * this.sceneScale * textScaleFactor; // Offset for X axis ruler - increased from 8.0
+    const yRulerOffset = 10.0 * this.sceneScale * textScaleFactor; // Offset for Y axis ruler - increased from 8.0
+    const zRulerOffset = 10.0 * this.sceneScale * textScaleFactor; // Offset for Z axis ruler - increased from 8.0
 
     // Create the main axes arrows
     // X axis (red)
@@ -311,6 +335,7 @@ export class GridManager {
     axesGroup.add(yAxis);
     axesGroup.add(zAxis);
 
+
     // Add "World" label - SIZE SCALES WITH ZOOM
     if (this.showWorldCoords) {
       const canvas = document.createElement('canvas');
@@ -330,8 +355,8 @@ export class GridManager {
       label.position.set(-length - 2.0 * this.sceneScale, 0, 0);
       // Scale text based on camera distance
       label.scale.set(
-        5.0 * this.sceneScale * textScaleFactor, 
-        2.5 * this.sceneScale * textScaleFactor, 
+        6.0 * this.sceneScale * textScaleFactor, // Increased from 5.0
+        3.0 * this.sceneScale * textScaleFactor, // Increased from 2.5
         1
       );
       axesGroup.add(label);
@@ -355,7 +380,7 @@ export class GridManager {
 
       const tickMaterial = new THREE.LineBasicMaterial({
         color: new THREE.Color(this.themeColors.xAxis),
-        linewidth: isMajorTick ? 3 : 1.5 // Thicker lines
+        linewidth: isMajorTick ? 2.5 : 1.5 // Moderately thicker lines
       });
 
       const tick = new THREE.Line(tickGeometry, tickMaterial);
@@ -383,13 +408,13 @@ export class GridManager {
         // Position below the workspace and tick
         label.position.set(
           -distance, 
-          -xRulerOffset - currentTickLength - (5.0 * this.sceneScale * textScaleFactor), 
+          -xRulerOffset - currentTickLength - (6.0 * this.sceneScale * textScaleFactor), // Increased from 5.0
           0
         );
-        // Scale based on camera distance
+        // Scale based on camera distance - made larger
         label.scale.set(
-          6.0 * this.sceneScale * textScaleFactor, 
-          3.0 * this.sceneScale * textScaleFactor, 
+          8.0 * this.sceneScale * textScaleFactor, // Increased from 6.0
+          4.0 * this.sceneScale * textScaleFactor, // Increased from 3.0
           1
         );
         axesGroup.add(label);
@@ -410,7 +435,7 @@ export class GridManager {
 
       const tickMaterial = new THREE.LineBasicMaterial({
         color: new THREE.Color(this.themeColors.yAxis),
-        linewidth: isMajorTick ? 3 : 1.5 // Thicker lines
+        linewidth: isMajorTick ? 2.5 : 1.5 // Moderately thicker lines
       });
 
       const tick = new THREE.Line(tickGeometry, tickMaterial);
@@ -437,14 +462,14 @@ export class GridManager {
         const label = new THREE.Sprite(labelMaterial);
         // Position left of the workspace and tick
         label.position.set(
-          -this.gridDimensions.width * this.sceneScale - yRulerOffset - currentTickLength - (5.0 * this.sceneScale * textScaleFactor), 
+          -this.gridDimensions.width * this.sceneScale - yRulerOffset - currentTickLength - (6.0 * this.sceneScale * textScaleFactor), // Increased from 5.0
           distance, 
           0
         );
-        // Scale based on camera distance
+        // Scale based on camera distance - made larger
         label.scale.set(
-          6.0 * this.sceneScale * textScaleFactor, 
-          3.0 * this.sceneScale * textScaleFactor, 
+          8.0 * this.sceneScale * textScaleFactor, // Increased from 6.0
+          4.0 * this.sceneScale * textScaleFactor, // Increased from 3.0
           1
         );
         axesGroup.add(label);
@@ -465,7 +490,7 @@ export class GridManager {
 
       const tickMaterial = new THREE.LineBasicMaterial({
         color: new THREE.Color(this.themeColors.zAxis),
-        linewidth: isMajorTick ? 3 : 1.5 // Thicker lines
+        linewidth: isMajorTick ? 2.5 : 1.5 // Moderately thicker lines
       });
 
       const tick = new THREE.Line(tickGeometry, tickMaterial);
@@ -475,13 +500,13 @@ export class GridManager {
       if (isMajorTick) {
         const mmValue = i * 10; // Convert to mm (10mm per tick)
         const labelCanvas = document.createElement('canvas');
-        labelCanvas.width = 512; // Larger canvas for bigger text
-        labelCanvas.height = 256;
+        labelCanvas.width = 1024; // Larger canvas for bigger text - increased from 512
+        labelCanvas.height = 512; // Larger canvas - increased from 256
         const ctx = labelCanvas.getContext('2d');
         ctx.fillStyle = this.themeColors.zAxis;
-        ctx.font = 'Bold 192px Arial'; // Much larger font
+        ctx.font = 'Bold 384px Arial'; // Much larger font - increased from 192px
         ctx.textAlign = 'center';
-        ctx.fillText(mmValue.toString(), 256, 192);
+        ctx.fillText(mmValue.toString(), 512, 384); // Adjusted positions
 
         const labelTexture = new THREE.CanvasTexture(labelCanvas);
         const labelMaterial = new THREE.SpriteMaterial({
@@ -492,14 +517,14 @@ export class GridManager {
         const label = new THREE.Sprite(labelMaterial);
         // Position behind the workspace and tick
         label.position.set(
-          -this.gridDimensions.width * this.sceneScale - zRulerOffset - currentTickLength - (4.0 * this.sceneScale * textScaleFactor), 
+          -this.gridDimensions.width * this.sceneScale - zRulerOffset - currentTickLength - (6.0 * this.sceneScale * textScaleFactor), // Increased from 4.0
           -zRulerOffset, 
           distance
         );
-        // Scale based on camera distance
+        // Scale based on camera distance - made larger
         label.scale.set(
-          6.0 * this.sceneScale * textScaleFactor, 
-          3.0 * this.sceneScale * textScaleFactor, 
+          8.0 * this.sceneScale * textScaleFactor, // Increased from 6.0
+          4.0 * this.sceneScale * textScaleFactor, // Increased from 3.0
           1
         );
         axesGroup.add(label);
@@ -515,11 +540,22 @@ export class GridManager {
    * @param {number} distance Camera distance
    */
   setCameraDistance(distance) {
-    this.cameraDistance = distance;
-    // Update rulers and text if needed
-    this.updateGridAndAxes({
-      cameraDistance: distance
-    });
+    // Only update if the camera distance has changed significantly (>10%)
+    // This prevents unnecessary updates when camera distance changes slightly
+    if (Math.abs(this.cameraDistance - distance) / this.cameraDistance > 0.1) {
+      console.log(`Camera distance changed significantly: ${this.cameraDistance} -> ${distance}`);
+      this.cameraDistance = distance;
+      window.lastCameraDistance = distance;
+      
+      // Update rulers and text to scale with the new distance
+      this.updateGridAndAxes({
+        cameraDistance: distance
+      });
+    } else {
+      // Still update stored value but don't regenerate
+      this.cameraDistance = distance;
+      window.lastCameraDistance = distance;
+    }
   }
 
   /**
@@ -535,21 +571,14 @@ export class GridManager {
     const workAxesGroup = new THREE.Group();
     workAxesGroup.name = 'work-axes';
 
-    // Calculate scale factor for text and rulers based on camera distance
+    // Calculate scale factor for text based on camera distance
     // Now INVERSELY proportional to zoom level
-    const textScaleFactor = this.calculateTextScaleFactor();
+    const textScaleFactor = 2;//;this.calculateTextScaleFactor();
 
     // Main axes dimensions - MAKE SMALLER
     const length = 50 * this.sceneScale; // Shorter axes (was 80)
     const headLength = 3.0 * this.sceneScale; // Smaller head (was 4.0)
     const headWidth = 2.0 * this.sceneScale; // Smaller width (was 2.5)
-
-    // Define tick dimensions - MAKE BIGGER AND SCALE WITH ZOOM
-    const tickSpacing = 10 * this.sceneScale; // 10mm spacing
-    const majorTickEvery = 5; // Major tick every 50mm
-    const minorTickLength = 2.0 * this.sceneScale * textScaleFactor; // Scale with zoom
-    const majorTickLength = 4.0 * this.sceneScale * textScaleFactor; // Scale with zoom
-    const tickOffset = 1.5 * this.sceneScale * textScaleFactor; // Scale with zoom
 
     // X axis (red)
     const xAxis = new THREE.ArrowHelper(
@@ -608,67 +637,13 @@ export class GridManager {
       );
       // Scale text based on camera distance
       label.scale.set(
-        5.0 * this.sceneScale * textScaleFactor, 
-        2.5 * this.sceneScale * textScaleFactor, 
+        6.0 * this.sceneScale * textScaleFactor, // Increased from 5.0
+        3.0 * this.sceneScale * textScaleFactor, // Increased from 2.5
         1
       );
       workAxesGroup.add(label);
     }
 
-    // Add simplified tick marks for work axes - BIGGER LABELS THAT SCALE WITH ZOOM
-    // X-axis ruler ticks
-    for (let i = 0; i <= Math.floor(length / tickSpacing); i++) {
-      const distance = i * tickSpacing;
-      const isMajorTick = i % majorTickEvery === 0;
-
-      // Position relative to work origin
-      const currentTickLength = isMajorTick ? majorTickLength : minorTickLength;
-      const tickGeometry = new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(workOrigin.x - distance, workOrigin.y - tickOffset, workOrigin.z),
-        new THREE.Vector3(workOrigin.x - distance, workOrigin.y - tickOffset - currentTickLength, workOrigin.z)
-      ]);
-
-      const tickMaterial = new THREE.LineBasicMaterial({
-        color: new THREE.Color(this.themeColors.workCoord),
-        linewidth: isMajorTick ? 3 : 1.5 // Thicker lines
-      });
-
-      const tick = new THREE.Line(tickGeometry, tickMaterial);
-      workAxesGroup.add(tick);
-
-      // Add label for major ticks - MAKE BIGGER AND SCALE WITH ZOOM
-      if (isMajorTick) {
-        const mmValue = i * 10; // Convert to mm
-        const labelCanvas = document.createElement('canvas');
-        labelCanvas.width = 256; // Larger canvas
-        labelCanvas.height = 128;
-        const ctx = labelCanvas.getContext('2d');
-        ctx.fillStyle = this.themeColors.workCoord;
-        ctx.font = 'Bold 96px Arial'; // Much larger font
-        ctx.textAlign = 'center';
-        ctx.fillText(mmValue.toString(), 128, 96);
-
-        const labelTexture = new THREE.CanvasTexture(labelCanvas);
-        const labelMaterial = new THREE.SpriteMaterial({
-          map: labelTexture,
-          transparent: true
-        });
-
-        const label = new THREE.Sprite(labelMaterial);
-        label.position.set(
-          workOrigin.x - distance,
-          workOrigin.y - tickOffset - currentTickLength - (1.0 * this.sceneScale * textScaleFactor),
-          workOrigin.z
-        );
-        // Scale with zoom
-        label.scale.set(
-          2.0 * this.sceneScale * textScaleFactor, 
-          1.0 * this.sceneScale * textScaleFactor, 
-          1
-        );
-        workAxesGroup.add(label);
-      }
-    }
 
     this.scene.add(workAxesGroup);
     this.workAxesHelperRef = workAxesGroup;
@@ -677,114 +652,114 @@ export class GridManager {
   /**
    * Create a wireframe box to represent the 3D workspace
    */
-createWorkspaceBox() {
-  // If already exists, remove it
-  if (this.workspaceBoxRef) {
-    this.scene.remove(this.workspaceBoxRef);
-    this.workspaceBoxRef = null;
-  }
-  
-  const boxGroup = new THREE.Group();
-  boxGroup.name = 'workspace-box';
-  
-  // Get dimensions from grid - ensure depth is valid
-  const width = this.gridDimensions.width * this.sceneScale;
-  const height = this.gridDimensions.height * this.sceneScale;
-  
-  // Explicitly log dimensions to debug depth issues
-  console.log("Creating workspace box with grid dimensions:", {
-    width: this.gridDimensions.width,
-    height: this.gridDimensions.height,
-    depth: this.gridDimensions.depth
-  });
-  
-  // Make sure depth is properly defined
-  const depth = this.gridDimensions.depth 
-    ? this.gridDimensions.depth * this.sceneScale
-    : Math.min(width, height); // Fallback
-  
-  console.log("Workspace box scene units:", { width, height, depth });
-  
-  // Create box edges as lines
-  const material = new THREE.LineBasicMaterial({ 
-    color: new THREE.Color(this.themeColors.gridPrimary),
-    transparent: true,
-    opacity: 0.7,
-    linewidth: 1.5
-  });
-  
-  // Bottom rectangle (same as the grid)
-  const bottomGeometry = new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(0, 0, 0),
-    new THREE.Vector3(-width, 0, 0),
-    new THREE.Vector3(-width, height, 0),
-    new THREE.Vector3(0, height, 0),
-    new THREE.Vector3(0, 0, 0)
-  ]);
-  const bottomEdges = new THREE.Line(bottomGeometry, material);
-  boxGroup.add(bottomEdges);
-  
-  // Top rectangle
-  const topGeometry = new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(0, 0, depth),
-    new THREE.Vector3(-width, 0, depth),
-    new THREE.Vector3(-width, height, depth),
-    new THREE.Vector3(0, height, depth),
-    new THREE.Vector3(0, 0, depth)
-  ]);
-  const topEdges = new THREE.Line(topGeometry, material);
-  boxGroup.add(topEdges);
-  
-  // Vertical connecting edges
-  const verticalEdges = new THREE.Group();
-  
-  // Corner 1 (origin)
-  const edge1 = new THREE.Line(
-    new THREE.BufferGeometry().setFromPoints([
+  createWorkspaceBox() {
+    // If already exists, remove it
+    if (this.workspaceBoxRef) {
+      this.scene.remove(this.workspaceBoxRef);
+      this.workspaceBoxRef = null;
+    }
+    
+    const boxGroup = new THREE.Group();
+    boxGroup.name = 'workspace-box';
+    
+    // Get dimensions from grid - ensure depth is valid
+    const width = this.gridDimensions.width * this.sceneScale;
+    const height = this.gridDimensions.height * this.sceneScale;
+    
+    // Explicitly log dimensions to debug depth issues
+    console.log("Creating workspace box with grid dimensions:", {
+      width: this.gridDimensions.width,
+      height: this.gridDimensions.height,
+      depth: this.gridDimensions.depth
+    });
+    
+    // Make sure depth is properly defined
+    const depth = this.gridDimensions.depth 
+      ? this.gridDimensions.depth * this.sceneScale
+      : Math.min(width, height); // Fallback
+    
+    console.log("Workspace box scene units:", { width, height, depth });
+    
+    // Create box edges as lines
+    const material = new THREE.LineBasicMaterial({ 
+      color: new THREE.Color(this.themeColors.gridPrimary),
+      transparent: true,
+      opacity: 0.7,
+      linewidth: 1.75 // Slightly thicker for visibility but not too thick
+    });
+    
+    // Bottom rectangle (same as the grid)
+    const bottomGeometry = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(0, 0, depth)
-    ]),
-    material
-  );
-  verticalEdges.add(edge1);
-  
-  // Corner 2 (X edge)
-  const edge2 = new THREE.Line(
-    new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(-width, 0, 0),
-      new THREE.Vector3(-width, 0, depth)
-    ]),
-    material
-  );
-  verticalEdges.add(edge2);
-  
-  // Corner 3 (opposite corner)
-  const edge3 = new THREE.Line(
-    new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(-width, height, 0),
-      new THREE.Vector3(-width, height, depth)
-    ]),
-    material
-  );
-  verticalEdges.add(edge3);
-  
-  // Corner 4 (Y edge)
-  const edge4 = new THREE.Line(
-    new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(0, height, 0),
-      new THREE.Vector3(0, height, depth)
-    ]),
-    material
-  );
-  verticalEdges.add(edge4);
-  
-  boxGroup.add(verticalEdges);
-  
-  this.scene.add(boxGroup);
-  this.workspaceBoxRef = boxGroup;
-  
-  console.log("Workspace box created with dimensions:", { width, height, depth });
-}
+      new THREE.Vector3(0, 0, 0)
+    ]);
+    const bottomEdges = new THREE.Line(bottomGeometry, material);
+    boxGroup.add(bottomEdges);
+    
+    // Top rectangle
+    const topGeometry = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 0, depth),
+      new THREE.Vector3(-width, 0, depth),
+      new THREE.Vector3(-width, height, depth),
+      new THREE.Vector3(0, height, depth),
+      new THREE.Vector3(0, 0, depth)
+    ]);
+    const topEdges = new THREE.Line(topGeometry, material);
+    boxGroup.add(topEdges);
+    
+    // Vertical connecting edges
+    const verticalEdges = new THREE.Group();
+    
+    // Corner 1 (origin)
+    const edge1 = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(0, 0, depth)
+      ]),
+      material
+    );
+    verticalEdges.add(edge1);
+    
+    // Corner 2 (X edge)
+    const edge2 = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-width, 0, 0),
+        new THREE.Vector3(-width, 0, depth)
+      ]),
+      material
+    );
+    verticalEdges.add(edge2);
+    
+    // Corner 3 (opposite corner)
+    const edge3 = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-width, height, 0),
+        new THREE.Vector3(-width, height, depth)
+      ]),
+      material
+    );
+    verticalEdges.add(edge3);
+    
+    // Corner 4 (Y edge)
+    const edge4 = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, height, 0),
+        new THREE.Vector3(0, height, depth)
+      ]),
+      material
+    );
+    verticalEdges.add(edge4);
+    
+    boxGroup.add(verticalEdges);
+    
+    this.scene.add(boxGroup);
+    this.workspaceBoxRef = boxGroup;
+    
+    console.log("Workspace box created with dimensions:", { width, height, depth });
+  }
 
   /**
    * Get the grid plane for raycasting

@@ -69,6 +69,8 @@ const Scene = forwardRef(({
         sceneScale
     });
 
+
+
     // Mouse tracking for coordinate display and object hover
     useMouseTracking({
         containerRef,
