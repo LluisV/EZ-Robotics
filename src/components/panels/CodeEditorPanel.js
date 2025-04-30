@@ -260,41 +260,42 @@ const CodeEditorPanel = () => {
   // Apply syntax highlighting for G-code
   const getHighlightedCode = (text) => {
     if (!text) return '';
-
+  
     const lines = text.split('\n');
-
+  
     // Highlight each line
     const highlightedLines = lines.map((line, i) => {
       const lineNum = i + 1;
       const hasError = errors.some(err => err.line === lineNum);
       const hasWarning = warnings.some(warn => warn.line === lineNum);
-
+  
       // Get specific error/warning message
       const errorMsg = errors.find(err => err.line === lineNum)?.message || '';
       const warningMsg = warnings.find(warn => warn.line === lineNum)?.message || '';
       const tooltipMsg = errorMsg || warningMsg;
-
+  
       // Highlight comments
       let highlightedLine = line.replace(/;(.*)$/, '<span class="code-comment">;$1</span>');
-
-      // Highlight G and M commands
-      highlightedLine = highlightedLine.replace(/\b([GM]\d+)\b/g, '<span class="code-command">$1</span>');
-
-      // Highlight parameters (X100, Y50, Z10, F1000)
-      highlightedLine = highlightedLine.replace(/\b([XYZFIJKRPQ])(-?\d+\.?\d*)/g, '<span class="code-param">$1</span><span class="code-value">$2</span>');
-
+  
+      // Highlight G and M commands (with or without spaces)
+      highlightedLine = highlightedLine.replace(/([GMT]\d+\.?\d*)/g, '<span class="code-command">$1</span>');
+  
+      // Highlight parameters (X100, Y50, Z10, F1000) without spaces
+      highlightedLine = highlightedLine.replace(/([XYZFIJKRPQSE])(-?\d+\.?\d*)/g, 
+        '<span class="code-param">$1</span><span class="code-value">$2</span>');
+  
       let lineClass = "code-line";
       if (lineNum === highlightedLine) lineClass += ' highlighted-line';
       if (hasError) lineClass += ' error-line';
       if (hasWarning) lineClass += ' warning-line';
-
+  
       // Add tooltip with error/warning message
       const tooltipAttr = tooltipMsg ? ` data-tooltip="${tooltipMsg}"` : '';
-
+  
       // Ensure consistent content for empty lines
       return `<div class="${lineClass}"${tooltipAttr}>${highlightedLine || ' '}</div>`;
     });
-
+  
     return highlightedLines.join('');
   };
 
@@ -331,58 +332,60 @@ const CodeEditorPanel = () => {
   const validateCode = (codeToValidate) => {
     const validationErrors = [];
     const validationWarnings = [];
-
-    const VALID_PREFIXES = ['G', 'M', 'X', 'Y', 'Z', 'F', 'I', 'J', 'K', 'R', 'P', 'Q', 'E'];
-
+  
+    const VALID_PREFIXES = ['G', 'M', 'T', 'X', 'Y', 'Z', 'F', 'I', 'J', 'K', 'R', 'P', 'Q', 'E', 'S'];
+  
     const lines = codeToValidate.split('\n');
     lines.forEach((line, i) => {
       const lineNum = i + 1;
-
+  
       // Remove inline comments
       let cleanedLine = line.replace(/\(.*?\)/g, ''); // remove (comment)
       cleanedLine = cleanedLine.split(';')[0];        // remove ;comment
       cleanedLine = cleanedLine.trim();
-
+  
       if (!cleanedLine) return;
-
-      // Tokenize and validate
-      const tokens = cleanedLine.split(/\s+/);
-      tokens.forEach(token => {
-        const prefix = token.charAt(0).toUpperCase();
-        const value = token.slice(1);
-
+  
+      // For GRBL format, we need to extract commands differently
+      // We'll use regex to find all valid commands in the format of letter followed by numbers
+      const commands = cleanedLine.match(/[A-Z]-?\d+(\.\d+)?/g) || [];
+      
+      commands.forEach(command => {
+        const prefix = command.charAt(0).toUpperCase();
+        const value = command.slice(1);
+  
         if (!VALID_PREFIXES.includes(prefix)) {
           validationErrors.push({
             line: lineNum,
-            message: `Unknown command or parameter '${token}'`
+            message: `Unknown command or parameter '${command}'`
           });
-        } else if ((prefix === 'G' || prefix === 'M') && !/^\d+$/.test(value)) {
+        } else if ((prefix === 'G' || prefix === 'M') && !/^\d+(\.\d+)?$/.test(value)) {
           validationErrors.push({
             line: lineNum,
-            message: `Invalid ${prefix}-code '${token}' — expected a number after ${prefix}`
+            message: `Invalid ${prefix}-code '${command}' — expected a number after ${prefix}`
           });
-        } else if (!['G', 'M'].includes(prefix) && !/^-?\d+(\.\d+)?$/.test(value)) {
+        } else if (!['G', 'M', 'T'].includes(prefix) && !/^-?\d+(\.\d+)?$/.test(value)) {
           validationErrors.push({
             line: lineNum,
             message: `Invalid value for parameter ${prefix}: '${value}' is not numeric`
           });
         }
       });
-
-      // G0/G1 checks
-      if (/\bG0\b/.test(cleanedLine) || /\bG1\b/.test(cleanedLine)) {
-        if (!/[XYZE]/.test(cleanedLine)) {
+  
+      // G0/G1 checks - modified for GRBL format
+      if (/G0/.test(cleanedLine) || /G1/.test(cleanedLine)) {
+        if (!/[XYZ]/.test(cleanedLine)) {
           validationWarnings.push({
             line: lineNum,
             message: 'G0/G1 command has no axis movement specified'
           });
         }
       }
-
+  
       // High speed warning
-      const speedMatch = cleanedLine.match(/F(\d+)/);
+      const speedMatch = cleanedLine.match(/F(\d+(\.\d+)?)/);
       if (speedMatch) {
-        const speed = parseInt(speedMatch[1]);
+        const speed = parseFloat(speedMatch[1]);
         if (speed > 5000) {
           validationWarnings.push({
             line: lineNum,
@@ -390,9 +393,9 @@ const CodeEditorPanel = () => {
           });
         }
       }
-
-      // G2/G3 arc parameter check
-      if (/\bG2\b/.test(cleanedLine) || /\bG3\b/.test(cleanedLine)) {
+  
+      // G2/G3 arc parameter check - modified for GRBL format
+      if (/G2/.test(cleanedLine) || /G3/.test(cleanedLine)) {
         if (!/[IJR]/.test(cleanedLine)) {
           validationErrors.push({
             line: lineNum,
@@ -401,13 +404,13 @@ const CodeEditorPanel = () => {
         }
       }
     });
-
+  
     setErrors(validationErrors);
     setWarnings(validationWarnings);
-
+  
     const currentError = validationErrors.find(err => err.line === currentLine);
     const currentWarning = validationWarnings.find(warn => warn.line === currentLine);
-
+  
     if (currentError) {
       setStatusMessage(`Error (Line ${currentLine}): ${currentError.message}`);
     } else if (currentWarning) {
