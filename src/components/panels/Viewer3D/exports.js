@@ -17,6 +17,7 @@ export { default as StlManager } from './StlManager';
 export { default as Gizmo } from './components/Gizmo';
 export { default as GridEditor } from './components/GridEditor';
 export { default as StlPanel } from './components/StlPanel';
+export { default as MouseCoordinatesPanel } from './components/MouseCoordinatesPanel';
 
 // Hooks
 export { default as useThreeScene } from './hooks/useThreeScene';

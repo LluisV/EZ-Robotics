@@ -5,6 +5,7 @@ import Controls from './Controls';
 import PositionDisplay from './PositionDisplay';
 import StlPanel from './components/StlPanel';
 import Gizmo from './components/Gizmo';
+import MouseCoordinatesPanel from './components/MouseCoordinatesPanel';
 
 /**
  * Viewer3D Panel - Main component that integrates all 3D viewer functionality
@@ -184,6 +185,14 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
             ref={sceneRef} // Pass the ref to Scene component
           />
           <Gizmo onViewChange={handleViewChange} />
+          
+          {/* Add the new mouse coordinates panel */}
+          <MouseCoordinatesPanel 
+            mousePosition={mousePosition}
+            workOffset={workOffset}
+            visible={showMousePosition}
+            key={`mouse-panel-${mousePosition.x.toFixed(1)}-${mousePosition.y.toFixed(1)}-${mousePosition.z.toFixed(1)}`}
+          />
         </div>
 
         {/* STL Files Panel - Only visible when files exist */}
