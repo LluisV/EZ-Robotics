@@ -1,100 +1,29 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import * as THREE from 'three';
+import { getThemeColors, addThemeChangeListener } from '../utils/themeColors';
 
-// Get theme colors with hardcoded values per theme
-const getGizmoColors = () => {
-  // Check the current theme class on document.documentElement
-  const themeClass = document.documentElement.className || '';
-  
-  // Default colors (dracula theme)
-  const colors = {
-    xAxis: '#ff5555',
-    xAxisDark: '#bb3333',
-    yAxis: '#50fa7b',
-    yAxisDark: '#33bb33',
-    zAxis: '#8be9fd',
-    zAxisDark: '#5555bb',
-    edgeColor: '#aaaaaa',
-    background: '#282a36'
-  };
-  
-  // Set colors based on theme
-  if (themeClass.includes('theme-light') || themeClass.includes('theme-light-spaced')) {
-    colors.xAxis = '#ff0000';
-    colors.xAxisDark = '#cc0000';
-    colors.yAxis = '#00cc00';
-    colors.yAxisDark = '#009900';
-    colors.zAxis = '#0088ff';
-    colors.zAxisDark = '#0055cc';
-    colors.edgeColor = '#888888';
-    colors.background = '#f5f5f5';
-  } else if (themeClass.includes('theme-dark')) {
-    colors.xAxis = '#ff5555';
-    colors.xAxisDark = '#cc3333';
-    colors.yAxis = '#55ff55';
-    colors.yAxisDark = '#33cc33';
-    colors.zAxis = '#5555ff';
-    colors.zAxisDark = '#3333bb';
-    colors.background = '#1e1e1e';
-  } else if (themeClass.includes('theme-abyss') || themeClass.includes('theme-abyss-spaced')) {
-    colors.xAxis = '#ff628c';
-    colors.xAxisDark = '#cc3366';
-    colors.yAxis = '#3ad900';
-    colors.yAxisDark = '#22aa00';
-    colors.zAxis = '#5ccfe6';
-    colors.zAxisDark = '#339cbb';
-    colors.background = '#000c18';
-  } else if (themeClass.includes('theme-visual-studio')) {
-    colors.xAxis = '#d16969';
-    colors.xAxisDark = '#b14747';
-    colors.yAxis = '#6a9955';
-    colors.yAxisDark = '#4d7340';
-    colors.zAxis = '#569cd6';
-    colors.zAxisDark = '#3a7daf';
-    colors.background = '#1e1e1e';
-  } else if (themeClass.includes('theme-replit')) {
-    colors.xAxis = '#e91e63';
-    colors.xAxisDark = '#c2185b';
-    colors.yAxis = '#13c2c2';
-    colors.yAxisDark = '#108f8f';
-    colors.zAxis = '#1890ff';
-    colors.zAxisDark = '#0c60b3';
-    colors.background = '#f5f9fc';
-  }
-  
-  return colors;
-};
-
-const Gizmo = ({ onViewChange }) => {
+/**
+ * Gizmo component for controlling view orientation
+ * 
+ * @param {Object} props Component properties
+ * @param {Function} props.onViewChange Callback when view changes
+ */
+const Gizmo = ({ onViewChange = () => {} }) => {
   const gizmoRef = useRef(null);
   const sceneRef = useRef(null);
   const cameraRef = useRef(null);
   const rendererRef = useRef(null);
   const cubeRef = useRef(null);
   const [hoveredFace, setHoveredFace] = useState(null);
-  const [themeColors, setThemeColors] = useState(getGizmoColors());
+  const [themeColors, setThemeColors] = useState(getThemeColors());
 
   // Update colors when theme changes
   useEffect(() => {
-    const updateThemeColors = () => {
-      setThemeColors(getGizmoColors());
-    };
-
-    // Create a MutationObserver to watch for class/style changes
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.attributeName === 'class' || mutation.attributeName === 'style') {
-          updateThemeColors();
-        }
-      });
+    const removeListener = addThemeChangeListener(() => {
+      setThemeColors(getThemeColors());
     });
 
-    // Start observing
-    observer.observe(document.documentElement, { attributes: true });
-
-    return () => {
-      observer.disconnect();
-    };
+    return () => removeListener();
   }, []);
 
   // Re-create the gizmo when theme colors change
@@ -135,11 +64,11 @@ const Gizmo = ({ onViewChange }) => {
     const createMaterials = () => {
       return [
         new THREE.MeshBasicMaterial({ color: new THREE.Color(themeColors.xAxis), transparent: true, opacity: 0.4 }), // right - red (X+)
-        new THREE.MeshBasicMaterial({ color: new THREE.Color(themeColors.xAxisDark), transparent: true, opacity: 0.4 }), // left - dark red (X-)
+        new THREE.MeshBasicMaterial({ color: new THREE.Color(themeColors.xAxis), transparent: true, opacity: 0.3 }), // left - darker red (X-)
         new THREE.MeshBasicMaterial({ color: new THREE.Color(themeColors.yAxis), transparent: true, opacity: 0.4 }), // top - green (Y+)
-        new THREE.MeshBasicMaterial({ color: new THREE.Color(themeColors.yAxisDark), transparent: true, opacity: 0.4 }), // bottom - dark green (Y-)
+        new THREE.MeshBasicMaterial({ color: new THREE.Color(themeColors.yAxis), transparent: true, opacity: 0.3 }), // bottom - darker green (Y-)
         new THREE.MeshBasicMaterial({ color: new THREE.Color(themeColors.zAxis), transparent: true, opacity: 0.4 }), // front - blue (Z+)
-        new THREE.MeshBasicMaterial({ color: new THREE.Color(themeColors.zAxisDark), transparent: true, opacity: 0.4 })  // back - dark blue (Z-)
+        new THREE.MeshBasicMaterial({ color: new THREE.Color(themeColors.zAxis), transparent: true, opacity: 0.3 })  // back - darker blue (Z-)
       ];
     };
 
@@ -158,7 +87,7 @@ const Gizmo = ({ onViewChange }) => {
     // Add wireframe
     const edgesGeometry = new THREE.EdgesGeometry(cubeGeometry);
     const edgesMaterial = new THREE.LineBasicMaterial({ 
-      color: new THREE.Color(themeColors.edgeColor), 
+      color: new THREE.Color(themeColors.worldCoord), 
       linewidth: 1, 
       transparent: true, 
       opacity: 0.7 
@@ -355,6 +284,11 @@ const Gizmo = ({ onViewChange }) => {
       }
     };
   }, [themeColors, onViewChange]);
+  
+  // Implement view change handler
+  const handleViewChange = useCallback((view) => {
+    onViewChange(view);
+  }, [onViewChange]);
 
   return (
     <div

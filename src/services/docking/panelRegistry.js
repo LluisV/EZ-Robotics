@@ -17,7 +17,7 @@ try {
 }
 
 try {
-  Viewer3DPanel = require('../../components/panels/Viewer3DPanel').default;
+  Viewer3DPanel = require('../../components/panels/Viewer3D').default;
 } catch (e) {
   console.error('Failed to import Viewer3DPanel:', e);
   Viewer3DPanel = () => <div>Viewer3D Panel (Import Error)</div>;

@@ -29,7 +29,7 @@ import './services/SerialCommunicationService';
 // Import panel components
 import ControlPanel from './components/panels/ControlPanel';
 import MonitorPanel from './components/panels/MonitorPanel';
-import Viewer3DPanel from './components/panels/Viewer3DPanel';
+import Viewer3DPanel from './components/panels/Viewer3D/exports';
 import CodeEditorPanel from './components/panels/CodeEditorPanel';
 import ConsolePanel from './components/panels/ConsolePanel';
 import AccelerationPanel from './components/panels/AccelerationPanel';
