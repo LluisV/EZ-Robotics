@@ -181,6 +181,9 @@ const Gizmo = ({ onViewChange = () => {} }) => {
     };
     animate();
 
+    // Debug mode to help diagnose click issues
+    const debugMode = true;
+
     // Mouse interaction
     const handleMouseMove = (event) => {
       if (!gizmoRef.current || !cube) return;
@@ -194,6 +197,9 @@ const Gizmo = ({ onViewChange = () => {} }) => {
       
       if (intersects.length > 0) {
         const faceIndex = Math.floor(intersects[0].faceIndex / 2);
+        if (debugMode) {
+          console.log(`Hovering face ${faceIndex}`);
+        }
         setHoveredFace(faceIndex);
         
         // Update materials to show highlight
@@ -225,26 +231,35 @@ const Gizmo = ({ onViewChange = () => {} }) => {
       
       if (intersects.length > 0) {
         const faceIndex = Math.floor(intersects[0].faceIndex / 2);
+        if (debugMode) {
+          console.log(`Clicked face ${faceIndex}`);
+        }
         
-        // Determine which view to set based on the face index
+        // Directly call the appropriate view change based on the face index
         switch (faceIndex) {
           case 0: // right face (X+)
-            onViewChange('side');
+            if (debugMode) console.log("Setting side view (X+)");
+            onViewChange('right');
             break;
           case 1: // left face (X-)
-            onViewChange('side');
+            if (debugMode) console.log("Setting side view (X-)");
+            onViewChange('left');
             break;
           case 2: // top face (Y+)
-            onViewChange('front');
+            if (debugMode) console.log("Setting top view (Y+)");
+            onViewChange('top');
             break;
           case 3: // bottom face (Y-)
-            onViewChange('front');
+            if (debugMode) console.log("Setting bottom view (Y-)");
+            onViewChange('bottom');
             break;
           case 4: // front face (Z+)
-            onViewChange('top');
+            if (debugMode) console.log("Setting front view (Z+)");
+            onViewChange('front');
             break;
           case 5: // back face (Z-)
-            onViewChange('top');
+            if (debugMode) console.log("Setting back view (Z-)");
+            onViewChange('back');
             break;
           default:
             break;
@@ -253,17 +268,28 @@ const Gizmo = ({ onViewChange = () => {} }) => {
     };
 
     // Add event listeners
-    gizmoRef.current.addEventListener('mousemove', handleMouseMove);
-    gizmoRef.current.addEventListener('mouseleave', handleMouseLeave);
-    gizmoRef.current.addEventListener('click', handleClick);
+    const canvas = gizmoRef.current.querySelector('canvas');
+    if (canvas) {
+      canvas.addEventListener('mousemove', handleMouseMove);
+      canvas.addEventListener('mouseleave', handleMouseLeave);
+      canvas.addEventListener('click', handleClick);
+
+      if (debugMode) {
+        console.log("Event listeners added to gizmo canvas");
+      }
+    } else {
+      console.error("Could not find canvas element in gizmo");
+    }
 
     // Cleanup
     return () => {
-      if (gizmoRef.current) {
-        gizmoRef.current.removeEventListener('mousemove', handleMouseMove);
-        gizmoRef.current.removeEventListener('mouseleave', handleMouseLeave);
-        gizmoRef.current.removeEventListener('click', handleClick);
+      const canvas = gizmoRef.current?.querySelector('canvas');
+      if (canvas) {
+        canvas.removeEventListener('mousemove', handleMouseMove);
+        canvas.removeEventListener('mouseleave', handleMouseLeave);
+        canvas.removeEventListener('click', handleClick);
       }
+      
       if (rendererRef.current) {
         rendererRef.current.dispose();
       }
@@ -284,11 +310,6 @@ const Gizmo = ({ onViewChange = () => {} }) => {
       }
     };
   }, [themeColors, onViewChange]);
-  
-  // Implement view change handler
-  const handleViewChange = useCallback((view) => {
-    onViewChange(view);
-  }, [onViewChange]);
 
   return (
     <div
@@ -305,7 +326,8 @@ const Gizmo = ({ onViewChange = () => {} }) => {
         opacity: 0.8,
         transition: 'opacity 0.2s ease',
         boxShadow: '0 1px 3px rgba(0, 0, 0, 0.2)',
-        background: 'transparent'
+        background: 'transparent',
+        zIndex: 10 // Ensure it's above other elements
       }}
       onMouseEnter={(e) => e.currentTarget.style.opacity = '1.0'}
       onMouseLeave={(e) => e.currentTarget.style.opacity = '0.8'}

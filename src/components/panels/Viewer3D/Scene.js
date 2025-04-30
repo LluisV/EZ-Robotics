@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import useThreeScene from './hooks/useThreeScene';
@@ -12,7 +12,7 @@ import { getThemeColors } from './utils/themeColors';
  * Scene component for the 3D Viewer
  * Handles creation and management of the THREE.js scene
  */
-const Scene = ({
+const Scene = forwardRef(({
     containerRef,
     isPerspective,
     isGridVisible,
@@ -33,7 +33,7 @@ const Scene = ({
     selectedLine,
     transformValues,
     panelDimensions
-}) => {
+}, ref) => {
     // Scene scale - conversion factor from mm to scene units
     const sceneScale = 0.1; // 10mm = 1 unit
 
@@ -377,6 +377,110 @@ const Scene = ({
         updateRobotToolPosition
     ]);
 
+    // Effect to ensure grid dimensions updates are processed
+    useEffect(() => {
+        console.log("Grid dimensions changed:", gridDimensions);
+        
+        // Check if grid manager exists
+        if (gridManagerRef.current) {
+            // Explicitly update grid and axes when dimensions change
+            gridManagerRef.current.updateGridAndAxes({
+                isGridVisible,
+                showAxes,
+                showWorkAxes,
+                gridDimensions,
+                workOffset,
+                showWorldCoords,
+                cameraDistance: gridManagerRef.current.cameraDistance || 10
+            });
+        }
+    }, [gridDimensions, isGridVisible, showAxes, showWorkAxes, workOffset, showWorldCoords]);
+
+    // Define a method to handle view changes triggered by Gizmo
+    const handleViewChange = useCallback((view) => {
+        if (!controlsRef.current || !cameraRef.current) {
+            console.warn("Controls or camera ref not available for view change");
+            return;
+        }
+        
+        console.log(`Scene: Changing view to: ${view}`);
+        
+        // Get grid dimensions for positioning
+        const gridWidth = gridDimensions.width * sceneScale;
+        const gridHeight = gridDimensions.height * sceneScale;
+        const gridDepth = (gridDimensions.depth || Math.min(gridDimensions.width, gridDimensions.height)) * sceneScale;
+        
+        // Calculate grid center
+        const gridCenterX = -gridWidth / 2;
+        const gridCenterY = gridHeight / 2;
+        const gridCenterZ = gridDepth / 2;
+        
+        // Get max dimension for camera distance
+        const maxDimension = Math.max(gridWidth, gridHeight, gridDepth);
+        const cameraDistance = maxDimension * 1.5; // Distance from center
+        
+        // Reset controls damping temporarily for immediate camera movement
+        const originalDampingFactor = controlsRef.current.dampingFactor;
+        controlsRef.current.dampingFactor = 0.05;
+        
+        // Set camera position based on view
+        switch (view) {
+            case 'top':
+                // Top view (looking down Y axis)
+                cameraRef.current.position.set(gridCenterX, gridCenterY + cameraDistance, gridCenterZ);
+                break;
+            case 'bottom':
+                // Bottom view (looking up Y axis)
+                cameraRef.current.position.set(gridCenterX, gridCenterY - cameraDistance, gridCenterZ);
+                break;
+            case 'front':
+                // Front view (looking at XY plane)
+                cameraRef.current.position.set(gridCenterX, gridCenterY, gridCenterZ + cameraDistance);
+                break;
+            case 'back':
+                // Back view (looking at XY plane from back)
+                cameraRef.current.position.set(gridCenterX, gridCenterY, gridCenterZ - cameraDistance);
+                break;
+            case 'right':
+                // Right view (looking at YZ plane)
+                cameraRef.current.position.set(gridCenterX + cameraDistance, gridCenterY, gridCenterZ);
+                break;
+            case 'left':
+                // Left view (looking at YZ plane from left)
+                cameraRef.current.position.set(gridCenterX - cameraDistance, gridCenterY, gridCenterZ);
+                break;
+            default:
+                console.warn(`Unknown view: ${view}`);
+                return;
+        }
+        
+        // Look at grid center
+        cameraRef.current.lookAt(gridCenterX, gridCenterY, gridCenterZ);
+        
+        // Update controls target to grid center
+        controlsRef.current.target.set(gridCenterX, gridCenterY, gridCenterZ);
+        
+        // Update controls
+        controlsRef.current.update();
+        
+        // Restore original damping
+        setTimeout(() => {
+            if (controlsRef.current) {
+                controlsRef.current.dampingFactor = originalDampingFactor;
+            }
+        }, 1000);
+        
+        // Update grid manager with new camera distance
+        if (gridManagerRef.current) {
+            gridManagerRef.current.setCameraDistance(cameraDistance);
+        }
+    }, [cameraRef, controlsRef, gridDimensions, sceneScale, gridManagerRef]);
+
+    // Expose methods via ref to parent component
+    useImperativeHandle(ref, () => ({
+        handleViewChange
+    }), [handleViewChange]);
+
     // Cleanup on unmount
     useEffect(() => {
         // This is important: Only clean up when the component is actually unmounting
@@ -393,6 +497,6 @@ const Scene = ({
     }, []); // Empty dependency array means it only runs on mount/unmount
 
     return null; // This component doesn't render anything directly
-};
+});
 
 export default Scene;

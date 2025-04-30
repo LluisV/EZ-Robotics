@@ -25,12 +25,20 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
   const [robotPosition, setRobotPosition] = useState({ x: 0, y: 0, z: 0, a: 0 });
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0, z: 0 });
   const [workOffset, setWorkOffset] = useState({ x: 0, y: 0, z: 0 });
-  const [gridDimensions, setGridDimensions] = useState({ width: 240, height: 350 });
+  
+  // Updated gridDimensions to include depth
+  const [gridDimensions, setGridDimensions] = useState({ 
+    width: 240, 
+    height: 350,
+    depth: 150 // Default depth value
+  });
+  
   const [showWorldCoords, setShowWorldCoords] = useState(true);
 
   // References
   const containerRef = useRef(null);
   const fileInputRef = useRef(null);
+  const sceneRef = useRef(null); // Add this ref for the Scene component
 
   // Get GCode context data
   const { parsedToolpath, selectedLine, transformValues } = useGCode();
@@ -55,6 +63,17 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     return () => observer.disconnect();
   }, []);
 
+  // Handle gridDimensions changes
+  const handleGridDimensionsChange = useCallback((newDimensions) => {
+    console.log("Updating grid dimensions:", newDimensions);
+    // Ensure depth is included
+    setGridDimensions({
+      width: newDimensions.width,
+      height: newDimensions.height,
+      depth: newDimensions.depth || Math.min(newDimensions.width, newDimensions.height)
+    });
+  }, []);
+
   // Toggle perspective projection
   const togglePerspective = () => {
     setIsPerspective(!isPerspective);
@@ -65,12 +84,15 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     setShowMousePosition(!showMousePosition);
   };
 
-  // Handle view change from gizmo
+  // Handle view change from Gizmo
   const handleViewChange = useCallback((view) => {
-    // This would directly communicate with Scene to change the view
-    // In a real implementation, we would use a ref or context to call scene methods
-    console.log(`Changing view to: ${view}`);
-    // For now just log, this would be handled by Scene in real implementation
+    // Access the handleViewChange method in the Scene component through ref
+    if (sceneRef.current && sceneRef.current.handleViewChange) {
+      console.log(`Calling handleViewChange in Scene with view: ${view}`);
+      sceneRef.current.handleViewChange(view);
+    } else {
+      console.warn("Scene ref or handleViewChange method not available");
+    }
   }, []);
 
   // Common view props
@@ -123,7 +145,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
         togglePerspective={togglePerspective}
         fileInputRef={fileInputRef}
         gridDimensions={gridDimensions}
-        setGridDimensions={setGridDimensions}
+        setGridDimensions={handleGridDimensionsChange}
       />
 
       <PositionDisplay
@@ -141,7 +163,11 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
             minWidth: 0
           }}
         >
-          <Scene {...viewProps} containerRef={containerRef} />
+          <Scene 
+            {...viewProps} 
+            containerRef={containerRef} 
+            ref={sceneRef} // Pass the ref to Scene component
+          />
           <Gizmo onViewChange={handleViewChange} />
         </div>
 
