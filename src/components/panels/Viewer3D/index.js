@@ -191,7 +191,6 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
             containerRef={containerRef} 
             ref={sceneRef} // Pass the ref to Scene component
           />
-          <Gizmo onViewChange={handleViewChange} />
           
           {/* Mouse coordinates panel with reactive visibility */}
           <MouseCoordinatesPanel 
@@ -200,6 +199,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
             visible={showMousePosition}
           />
         </div>
+        <Gizmo onViewChange={handleViewChange} />
 
         {/* STL Files Panel - Only visible when files exist */}
         {stlFiles.length > 0 && (
