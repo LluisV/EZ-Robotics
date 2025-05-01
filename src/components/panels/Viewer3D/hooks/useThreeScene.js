@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import MouseIndicator from '../MouseIndicator';
+import usePanelResize from './usePanelResize'; // Import our new hook
 
 /**
  * Hook to setup and manage a THREE.js scene
@@ -35,6 +36,9 @@ const useThreeScene = ({
 }) => {
   const [initialized, setInitialized] = useState(false);
   const [animationFrameId, setAnimationFrameId] = useState(null);
+  
+  // Reference to grid manager - passed to resizer
+  const gridManagerRef = { current: null };
 
   // Create the THREE.js scene and all dependencies
   const createScene = useCallback(() => {
@@ -67,28 +71,31 @@ const useThreeScene = ({
 
     const aspect = width / height || 1; // Avoid division by zero
 
+    // Calculate grid midpoint for camera targeting
+    const gridWidth = gridDimensions.width * sceneScale;
+    const gridHeight = gridDimensions.height * sceneScale;
+    const gridMidpointX = -gridWidth / 2;
+    const gridMidpointY = gridHeight / 2;
+    const gridMidpoint = new THREE.Vector3(gridMidpointX, gridMidpointY, 0);
+
     // Create perspective camera
     const perspectiveCamera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
     perspectiveCamera.position.set(5, 5, 5);
     perspectiveCamera.up.set(0, 0, 1); // Z is up
-    perspectiveCamera.lookAt(0, 0, 0);
+    perspectiveCamera.lookAt(gridMidpoint);
     console.log("Perspective camera created");
 
     // Create orthographic camera
-    const frustumSize = gridDimensions.width > gridDimensions.height
-      ? gridDimensions.width * sceneScale * 1.1
-      : gridDimensions.height * sceneScale * 1.1;
-
-    const gridMidpointX = -gridDimensions.width * sceneScale / 2;
-    const gridMidpointY = gridDimensions.height * sceneScale / 2;
-    const gridMidpoint = new THREE.Vector3(gridMidpointX, gridMidpointY, 0);
+    // Calculate frustum size based on grid dimensions to ensure the entire grid is visible
+    const marginFactor = 1.2; // Add 20% margin
+    const frustumSize = Math.max(gridWidth, gridHeight) * marginFactor;
 
     const orthographicCamera = new THREE.OrthographicCamera(
       frustumSize * aspect / -2,
       frustumSize * aspect / 2,
       frustumSize / 2,
       frustumSize / -2,
-      -10,
+      -1000,
       1000
     );
     orthographicCamera.position.copy(gridMidpoint).add(new THREE.Vector3(0, 0.0001, 10));
@@ -214,31 +221,6 @@ const useThreeScene = ({
     sceneScale
   ]);
 
-  // Handle window resizing
-  const handleResize = useCallback(() => {
-    if (!containerRef.current || !cameraRef.current || !rendererRef.current) return;
-
-    const width = containerRef.current.clientWidth;
-    const height = containerRef.current.clientHeight;
-    const aspect = width / height;
-
-    if (isPerspective) {
-      const perspCamera = cameraRef.current;
-      perspCamera.aspect = aspect;
-      perspCamera.updateProjectionMatrix();
-    } else {
-      const orthoCamera = cameraRef.current;
-      const frustumSize = 10;
-      orthoCamera.left = frustumSize * aspect / -2;
-      orthoCamera.right = frustumSize * aspect / 2;
-      orthoCamera.top = frustumSize / 2;
-      orthoCamera.bottom = frustumSize / -2;
-      orthoCamera.updateProjectionMatrix();
-    }
-
-    rendererRef.current.setSize(width, height);
-  }, [containerRef, isPerspective]);
-
   // Animation loop
   const startAnimationLoop = useCallback(() => {
     if (!rendererRef.current || !sceneRef.current || !cameraRef.current) return;
@@ -257,6 +239,29 @@ const useThreeScene = ({
       // Update controls
       if (controlsRef.current) {
         controlsRef.current.update();
+        
+        // Share camera with window for gizmo and other components
+        window.parentCamera = cameraRef.current;
+        
+        // Calculate current camera distance
+        if (gridManagerRef.current && cameraRef.current) {
+          // Get grid midpoint
+          const gridWidth = gridDimensions.width * sceneScale;
+          const gridHeight = gridDimensions.height * sceneScale;
+          const gridMidpointX = -gridWidth / 2;
+          const gridMidpointY = gridHeight / 2;
+          
+          // Calculate distance from camera to grid midpoint
+          const dx = cameraRef.current.position.x - gridMidpointX;
+          const dy = cameraRef.current.position.y - gridMidpointY;
+          const dz = cameraRef.current.position.z;
+          const cameraDistance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          
+          // Update grid scaling based on camera distance
+          if (window.updateGridScaling) {
+            window.updateGridScaling(cameraDistance);
+          }
+        }
       }
       
       // Update mouse indicator animations if it exists
@@ -272,6 +277,19 @@ const useThreeScene = ({
 
     animate();
   }, []);
+
+  // Use our new panel resize hook
+  usePanelResize({
+    containerRef,
+    sceneRef, 
+    cameraRef,
+    rendererRef,
+    controlsRef,
+    gridManagerRef,
+    isPerspective,
+    gridDimensions,
+    sceneScale
+  });
 
   // Initialize scene
   useEffect(() => {
@@ -294,7 +312,6 @@ const useThreeScene = ({
               console.log("Container now has dimensions, initializing:", width, height);
               const scene = createScene();
               if (scene) {
-                window.addEventListener('resize', handleResize);
                 startAnimationLoop();
                 setInitialized(true);
               }
@@ -314,7 +331,6 @@ const useThreeScene = ({
       return;
     }
 
-    window.addEventListener('resize', handleResize);
     console.log("Starting animation loop");
     startAnimationLoop();
 
@@ -326,7 +342,6 @@ const useThreeScene = ({
     initialized,
     createScene,
     startAnimationLoop,
-    handleResize,
     containerRef
   ]);
 
@@ -337,7 +352,6 @@ const useThreeScene = ({
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
       }
-      window.removeEventListener('resize', handleResize);
     };
   }, []); // Empty dependency array means it only runs on mount/unmount
 
@@ -349,12 +363,26 @@ const useThreeScene = ({
     const height = containerRef.current.clientHeight;
     const aspect = width / height;
 
-    // Calculate distance from camera to origin
-    const distance = cameraRef.current.position.length();
+    // Calculate grid midpoint
+    const gridWidth = gridDimensions.width * sceneScale;
+    const gridHeight = gridDimensions.height * sceneScale;
+    const gridMidpointX = -gridWidth / 2;
+    const gridMidpointY = gridHeight / 2;
+    const gridMidpoint = new THREE.Vector3(gridMidpointX, gridMidpointY, 0);
 
-    // Get current target from orbit controls
-    const target = controlsRef.current ? controlsRef.current.target.clone() : new THREE.Vector3(0, 0, 0);
+    // Calculate distance from camera to origin
     const currentPosition = cameraRef.current.position.clone();
+    
+    // Get current target from orbit controls
+    const target = controlsRef.current ? 
+      controlsRef.current.target.clone() : 
+      gridMidpoint.clone();
+      
+    // Calculate distance for orthographic camera
+    const dx = currentPosition.x - target.x;
+    const dy = currentPosition.y - target.y;
+    const dz = currentPosition.z - target.z;
+    const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
     // Create new camera based on projection type
     const newCamera = isPerspective
@@ -390,7 +418,7 @@ const useThreeScene = ({
     controls.update();
 
     controlsRef.current = controls;
-  }, [isPerspective, initialized]);
+  }, [isPerspective, initialized, gridDimensions, sceneScale]);
 
   // Cleanup function
   const cleanup = useCallback(() => {
@@ -400,8 +428,6 @@ const useThreeScene = ({
       console.log("Canceling animation frame:", animationFrameId);
       cancelAnimationFrame(animationFrameId);
     }
-
-    window.removeEventListener('resize', handleResize);
 
     if (controlsRef.current) {
       console.log("Disposing controls");
@@ -452,10 +478,14 @@ const useThreeScene = ({
     }
 
     console.log("THREE.js scene cleanup complete");
-  }, [animationFrameId, handleResize, containerRef]);
+  }, [animationFrameId, containerRef]);
 
   return {
-    cleanup
+    cleanup,
+    // Expose gridManagerRef to be set by Scene component
+    setGridManager: (manager) => {
+      gridManagerRef.current = manager;
+    }
   };
 };
 

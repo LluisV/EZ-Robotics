@@ -58,7 +58,7 @@ const Scene = forwardRef(({
     const themeColors = getThemeColors();
 
     // Initialize the THREE scene, camera, renderer, and controls
-    const { cleanup } = useThreeScene({
+    const { cleanup, setGridManager } = useThreeScene({
         containerRef,
         isPerspective,
         sceneRef,
@@ -70,7 +70,7 @@ const Scene = forwardRef(({
         gridPlaneRef,
         gridDimensions,
         sceneScale
-    });
+      });
 
     // Mouse tracking for coordinate display and object hover
     useMouseTracking({
@@ -233,6 +233,13 @@ const Scene = forwardRef(({
             }
         };
     }, []);
+
+    useEffect(() => {
+    if (gridManagerRef.current && setGridManager) {
+      // Pass the grid manager to the scene hook
+      setGridManager(gridManagerRef.current);
+    }
+  }, [gridManagerRef.current, setGridManager]);
 
     // Update grid and axes visibility
     useEffect(() => {
@@ -483,7 +490,13 @@ const Scene = forwardRef(({
     // Expose methods via ref to parent component
     useImperativeHandle(ref, () => ({
         handleViewChange,
-        stlManagerRef: stlManagerRef
+        stlManagerRef: stlManagerRef,
+        resizeScene: () => {
+          // Force a resize when needed
+          if (window.dispatchEvent) {
+            window.dispatchEvent(new Event('resize'));
+          }
+        }
       }), [handleViewChange, stlManagerRef]);
 
     // Cleanup on unmount

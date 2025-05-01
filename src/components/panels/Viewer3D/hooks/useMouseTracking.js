@@ -73,141 +73,150 @@ const useMouseTracking = ({
 
     // Calculate mouse position in normalized device coordinates (-1 to +1)
     const rect = containerRef.current.getBoundingClientRect();
-    activeMouseRef.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    activeMouseRef.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    
+    // Force a small delay to ensure camera and renderer have been updated properly
+    setTimeout(() => {
+      // Now calculate mouse position in normalized device coordinates (-1 to +1)
+      activeMouseRef.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      activeMouseRef.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
-    // Update the picking ray
-    activeRaycaster.setFromCamera(activeMouseRef, cameraRef.current);
-
-    if (debugMode) {
-      console.log('Mouse move detected', activeMouseRef.x, activeMouseRef.y);
-    }
-
-    // Objects that can be intersected
-    const allSTLObjects = Object.values(stlObjects);
-
-    // Calculate intersections with STL objects
-    const stlIntersections = allSTLObjects.length > 0 ? 
-      activeRaycaster.intersectObjects(allSTLObjects, false) : [];
-
-    // Track if we've found an intersection to update mouse position
-    let intersectionFound = false;
-
-    // Check for STL object intersections first
-    if (stlIntersections.length > 0) {
-      // We have intersected with an STL object
-      const firstIntersection = stlIntersections[0];
-      const intersectionPoint = firstIntersection.point;
-
-      // Convert from THREE.js coordinate system to CNC workspace coordinates
-      // Note: in THREE scene, X is inverted compared to CNC coordinates
-      const x = -intersectionPoint.x / sceneScale;
-      const y = intersectionPoint.y / sceneScale;
-      const z = intersectionPoint.z / sceneScale;
-
-      // Update mouse position display
-      if (showMousePosition) {
-        setMousePosition({ x, y, z });
-        setLastGridPosition({ x, y, z });
-        setIsMouseOverWorkspace(true);
-        intersectionFound = true;
+      // Only update the picking ray if we have valid coordinates
+      if (isFinite(activeMouseRef.x) && isFinite(activeMouseRef.y) && 
+          !isNaN(activeMouseRef.x) && !isNaN(activeMouseRef.y)) {
+        activeRaycaster.setFromCamera(activeMouseRef, cameraRef.current);
         
         if (debugMode) {
-          console.log('STL intersection detected', { x, y, z });
-        }
-      }
-
-      // Update mouse indicator sphere position
-      if (mouseIndicatorRef?.current) {
-        if (showMousePosition) {
-          mouseIndicatorRef.current.setPosition(intersectionPoint);
-        } else {
-          mouseIndicatorRef.current.hide();
-        }
-      }
-
-      // Handle STL hover effects
-      const object = firstIntersection.object;
-      const fileId = object.userData.fileId;
-
-      if (fileId) {
-        // Only update if hovering a different object
-        if (fileId !== hoveredStl) {
-          // Reset previous hover styling
-          if (hoveredStl && stlObjects[hoveredStl]) {
-            stlObjects[hoveredStl].material.color.set(0xd9eaff);
-            stlObjects[hoveredStl].material.emissive.set(0x000000);
-          }
-
-          // Apply hover styling
-          if (stlObjects[fileId]) {
-            stlObjects[fileId].material.color.set(0xffcc66);
-            stlObjects[fileId].material.emissive.set(0x222222);
-          }
-
-          setHoveredStl(fileId);
-        }
-      }
-    } else {
-      // Reset hover state if no STL object is being hovered
-      if (hoveredStl && stlObjects[hoveredStl]) {
-        stlObjects[hoveredStl].material.color.set(0xd9eaff);
-        stlObjects[hoveredStl].material.emissive.set(0x000000);
-        setHoveredStl(null);
-      }
-    }
-
-    // If we didn't hit an STL object, check for grid plane intersection
-    if (!intersectionFound && showMousePosition) {
-      // First, check if we have a grid plane ref passed in
-      const gridPlane = gridPlaneRef?.current;
-      
-      if (gridPlane) {
-        if (debugMode) {
-          console.log('Attempting to raycast against grid plane');
+          console.log('Recalculated mouse position:', activeMouseRef.x, activeMouseRef.y);
+          console.log('Container bounds:', rect.left, rect.top, rect.width, rect.height);
         }
         
-        const gridIntersections = activeRaycaster.intersectObject(gridPlane, false);
+        // Objects that can be intersected
+        const allSTLObjects = Object.values(stlObjects);
 
-        if (gridIntersections.length > 0) {
-          const intersectionPoint = gridIntersections[0].point;
+        // Calculate intersections with STL objects
+        const stlIntersections = allSTLObjects.length > 0 ? 
+          activeRaycaster.intersectObjects(allSTLObjects, false) : [];
+
+        // Track if we've found an intersection to update mouse position
+        let intersectionFound = false;
+
+        // Check for STL object intersections first
+        if (stlIntersections.length > 0) {
+          // We have intersected with an STL object
+          const firstIntersection = stlIntersections[0];
+          const intersectionPoint = firstIntersection.point;
 
           // Convert from THREE.js coordinate system to CNC workspace coordinates
+          // Note: in THREE scene, X is inverted compared to CNC coordinates
           const x = -intersectionPoint.x / sceneScale;
           const y = intersectionPoint.y / sceneScale;
           const z = intersectionPoint.z / sceneScale;
 
-          // Update position state
-          setMousePosition({ x, y, z });
-          setLastGridPosition({ x, y, z });
-          setIsMouseOverWorkspace(true);
-          
-          if (debugMode) {
-            console.log('Grid plane intersection detected', { x, y, z });
+          // Update mouse position display
+          if (showMousePosition) {
+            setMousePosition({ x, y, z });
+            setLastGridPosition({ x, y, z });
+            setIsMouseOverWorkspace(true);
+            intersectionFound = true;
+            
+            if (debugMode) {
+              console.log('STL intersection detected', { x, y, z });
+            }
           }
 
-          // Update the mouse indicator sphere
+          // Update mouse indicator sphere position
           if (mouseIndicatorRef?.current) {
-            mouseIndicatorRef.current.setPosition(intersectionPoint);
+            if (showMousePosition) {
+              mouseIndicatorRef.current.setPosition(intersectionPoint);
+            } else {
+              mouseIndicatorRef.current.hide();
+            }
+          }
+
+          // Handle STL hover effects
+          const object = firstIntersection.object;
+          const fileId = object.userData.fileId;
+
+          if (fileId) {
+            // Only update if hovering a different object
+            if (fileId !== hoveredStl) {
+              // Reset previous hover styling
+              if (hoveredStl && stlObjects[hoveredStl]) {
+                stlObjects[hoveredStl].material.color.set(0xd9eaff);
+                stlObjects[hoveredStl].material.emissive.set(0x000000);
+              }
+
+              // Apply hover styling
+              if (stlObjects[fileId]) {
+                stlObjects[fileId].material.color.set(0xffcc66);
+                stlObjects[fileId].material.emissive.set(0x222222);
+              }
+
+              setHoveredStl(fileId);
+            }
           }
         } else {
-          // No grid plane intersection - don't show any coordinates or indicator
-          setIsMouseOverWorkspace(false);
-          
-          if (mouseIndicatorRef?.current) {
-            mouseIndicatorRef.current.hide();
+          // Reset hover state if no STL object is being hovered
+          if (hoveredStl && stlObjects[hoveredStl]) {
+            stlObjects[hoveredStl].material.color.set(0xd9eaff);
+            stlObjects[hoveredStl].material.emissive.set(0x000000);
+            setHoveredStl(null);
           }
         }
-      } else {
-        // If there's no grid plane, we can use a fallback, but for the current requirements,
-        // we should only show coordinates on valid workspace surfaces
-        setIsMouseOverWorkspace(false);
-        
-        if (mouseIndicatorRef?.current) {
-          mouseIndicatorRef.current.hide();
+
+        // If we didn't hit an STL object, check for grid plane intersection
+        if (!intersectionFound && showMousePosition) {
+          // First, check if we have a grid plane ref passed in
+          const gridPlane = gridPlaneRef?.current;
+          
+          if (gridPlane) {
+            if (debugMode) {
+              console.log('Attempting to raycast against grid plane');
+            }
+            
+            const gridIntersections = activeRaycaster.intersectObject(gridPlane, false);
+
+            if (gridIntersections.length > 0) {
+              const intersectionPoint = gridIntersections[0].point;
+
+              // Convert from THREE.js coordinate system to CNC workspace coordinates
+              const x = -intersectionPoint.x / sceneScale;
+              const y = intersectionPoint.y / sceneScale;
+              const z = intersectionPoint.z / sceneScale;
+
+              // Update position state
+              setMousePosition({ x, y, z });
+              setLastGridPosition({ x, y, z });
+              setIsMouseOverWorkspace(true);
+              
+              if (debugMode) {
+                console.log('Grid plane intersection detected', { x, y, z });
+              }
+
+              // Update the mouse indicator sphere
+              if (mouseIndicatorRef?.current) {
+                mouseIndicatorRef.current.setPosition(intersectionPoint);
+              }
+            } else {
+              // No grid plane intersection - don't show any coordinates or indicator
+              setIsMouseOverWorkspace(false);
+              
+              if (mouseIndicatorRef?.current) {
+                mouseIndicatorRef.current.hide();
+              }
+            }
+          } else {
+            // If there's no grid plane, we can use a fallback, but for the current requirements,
+            // we should only show coordinates on valid workspace surfaces
+            setIsMouseOverWorkspace(false);
+            
+            if (mouseIndicatorRef?.current) {
+              mouseIndicatorRef.current.hide();
+            }
+          }
         }
       }
-    }
+    }, 0);
   }, [
     containerRef,
     activeRaycaster,
@@ -256,6 +265,23 @@ const useMouseTracking = ({
       }
     });
   }, [hoveredStl, stlObjects]);
+
+  // Add a resize handler to handle resize events
+  useEffect(() => {
+    // Add a resize handler to clear mouse position temporarily during resize
+    const handleResize = () => {
+      if (mouseIndicatorRef?.current) {
+        mouseIndicatorRef.current.hide();
+      }
+      setIsMouseOverWorkspace(false);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [mouseIndicatorRef]);
 
   // Set up event listeners
   useEffect(() => {
