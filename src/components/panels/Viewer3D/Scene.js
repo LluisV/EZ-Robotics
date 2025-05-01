@@ -9,6 +9,7 @@ import StlManager from './StlManager';
 import { getThemeColors } from './utils/themeColors';
 import MouseIndicator from './MouseIndicator';
 
+
 /**
  * Scene component for the 3D Viewer
  * Handles creation and management of the THREE.js scene
@@ -70,8 +71,6 @@ const Scene = forwardRef(({
         gridDimensions,
         sceneScale
     });
-
-
 
     // Mouse tracking for coordinate display and object hover
     useMouseTracking({

@@ -17,6 +17,7 @@ import * as THREE from 'three';
  * @param {number} props.sceneScale Scene scale factor
  * @param {boolean} props.showMousePosition Whether to show mouse position
  * @param {React.RefObject} props.gridPlaneRef Reference to grid plane for intersection
+ * @param {Object} props.indicatorSettings Indicator appearance settings
  * @returns {Object} Mouse tracking utilities
  */
 const useMouseTracking = ({
@@ -30,13 +31,15 @@ const useMouseTracking = ({
   setMousePosition,
   sceneScale,
   showMousePosition,
-  gridPlaneRef
+  gridPlaneRef,
+  indicatorSettings
 }) => {
   const [hoveredStl, setHoveredStl] = useState(null);
   const [stlObjects, setStlObjects] = useState({});
   const [lastGridPosition, setLastGridPosition] = useState({ x: 0, y: 0, z: 0 });
   const [isMouseOverScene, setIsMouseOverScene] = useState(false);
-  const debugMode = true; // Enable for troubleshooting
+  const [isMouseOverWorkspace, setIsMouseOverWorkspace] = useState(false);
+  const debugMode = false; // Set to true for troubleshooting
 
   // Create our own raycaster and mouse position vector if not provided
   const internalRaycasterRef = useRef(new THREE.Raycaster());
@@ -106,6 +109,7 @@ const useMouseTracking = ({
       if (showMousePosition) {
         setMousePosition({ x, y, z });
         setLastGridPosition({ x, y, z });
+        setIsMouseOverWorkspace(true);
         intersectionFound = true;
         
         if (debugMode) {
@@ -176,6 +180,7 @@ const useMouseTracking = ({
           // Update position state
           setMousePosition({ x, y, z });
           setLastGridPosition({ x, y, z });
+          setIsMouseOverWorkspace(true);
           
           if (debugMode) {
             console.log('Grid plane intersection detected', { x, y, z });
@@ -186,47 +191,21 @@ const useMouseTracking = ({
             mouseIndicatorRef.current.setPosition(intersectionPoint);
           }
         } else {
-          // Fallback to XY plane if no grid intersection
-          fallbackToXYPlane();
+          // No grid plane intersection - don't show any coordinates or indicator
+          setIsMouseOverWorkspace(false);
+          
+          if (mouseIndicatorRef?.current) {
+            mouseIndicatorRef.current.hide();
+          }
         }
       } else {
-        // No grid plane ref, use fallback
-        fallbackToXYPlane();
-      }
-    }
-    
-    // Helper function for XY plane fallback
-    function fallbackToXYPlane() {
-      if (debugMode) {
-        console.log('Using fallback XY plane for raycasting');
-      }
-      
-      // Create a fallback XY plane at Z=0
-      const fallbackPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
-      const intersection = new THREE.Vector3();
-      
-      // Check if the ray intersects the plane
-      if (activeRaycaster.ray.intersectPlane(fallbackPlane, intersection)) {
-        // Convert from THREE.js coordinate system to CNC workspace coordinates
-        const x = -intersection.x / sceneScale;
-        const y = intersection.y / sceneScale;
-        const z = intersection.z / sceneScale;
+        // If there's no grid plane, we can use a fallback, but for the current requirements,
+        // we should only show coordinates on valid workspace surfaces
+        setIsMouseOverWorkspace(false);
         
-        // Update position state
-        setMousePosition({ x, y, z });
-        setLastGridPosition({ x, y, z });
-        
-        if (debugMode) {
-          console.log('Fallback plane intersection detected', { x, y, z });
-        }
-        
-        // Update the mouse indicator sphere
         if (mouseIndicatorRef?.current) {
-          mouseIndicatorRef.current.setPosition(intersection);
+          mouseIndicatorRef.current.hide();
         }
-      } else if (mouseIndicatorRef?.current) {
-        // Hide the indicator if not intersecting
-        mouseIndicatorRef.current.hide();
       }
     }
   }, [
@@ -245,9 +224,9 @@ const useMouseTracking = ({
 
   // Handle mouseout event
   const handleMouseOut = useCallback(() => {
-    // When mouse leaves the scene, we still show the last known position
-    // But we hide the indicator sphere
+    // When mouse leaves the scene, we hide the indicator and reset workspace status
     setIsMouseOverScene(false);
+    setIsMouseOverWorkspace(false);
     
     if (mouseIndicatorRef?.current) {
       mouseIndicatorRef.current.hide();
@@ -345,7 +324,8 @@ const useMouseTracking = ({
     hoveredStl,
     lastGridPosition,
     clearAllHighlights,
-    isMouseOverScene
+    isMouseOverScene,
+    isMouseOverWorkspace
   };
 };
 

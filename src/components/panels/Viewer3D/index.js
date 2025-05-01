@@ -31,6 +31,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
   const [panelDimensions, setPanelDimensions] = useState({ width: 0, height: 0 });
   const [robotPosition, setRobotPosition] = useState({ x: 0, y: 0, z: 0, a: 0 });
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0, z: 0 });
+  const [isMouseOverWorkspace, setIsMouseOverWorkspace] = useState(false);
   const [workOffset, setWorkOffset] = useState({ x: 0, y: 0, z: 0 });
   
   // Updated gridDimensions to include depth
@@ -91,6 +92,11 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     setMousePosition(position);
   }, []);
 
+  // Handle mouse over workspace status updates
+  const handleMouseOverWorkspaceUpdate = useCallback((isOver) => {
+    setIsMouseOverWorkspace(isOver);
+  }, []);
+
   // Handle gridDimensions changes
   const handleGridDimensionsChange = useCallback((newDimensions) => {
     console.log("Updating grid dimensions:", newDimensions);
@@ -140,6 +146,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     setRobotPosition,
     mousePosition,
     setMousePosition: handleMousePositionUpdate,
+    setIsMouseOverWorkspace: handleMouseOverWorkspaceUpdate,
     gridDimensions,
     showWorldCoords,
     parsedToolpath,
@@ -205,6 +212,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
             mousePosition={mousePosition}
             workOffset={workOffset}
             visible={showMousePosition}
+            isMouseOverWorkspace={isMouseOverWorkspace}
           />
         </div>
         <Gizmo onViewChange={handleViewChange} />
