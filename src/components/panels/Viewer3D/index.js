@@ -6,6 +6,7 @@ import PositionDisplay from './PositionDisplay';
 import StlPanel from './components/StlPanel';
 import Gizmo from './components/Gizmo';
 import MouseCoordinatesPanel from './components/MouseCoordinatesPanel';
+import { processStlFiles } from './utils/fileHandler';
 
 /**
  * Viewer3D Panel - Main component that integrates all 3D viewer functionality
@@ -23,7 +24,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
   const [showToolpath, setShowToolpath] = useState(true);
   const [showMousePosition, setShowMousePosition] = useState(true);
   const [indicatorSettings, setIndicatorSettings] = useState({
-    showProjectionLines: true, 
+    showProjectionLines: true,
     pulseAnimation: true,
     size: 'medium'
   });
@@ -33,14 +34,82 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0, z: 0 });
   const [isMouseOverWorkspace, setIsMouseOverWorkspace] = useState(false);
   const [workOffset, setWorkOffset] = useState({ x: 0, y: 0, z: 0 });
-  
+
   // Updated gridDimensions to include depth
-  const [gridDimensions, setGridDimensions] = useState({ 
-    width: 240, 
+  const [gridDimensions, setGridDimensions] = useState({
+    width: 240,
     height: 350,
     depth: 150 // Default depth value
   });
-  
+
+  const handleStlFileSelection = async (event) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+    
+    try {
+      // Access the StlManager from the scene component
+      if (sceneRef.current && sceneRef.current.stlManagerRef && sceneRef.current.stlManagerRef.current) {
+        const stlManager = sceneRef.current.stlManagerRef.current;
+        
+        // Read and process each file
+        for (const file of Array.from(files)) {
+          // Only process STL files
+          if (!file.name.toLowerCase().endsWith('.stl')) {
+            console.warn(`File ${file.name} is not an STL file and will be skipped.`);
+            continue;
+          }
+          
+          // Read the file as ArrayBuffer
+          const fileContent = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = (e) => reject(new Error(`Error reading file ${file.name}`));
+            reader.readAsArrayBuffer(file);
+          });
+          
+          // Use the StlManager to load the model
+          const fileId = stlManager.loadStlModel(file.name, fileContent);
+          
+          if (fileId) {
+            console.log(`Loaded STL file ${file.name} with ID: ${fileId}`);
+          }
+        }
+      } else {
+        console.error("STL Manager is not available");
+        
+        // Fallback: At least update the state so the StlPanel displays
+        for (const file of Array.from(files)) {
+          if (!file.name.toLowerCase().endsWith('.stl')) continue;
+          
+          // Generate a unique ID
+          const fileId = `stl-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+          
+          // Create new file entry for the state
+          const newFile = {
+            id: fileId,
+            name: file.name,
+            visible: true,
+            position: [0, 0, 0],
+            rotation: [0, 0, 0],
+            dimensions: [10, 10, 10], // Default dimensions
+            scale: 1.0,
+            autoScale: 1.0,
+            manualScale: false
+          };
+          
+          // Update state
+          setStlFiles(prevFiles => [...prevFiles, newFile]);
+        }
+      }
+      
+      // Reset the file input to allow selecting the same file again
+      event.target.value = null;
+      
+    } catch (error) {
+      console.error("Error processing STL files:", error);
+    }
+  };
+
   useEffect(() => {
     // Create a global scaling update function that the animation loop can call
     window.updateGridScaling = (distance) => {
@@ -49,7 +118,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
         sceneRef.current.gridManagerRef.current.setCameraDistance(distance);
       }
     };
-    
+
     return () => {
       // Clean up the global function when component unmounts
       delete window.updateGridScaling;
@@ -184,6 +253,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
         setGridDimensions={handleGridDimensionsChange}
         indicatorSettings={indicatorSettings}
         setIndicatorSettings={setIndicatorSettings}
+        onFileSelect={handleStlFileSelection}
       />
 
       <PositionDisplay
@@ -192,7 +262,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
       />
 
       <div style={viewerContainerStyle}>
-        <div 
+        <div
           ref={containerRef}
           style={{
             position: 'relative',
@@ -201,14 +271,14 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
             minWidth: 0
           }}
         >
-          <Scene 
-            {...viewProps} 
-            containerRef={containerRef} 
+          <Scene
+            {...viewProps}
+            containerRef={containerRef}
             ref={sceneRef} // Pass the ref to Scene component
           />
-          
+
           {/* Mouse coordinates panel with reactive visibility */}
-          <MouseCoordinatesPanel 
+          <MouseCoordinatesPanel
             mousePosition={mousePosition}
             workOffset={workOffset}
             visible={showMousePosition}
@@ -219,7 +289,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
 
         {/* STL Files Panel - Only visible when files exist */}
         {stlFiles.length > 0 && (
-          <StlPanel 
+          <StlPanel
             stlFiles={stlFiles}
             setStlFiles={setStlFiles}
           />

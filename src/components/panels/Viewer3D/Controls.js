@@ -18,12 +18,13 @@ const Controls = ({
   showMousePosition,
   toggleMousePosition,
   indicatorSettings,
- setIndicatorSettings,
+  setIndicatorSettings,
   isPerspective,
   togglePerspective,
   fileInputRef,
   gridDimensions,
-  setGridDimensions
+  setGridDimensions,
+  onFileSelect  // Added this parameter
 }) => {
   // Handle STL import
   const handleImportClick = () => {
@@ -115,6 +116,7 @@ const Controls = ({
             accept=".stl"
             multiple
             style={{ display: 'none' }}
+            onChange={onFileSelect}  // Using parameter directly instead of props.onFileSelect
           />
         </div>
       </div>

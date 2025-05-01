@@ -482,8 +482,9 @@ const Scene = forwardRef(({
 
     // Expose methods via ref to parent component
     useImperativeHandle(ref, () => ({
-        handleViewChange
-    }), [handleViewChange]);
+        handleViewChange,
+        stlManagerRef: stlManagerRef
+      }), [handleViewChange, stlManagerRef]);
 
     // Cleanup on unmount
     useEffect(() => {
