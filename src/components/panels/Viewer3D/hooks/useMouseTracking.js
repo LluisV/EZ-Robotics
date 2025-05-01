@@ -3,6 +3,7 @@ import * as THREE from 'three';
 
 /**
  * Hook to handle mouse tracking and intersection detection in the 3D scene
+ * Provides accurate workspace coordinates through raycasting
  * 
  * @param {Object} props Configuration options
  * @param {React.RefObject} props.containerRef Reference to container element
@@ -33,6 +34,7 @@ const useMouseTracking = ({
 }) => {
   const [hoveredStl, setHoveredStl] = useState(null);
   const [stlObjects, setStlObjects] = useState({});
+  const [lastGridPosition, setLastGridPosition] = useState({ x: 0, y: 0, z: 0 });
 
   // Get STL objects from scene
   useEffect(() => {
@@ -68,6 +70,9 @@ const useMouseTracking = ({
     // Calculate intersections with STL objects
     const stlIntersections = raycasterRef.current.intersectObjects(allSTLObjects, false);
 
+    // Track if we've found an intersection to update mouse position
+    let intersectionFound = false;
+
     // Clear hover state by default
     let shouldClearHover = true;
 
@@ -76,14 +81,17 @@ const useMouseTracking = ({
       const firstIntersection = stlIntersections[0];
       const intersectionPoint = firstIntersection.point;
 
-      // Scale the intersection point back to world units (mm)
-      const x = intersectionPoint.x / sceneScale;
+      // Convert from THREE.js coordinate system to CNC workspace coordinates
+      // Note: in THREE scene, X is inverted compared to CNC coordinates
+      const x = -intersectionPoint.x / sceneScale;
       const y = intersectionPoint.y / sceneScale;
       const z = intersectionPoint.z / sceneScale;
 
       // Update mouse position display
       if (showMousePosition) {
         setMousePosition({ x, y, z });
+        setLastGridPosition({ x, y, z });
+        intersectionFound = true;
       }
 
       // Update mouse indicator sphere position
@@ -119,7 +127,7 @@ const useMouseTracking = ({
     }
 
     // If we didn't hit an STL object, check for grid plane intersection
-    if (shouldClearHover && showMousePosition) {
+    if (!intersectionFound && showMousePosition) {
       // Try to intersect with the grid plane
       if (gridPlaneRef.current) {
         const gridIntersections = raycasterRef.current.intersectObject(gridPlaneRef.current, false);
@@ -127,13 +135,15 @@ const useMouseTracking = ({
         if (gridIntersections.length > 0) {
           const intersectionPoint = gridIntersections[0].point;
 
-          // Scale the intersection point back to world units (mm)
-          const x = intersectionPoint.x / sceneScale;
+          // Convert from THREE.js coordinate system to CNC workspace coordinates
+          // Note: in THREE scene, X is inverted compared to CNC coordinates
+          const x = -intersectionPoint.x / sceneScale;
           const y = intersectionPoint.y / sceneScale;
           const z = intersectionPoint.z / sceneScale;
 
           // Update position state
           setMousePosition({ x, y, z });
+          setLastGridPosition({ x, y, z });
 
           // Update the mouse indicator sphere
           if (mouseIndicatorRef.current) {
@@ -141,7 +151,7 @@ const useMouseTracking = ({
             mouseIndicatorRef.current.visible = true;
           }
         } else if (mouseIndicatorRef.current) {
-          // Hide the indicator if not intersecting
+          // Hide the indicator if not intersecting, but keep showing the last position in the panel
           mouseIndicatorRef.current.visible = false;
         }
       } else {
@@ -151,13 +161,14 @@ const useMouseTracking = ({
 
         // Check if the ray intersects the plane
         if (raycasterRef.current.ray.intersectPlane(gridPlane, intersection)) {
-          // Scale the intersection point back to world units (mm)
-          const x = intersection.x / sceneScale;
+          // Convert from THREE.js coordinate system to CNC workspace coordinates
+          const x = -intersection.x / sceneScale;
           const y = intersection.y / sceneScale;
           const z = intersection.z / sceneScale;
 
           // Update position state
           setMousePosition({ x, y, z });
+          setLastGridPosition({ x, y, z });
 
           // Update the mouse indicator sphere
           if (mouseIndicatorRef.current) {
@@ -195,10 +206,8 @@ const useMouseTracking = ({
 
   // Handle mouseout event
   const handleMouseOut = useCallback(() => {
-    // Clear mouse position when leaving the 3D view
-    setMousePosition({ x: 0, y: 0, z: 0 });
-
-    // Hide the mouse indicator
+    // When mouse leaves the scene, we still show the last known position
+    // But we hide the indicator sphere
     if (mouseIndicatorRef.current) {
       mouseIndicatorRef.current.visible = false;
     }
@@ -209,7 +218,7 @@ const useMouseTracking = ({
       stlObjects[hoveredStl].material.emissive.set(0x000000);
       setHoveredStl(null);
     }
-  }, [hoveredStl, mouseIndicatorRef, setMousePosition, stlObjects]);
+  }, [hoveredStl, mouseIndicatorRef, stlObjects]);
 
   // Force clear all highlights - utility function
   const clearAllHighlights = useCallback(() => {
@@ -228,7 +237,6 @@ const useMouseTracking = ({
     });
   }, [hoveredStl, stlObjects]);
 
-  // Set up event listeners
   // Set up event listeners
   useEffect(() => {
     if (!containerRef.current) return;
@@ -268,6 +276,7 @@ const useMouseTracking = ({
 
   return {
     hoveredStl,
+    lastGridPosition,
     clearAllHighlights
   };
 };

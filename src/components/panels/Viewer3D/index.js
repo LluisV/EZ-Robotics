@@ -9,6 +9,7 @@ import MouseCoordinatesPanel from './components/MouseCoordinatesPanel';
 
 /**
  * Viewer3D Panel - Main component that integrates all 3D viewer functionality
+ * Now with proper mouse coordinate tracking in the workspace
  * 
  * @param {Object} props Component properties
  * @param {boolean} props.showAxes Whether to show axes by default
@@ -79,6 +80,12 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     return () => observer.disconnect();
   }, []);
 
+  // Handle mouse position updates
+  const handleMousePositionUpdate = useCallback((position) => {
+    // Apply sign inversion if needed to match workspace coordinate system
+    setMousePosition(position);
+  }, []);
+
   // Handle gridDimensions changes
   const handleGridDimensionsChange = useCallback((newDimensions) => {
     console.log("Updating grid dimensions:", newDimensions);
@@ -126,7 +133,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     robotPosition,
     setRobotPosition,
     mousePosition,
-    setMousePosition,
+    setMousePosition: handleMousePositionUpdate, // Use our custom handler
     gridDimensions,
     showWorldCoords,
     parsedToolpath,
@@ -186,12 +193,11 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
           />
           <Gizmo onViewChange={handleViewChange} />
           
-          {/* Add the new mouse coordinates panel */}
+          {/* Mouse coordinates panel with reactive visibility */}
           <MouseCoordinatesPanel 
             mousePosition={mousePosition}
             workOffset={workOffset}
             visible={showMousePosition}
-            key={`mouse-panel-${mousePosition.x.toFixed(1)}-${mousePosition.y.toFixed(1)}-${mousePosition.z.toFixed(1)}`}
           />
         </div>
 
