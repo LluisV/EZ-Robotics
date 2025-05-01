@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import GridEditor from './components/GridEditor';
+import MouseIndicatorSettings from './components/MouseIndicatorSettings';
 
 /**
  * Controls component for the Viewer3D panel
@@ -16,6 +17,8 @@ const Controls = ({
   setShowToolpath,
   showMousePosition,
   toggleMousePosition,
+  indicatorSettings,
+ setIndicatorSettings,
   isPerspective,
   togglePerspective,
   fileInputRef,
@@ -73,15 +76,12 @@ const Controls = ({
             Toolpath
           </label>
 
-          <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px' }}>
-            <input
-              type="checkbox"
-              checked={showMousePosition}
-              onChange={toggleMousePosition}
-              style={{ margin: 0 }}
-            />
-            Show Coordinates
-          </label>
+          <MouseIndicatorSettings
+            showMousePosition={showMousePosition}
+            toggleMousePosition={toggleMousePosition}
+            indicatorSettings={indicatorSettings}
+            setIndicatorSettings={setIndicatorSettings}
+          />
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderLeft: '1px solid var(--border-color)', paddingLeft: '8px' }}>

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import MouseIndicator from '../MouseIndicator';
 
 /**
  * Hook to setup and manage a THREE.js scene
@@ -164,19 +165,44 @@ const useThreeScene = ({
     gridPlaneRef.current = plane;
     console.log("Grid plane created");
 
-    // Create mouse position indicator sphere
-    const sphereGeometry = new THREE.SphereGeometry(0.03, 16, 16);
-    const sphereMaterial = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0.75,
-      depthTest: true
-    });
-    const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-    sphere.visible = false; // Hidden by default
-    scene.add(sphere);
-    mouseIndicatorRef.current = sphere;
-    console.log("Mouse indicator created");
+    // Create enhanced mouse position indicator
+    try {
+      // Create new mouse indicator
+      const mouseIndicator = new MouseIndicator(scene, themeColors, sceneScale);
+      mouseIndicatorRef.current = mouseIndicator;
+      console.log("Enhanced mouse indicator created");
+    } catch (error) {
+      console.error("Error creating mouse indicator:", error);
+      
+      // Fallback to simple sphere if there's an error
+      const sphereGeometry = new THREE.SphereGeometry(0.03, 16, 16);
+      const sphereMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.75,
+        depthTest: true
+      });
+      const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+      sphere.visible = false;
+      scene.add(sphere);
+      
+      // Add API methods to the sphere for compatibility
+      sphere.setPosition = function(position) {
+        this.position.copy(position);
+        this.visible = true;
+      };
+      
+      sphere.hide = function() {
+        this.visible = false;
+      };
+      
+      sphere.show = function() {
+        this.visible = true;
+      };
+      
+      mouseIndicatorRef.current = sphere;
+      console.log("Fallback to simple sphere indicator");
+    }
 
     console.log("Scene creation complete");
     return scene;
@@ -217,13 +243,25 @@ const useThreeScene = ({
   const startAnimationLoop = useCallback(() => {
     if (!rendererRef.current || !sceneRef.current || !cameraRef.current) return;
 
+    let lastFrameTime = null;
+
     const animate = () => {
       const id = requestAnimationFrame(animate);
       setAnimationFrameId(id);
+      
+      // Calculate delta time for animations
+      const now = performance.now();
+      const deltaTime = lastFrameTime ? now - lastFrameTime : 16.7; // Default to ~60fps
+      lastFrameTime = now;
 
       // Update controls
       if (controlsRef.current) {
         controlsRef.current.update();
+      }
+      
+      // Update mouse indicator animations if it exists
+      if (mouseIndicatorRef.current && typeof mouseIndicatorRef.current.update === 'function') {
+        mouseIndicatorRef.current.update(deltaTime);
       }
 
       // Render scene
@@ -383,14 +421,22 @@ const useThreeScene = ({
       }
     }
 
-    if (mouseIndicatorRef.current && sceneRef.current) {
+    if (mouseIndicatorRef.current) {
       console.log("Removing mouse indicator from scene");
-      sceneRef.current.remove(mouseIndicatorRef.current);
-      if (mouseIndicatorRef.current.geometry) {
-        mouseIndicatorRef.current.geometry.dispose();
-      }
-      if (mouseIndicatorRef.current.material) {
-        mouseIndicatorRef.current.material.dispose();
+      if (typeof mouseIndicatorRef.current.dispose === 'function') {
+        // New MouseIndicator class
+        mouseIndicatorRef.current.dispose();
+      } else {
+        // Legacy sphere indicator
+        if (sceneRef.current) {
+          sceneRef.current.remove(mouseIndicatorRef.current);
+        }
+        if (mouseIndicatorRef.current.geometry) {
+          mouseIndicatorRef.current.geometry.dispose();
+        }
+        if (mouseIndicatorRef.current.material) {
+          mouseIndicatorRef.current.material.dispose();
+        }
       }
     }
 

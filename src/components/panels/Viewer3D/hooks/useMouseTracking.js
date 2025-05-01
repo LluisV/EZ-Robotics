@@ -115,8 +115,11 @@ const useMouseTracking = ({
 
       // Update mouse indicator sphere position
       if (mouseIndicatorRef?.current) {
-        mouseIndicatorRef.current.position.copy(intersectionPoint);
-        mouseIndicatorRef.current.visible = showMousePosition;
+        if (showMousePosition) {
+          mouseIndicatorRef.current.setPosition(intersectionPoint);
+        } else {
+          mouseIndicatorRef.current.hide();
+        }
       }
 
       // Handle STL hover effects
@@ -180,8 +183,7 @@ const useMouseTracking = ({
 
           // Update the mouse indicator sphere
           if (mouseIndicatorRef?.current) {
-            mouseIndicatorRef.current.position.copy(intersectionPoint);
-            mouseIndicatorRef.current.visible = true;
+            mouseIndicatorRef.current.setPosition(intersectionPoint);
           }
         } else {
           // Fallback to XY plane if no grid intersection
@@ -220,12 +222,11 @@ const useMouseTracking = ({
         
         // Update the mouse indicator sphere
         if (mouseIndicatorRef?.current) {
-          mouseIndicatorRef.current.position.copy(intersection);
-          mouseIndicatorRef.current.visible = true;
+          mouseIndicatorRef.current.setPosition(intersection);
         }
       } else if (mouseIndicatorRef?.current) {
         // Hide the indicator if not intersecting
-        mouseIndicatorRef.current.visible = false;
+        mouseIndicatorRef.current.hide();
       }
     }
   }, [
@@ -249,7 +250,7 @@ const useMouseTracking = ({
     setIsMouseOverScene(false);
     
     if (mouseIndicatorRef?.current) {
-      mouseIndicatorRef.current.visible = false;
+      mouseIndicatorRef.current.hide();
     }
 
     // Reset hover state

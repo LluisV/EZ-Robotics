@@ -7,6 +7,7 @@ import { GridManager } from './GridManager';
 import ToolpathRenderer from './ToolpathRenderer';
 import StlManager from './StlManager';
 import { getThemeColors } from './utils/themeColors';
+import MouseIndicator from './MouseIndicator';
 
 /**
  * Scene component for the 3D Viewer
@@ -32,7 +33,8 @@ const Scene = forwardRef(({
     parsedToolpath,
     selectedLine,
     transformValues,
-    panelDimensions
+    panelDimensions,
+    indicatorSettings
 }, ref) => {
     // Scene scale - conversion factor from mm to scene units
     const sceneScale = 0.1; // 10mm = 1 unit
@@ -83,7 +85,8 @@ const Scene = forwardRef(({
         setMousePosition,
         sceneScale,
         showMousePosition,
-        gridPlaneRef
+        gridPlaneRef,
+        indicatorSettings
     });
 
     // Create robot position indicator
@@ -182,7 +185,7 @@ const Scene = forwardRef(({
                 workOffset
             );
         }
-
+        window.mouseIndicatorRef = mouseIndicatorRef.current;
         // Create Toolpath Renderer
         if (!toolpathRendererRef.current) {
             toolpathRendererRef.current = new ToolpathRenderer(

@@ -22,6 +22,11 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
   const [showWorkAxes, setShowWorkAxes] = useState(true);
   const [showToolpath, setShowToolpath] = useState(true);
   const [showMousePosition, setShowMousePosition] = useState(true);
+  const [indicatorSettings, setIndicatorSettings] = useState({
+    showProjectionLines: true, 
+    pulseAnimation: true,
+    size: 'medium'
+  });
   const [stlFiles, setStlFiles] = useState([]);
   const [panelDimensions, setPanelDimensions] = useState({ width: 0, height: 0 });
   const [robotPosition, setRobotPosition] = useState({ x: 0, y: 0, z: 0, a: 0 });
@@ -126,6 +131,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     showWorkAxes,
     showToolpath,
     showMousePosition,
+    indicatorSettings,
     stlFiles,
     setStlFiles,
     workOffset,
@@ -133,7 +139,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     robotPosition,
     setRobotPosition,
     mousePosition,
-    setMousePosition: handleMousePositionUpdate, // Use our custom handler
+    setMousePosition: handleMousePositionUpdate,
     gridDimensions,
     showWorldCoords,
     parsedToolpath,
@@ -169,6 +175,8 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
         fileInputRef={fileInputRef}
         gridDimensions={gridDimensions}
         setGridDimensions={handleGridDimensionsChange}
+        indicatorSettings={indicatorSettings}
+        setIndicatorSettings={setIndicatorSettings}
       />
 
       <PositionDisplay
