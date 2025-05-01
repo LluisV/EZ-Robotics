@@ -497,6 +497,7 @@ const Scene = forwardRef(({
             }
         };
     }, []); // Empty dependency array means it only runs on mount/unmount
+    
 
     return null; // This component doesn't render anything directly
 });

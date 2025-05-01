@@ -16,13 +16,14 @@ const MouseCoordinatesPanel = ({ mousePosition, visible = true, workOffset = { x
   const [expanded, setExpanded] = useState(true);
   const [localMousePosition, setLocalMousePosition] = useState({ x: 0, y: 0, z: 0 });
   const [isMouseOverScene, setIsMouseOverScene] = useState(false);
+  const [showPanel, setShowPanel] = useState(true); // Always show panel by default
   
   // Update local state when mousePosition prop changes
   useEffect(() => {
     if (mousePosition) {
       setLocalMousePosition(mousePosition);
       
-      // If we're receiving mouse position updates, mouse must be over scene
+      // If we're receiving mouse position updates, mouse must be over scene or nearby
       if (mousePosition.x !== 0 || mousePosition.y !== 0 || mousePosition.z !== 0) {
         setIsMouseOverScene(true);
       }
@@ -38,27 +39,8 @@ const MouseCoordinatesPanel = ({ mousePosition, visible = true, workOffset = { x
     return () => removeListener();
   }, []);
   
-  // Add event listeners to detect when mouse leaves the scene
-  useEffect(() => {
-    const handleMouseLeave = () => {
-      setIsMouseOverScene(false);
-    };
-    
-    // Find the renderer element
-    const rendererElement = document.querySelector('.panel-content canvas');
-    if (rendererElement) {
-      rendererElement.addEventListener('mouseout', handleMouseLeave);
-      rendererElement.addEventListener('mouseleave', handleMouseLeave);
-      
-      return () => {
-        rendererElement.removeEventListener('mouseout', handleMouseLeave);
-        rendererElement.removeEventListener('mouseleave', handleMouseLeave);
-      };
-    }
-  }, []);
-  
   // Don't render if not visible
-  if (!visible) return null;
+  if (!visible || !showPanel) return null;
   
   // Calculate work coordinates (subtract work offset from machine coordinates)
   const workCoords = {
@@ -160,64 +142,65 @@ const MouseCoordinatesPanel = ({ mousePosition, visible = true, workOffset = { x
       
       {expanded && (
         <>
-          {!isMouseOverScene && (
-            <div style={{ color: '#aaa', fontSize: '10px', marginBottom: '4px', textAlign: 'center' }}>
-              Move mouse over workspace
-            </div>
-          )}
+          {/* Always show coordinates, with a hint when mouse is not over the scene */}
+          <div style={{ 
+            color: '#aaa', 
+            fontSize: '10px', 
+            marginBottom: '4px', 
+            textAlign: 'center',
+            display: isMouseOverScene ? 'none' : 'block'  
+          }}>
+            Move mouse over workspace
+          </div>
           
-          {isMouseOverScene && (
-            <>
-              {/* Machine coordinates */}
-              <div style={{ marginBottom: showWorkCoords ? '8px' : '0' }}>
-                <div style={{ 
-                  fontSize: '10px', 
-                  marginBottom: '4px', 
-                  color: themeColors.worldCoord,
-                  fontWeight: 'bold'
-                }}>
-                  MACHINE
-                </div>
-                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                  <span style={{ color: themeColors.xAxis, fontWeight: 'bold', width: '12px' }}>X:</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>{localMousePosition.x.toFixed(2)}</span>
-                </div>
-                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                  <span style={{ color: themeColors.yAxis, fontWeight: 'bold', width: '12px' }}>Y:</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>{localMousePosition.y.toFixed(2)}</span>
-                </div>
-                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                  <span style={{ color: themeColors.zAxis, fontWeight: 'bold', width: '12px' }}>Z:</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>{localMousePosition.z.toFixed(2)}</span>
-                </div>
+          {/* Machine coordinates */}
+          <div style={{ marginBottom: showWorkCoords ? '8px' : '0' }}>
+            <div style={{ 
+              fontSize: '10px', 
+              marginBottom: '4px', 
+              color: themeColors.worldCoord,
+              fontWeight: 'bold'
+            }}>
+              MACHINE
+            </div>
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              <span style={{ color: themeColors.xAxis, fontWeight: 'bold', width: '12px' }}>X:</span>
+              <span style={{ flex: 1, textAlign: 'right' }}>{localMousePosition.x.toFixed(2)}</span>
+            </div>
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              <span style={{ color: themeColors.yAxis, fontWeight: 'bold', width: '12px' }}>Y:</span>
+              <span style={{ flex: 1, textAlign: 'right' }}>{localMousePosition.y.toFixed(2)}</span>
+            </div>
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              <span style={{ color: themeColors.zAxis, fontWeight: 'bold', width: '12px' }}>Z:</span>
+              <span style={{ flex: 1, textAlign: 'right' }}>{localMousePosition.z.toFixed(2)}</span>
+            </div>
+          </div>
+          
+          {/* Work coordinates - only shown if enabled */}
+          {showWorkCoords && (
+            <div>
+              <div style={{ 
+                fontSize: '10px', 
+                marginBottom: '4px', 
+                color: themeColors.workCoord,
+                fontWeight: 'bold'
+              }}>
+                WORK
               </div>
-              
-              {/* Work coordinates - only shown if enabled */}
-              {showWorkCoords && (
-                <div>
-                  <div style={{ 
-                    fontSize: '10px', 
-                    marginBottom: '4px', 
-                    color: themeColors.workCoord,
-                    fontWeight: 'bold'
-                  }}>
-                    WORK
-                  </div>
-                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                    <span style={{ color: themeColors.xAxis, fontWeight: 'bold', width: '12px' }}>X:</span>
-                    <span style={{ flex: 1, textAlign: 'right' }}>{workCoords.x.toFixed(2)}</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                    <span style={{ color: themeColors.yAxis, fontWeight: 'bold', width: '12px' }}>Y:</span>
-                    <span style={{ flex: 1, textAlign: 'right' }}>{workCoords.y.toFixed(2)}</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                    <span style={{ color: themeColors.zAxis, fontWeight: 'bold', width: '12px' }}>Z:</span>
-                    <span style={{ flex: 1, textAlign: 'right' }}>{workCoords.z.toFixed(2)}</span>
-                  </div>
-                </div>
-              )}
-            </>
+              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                <span style={{ color: themeColors.xAxis, fontWeight: 'bold', width: '12px' }}>X:</span>
+                <span style={{ flex: 1, textAlign: 'right' }}>{workCoords.x.toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                <span style={{ color: themeColors.yAxis, fontWeight: 'bold', width: '12px' }}>Y:</span>
+                <span style={{ flex: 1, textAlign: 'right' }}>{workCoords.y.toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                <span style={{ color: themeColors.zAxis, fontWeight: 'bold', width: '12px' }}>Z:</span>
+                <span style={{ flex: 1, textAlign: 'right' }}>{workCoords.z.toFixed(2)}</span>
+              </div>
+            </div>
           )}
         </>
       )}

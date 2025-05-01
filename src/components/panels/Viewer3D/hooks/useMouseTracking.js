@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import * as THREE from 'three';
 
 /**
@@ -35,10 +35,20 @@ const useMouseTracking = ({
   const [hoveredStl, setHoveredStl] = useState(null);
   const [stlObjects, setStlObjects] = useState({});
   const [lastGridPosition, setLastGridPosition] = useState({ x: 0, y: 0, z: 0 });
+  const [isMouseOverScene, setIsMouseOverScene] = useState(false);
+  const debugMode = true; // Enable for troubleshooting
+
+  // Create our own raycaster and mouse position vector if not provided
+  const internalRaycasterRef = useRef(new THREE.Raycaster());
+  const internalMouseRef = useRef(new THREE.Vector2());
+  
+  // Use provided refs or internal refs
+  const activeRaycaster = raycasterRef?.current || internalRaycasterRef.current;
+  const activeMouseRef = mouseRef?.current || internalMouseRef.current;
 
   // Get STL objects from scene
   useEffect(() => {
-    if (!sceneRef.current) return;
+    if (!sceneRef?.current) return;
     
     // Find all STL objects in the scene
     const objects = {};
@@ -54,28 +64,33 @@ const useMouseTracking = ({
 
   // Handle mousemove event for position tracking
   const handleMouseMove = useCallback((event) => {
-    if (!containerRef.current || !raycasterRef.current || !cameraRef.current) return;
+    if (!containerRef.current || !cameraRef?.current) return;
+
+    setIsMouseOverScene(true);
 
     // Calculate mouse position in normalized device coordinates (-1 to +1)
     const rect = containerRef.current.getBoundingClientRect();
-    mouseRef.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    mouseRef.current.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    activeMouseRef.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    activeMouseRef.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
     // Update the picking ray
-    raycasterRef.current.setFromCamera(mouseRef.current, cameraRef.current);
+    activeRaycaster.setFromCamera(activeMouseRef, cameraRef.current);
+
+    if (debugMode) {
+      console.log('Mouse move detected', activeMouseRef.x, activeMouseRef.y);
+    }
 
     // Objects that can be intersected
     const allSTLObjects = Object.values(stlObjects);
 
     // Calculate intersections with STL objects
-    const stlIntersections = raycasterRef.current.intersectObjects(allSTLObjects, false);
+    const stlIntersections = allSTLObjects.length > 0 ? 
+      activeRaycaster.intersectObjects(allSTLObjects, false) : [];
 
     // Track if we've found an intersection to update mouse position
     let intersectionFound = false;
 
-    // Clear hover state by default
-    let shouldClearHover = true;
-
+    // Check for STL object intersections first
     if (stlIntersections.length > 0) {
       // We have intersected with an STL object
       const firstIntersection = stlIntersections[0];
@@ -92,21 +107,23 @@ const useMouseTracking = ({
         setMousePosition({ x, y, z });
         setLastGridPosition({ x, y, z });
         intersectionFound = true;
+        
+        if (debugMode) {
+          console.log('STL intersection detected', { x, y, z });
+        }
       }
 
       // Update mouse indicator sphere position
-      if (mouseIndicatorRef.current) {
+      if (mouseIndicatorRef?.current) {
         mouseIndicatorRef.current.position.copy(intersectionPoint);
         mouseIndicatorRef.current.visible = showMousePosition;
       }
 
-      // Get the intersected object and its file ID
+      // Handle STL hover effects
       const object = firstIntersection.object;
       const fileId = object.userData.fileId;
 
       if (fileId) {
-        shouldClearHover = false; // Don't clear hover if we found a valid intersection
-
         // Only update if hovering a different object
         if (fileId !== hoveredStl) {
           // Reset previous hover styling
@@ -124,19 +141,31 @@ const useMouseTracking = ({
           setHoveredStl(fileId);
         }
       }
+    } else {
+      // Reset hover state if no STL object is being hovered
+      if (hoveredStl && stlObjects[hoveredStl]) {
+        stlObjects[hoveredStl].material.color.set(0xd9eaff);
+        stlObjects[hoveredStl].material.emissive.set(0x000000);
+        setHoveredStl(null);
+      }
     }
 
     // If we didn't hit an STL object, check for grid plane intersection
     if (!intersectionFound && showMousePosition) {
-      // Try to intersect with the grid plane
-      if (gridPlaneRef.current) {
-        const gridIntersections = raycasterRef.current.intersectObject(gridPlaneRef.current, false);
+      // First, check if we have a grid plane ref passed in
+      const gridPlane = gridPlaneRef?.current;
+      
+      if (gridPlane) {
+        if (debugMode) {
+          console.log('Attempting to raycast against grid plane');
+        }
+        
+        const gridIntersections = activeRaycaster.intersectObject(gridPlane, false);
 
         if (gridIntersections.length > 0) {
           const intersectionPoint = gridIntersections[0].point;
 
           // Convert from THREE.js coordinate system to CNC workspace coordinates
-          // Note: in THREE scene, X is inverted compared to CNC coordinates
           const x = -intersectionPoint.x / sceneScale;
           const y = intersectionPoint.y / sceneScale;
           const z = intersectionPoint.z / sceneScale;
@@ -144,57 +173,66 @@ const useMouseTracking = ({
           // Update position state
           setMousePosition({ x, y, z });
           setLastGridPosition({ x, y, z });
+          
+          if (debugMode) {
+            console.log('Grid plane intersection detected', { x, y, z });
+          }
 
           // Update the mouse indicator sphere
-          if (mouseIndicatorRef.current) {
+          if (mouseIndicatorRef?.current) {
             mouseIndicatorRef.current.position.copy(intersectionPoint);
             mouseIndicatorRef.current.visible = true;
           }
-        } else if (mouseIndicatorRef.current) {
-          // Hide the indicator if not intersecting, but keep showing the last position in the panel
-          mouseIndicatorRef.current.visible = false;
+        } else {
+          // Fallback to XY plane if no grid intersection
+          fallbackToXYPlane();
         }
       } else {
-        // If there's no grid plane, try a fallback XY plane at Z=0
-        const gridPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0); // XY plane
-        const intersection = new THREE.Vector3();
-
-        // Check if the ray intersects the plane
-        if (raycasterRef.current.ray.intersectPlane(gridPlane, intersection)) {
-          // Convert from THREE.js coordinate system to CNC workspace coordinates
-          const x = -intersection.x / sceneScale;
-          const y = intersection.y / sceneScale;
-          const z = intersection.z / sceneScale;
-
-          // Update position state
-          setMousePosition({ x, y, z });
-          setLastGridPosition({ x, y, z });
-
-          // Update the mouse indicator sphere
-          if (mouseIndicatorRef.current) {
-            mouseIndicatorRef.current.position.copy(intersection);
-            mouseIndicatorRef.current.visible = true;
-          }
-        } else if (mouseIndicatorRef.current) {
-          // Hide the indicator if not intersecting
-          mouseIndicatorRef.current.visible = false;
-        }
+        // No grid plane ref, use fallback
+        fallbackToXYPlane();
       }
     }
-
-    // Clear hover state if we're not hovering any STL object
-    if (shouldClearHover && hoveredStl) {
-      if (stlObjects[hoveredStl]) {
-        stlObjects[hoveredStl].material.color.set(0xd9eaff);
-        stlObjects[hoveredStl].material.emissive.set(0x000000);
+    
+    // Helper function for XY plane fallback
+    function fallbackToXYPlane() {
+      if (debugMode) {
+        console.log('Using fallback XY plane for raycasting');
       }
-      setHoveredStl(null);
+      
+      // Create a fallback XY plane at Z=0
+      const fallbackPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+      const intersection = new THREE.Vector3();
+      
+      // Check if the ray intersects the plane
+      if (activeRaycaster.ray.intersectPlane(fallbackPlane, intersection)) {
+        // Convert from THREE.js coordinate system to CNC workspace coordinates
+        const x = -intersection.x / sceneScale;
+        const y = intersection.y / sceneScale;
+        const z = intersection.z / sceneScale;
+        
+        // Update position state
+        setMousePosition({ x, y, z });
+        setLastGridPosition({ x, y, z });
+        
+        if (debugMode) {
+          console.log('Fallback plane intersection detected', { x, y, z });
+        }
+        
+        // Update the mouse indicator sphere
+        if (mouseIndicatorRef?.current) {
+          mouseIndicatorRef.current.position.copy(intersection);
+          mouseIndicatorRef.current.visible = true;
+        }
+      } else if (mouseIndicatorRef?.current) {
+        // Hide the indicator if not intersecting
+        mouseIndicatorRef.current.visible = false;
+      }
     }
   }, [
     containerRef,
-    raycasterRef,
+    activeRaycaster,
+    activeMouseRef,
     cameraRef,
-    mouseRef,
     mouseIndicatorRef,
     setMousePosition,
     sceneScale,
@@ -208,7 +246,9 @@ const useMouseTracking = ({
   const handleMouseOut = useCallback(() => {
     // When mouse leaves the scene, we still show the last known position
     // But we hide the indicator sphere
-    if (mouseIndicatorRef.current) {
+    setIsMouseOverScene(false);
+    
+    if (mouseIndicatorRef?.current) {
       mouseIndicatorRef.current.visible = false;
     }
 
@@ -239,12 +279,28 @@ const useMouseTracking = ({
 
   // Set up event listeners
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current) {
+      if (debugMode) console.log('Container ref is null, cannot set up event listeners');
+      return;
+    }
     
     // Find the canvas element inside the container
     const rendererElement = containerRef.current.querySelector('canvas');
-    if (!rendererElement) return;
+    if (!rendererElement) {
+      if (debugMode) console.log('Canvas element not found in container');
+      return;
+    }
     
+    if (debugMode) {
+      console.log('Setting up mouse event listeners on canvas element');
+    }
+    
+    // Clean up any existing listeners to prevent duplicates
+    rendererElement.removeEventListener('mousemove', handleMouseMove);
+    rendererElement.removeEventListener('mouseout', handleMouseOut);
+    rendererElement.removeEventListener('mouseleave', handleMouseOut);
+    
+    // Add the event listeners
     rendererElement.addEventListener('mousemove', handleMouseMove);
     rendererElement.addEventListener('mouseout', handleMouseOut);
     rendererElement.addEventListener('mouseleave', handleMouseOut);
@@ -260,12 +316,22 @@ const useMouseTracking = ({
     
     document.addEventListener('click', handleDocumentClick);
     
+    if (debugMode) {
+      console.log('Mouse event listeners successfully attached');
+    }
+    
     return () => {
-      rendererElement.removeEventListener('mousemove', handleMouseMove);
-      rendererElement.removeEventListener('mouseout', handleMouseOut);
-      rendererElement.removeEventListener('mouseleave', handleMouseOut);
-      rendererElement.removeEventListener('click', clearAllHighlights);
+      if (rendererElement) {
+        rendererElement.removeEventListener('mousemove', handleMouseMove);
+        rendererElement.removeEventListener('mouseout', handleMouseOut);
+        rendererElement.removeEventListener('mouseleave', handleMouseOut);
+        rendererElement.removeEventListener('click', clearAllHighlights);
+      }
       document.removeEventListener('click', handleDocumentClick);
+      
+      if (debugMode) {
+        console.log('Mouse event listeners cleaned up');
+      }
     };
   }, [
     containerRef,
@@ -277,7 +343,8 @@ const useMouseTracking = ({
   return {
     hoveredStl,
     lastGridPosition,
-    clearAllHighlights
+    clearAllHighlights,
+    isMouseOverScene
   };
 };
 
