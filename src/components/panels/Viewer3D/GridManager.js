@@ -222,7 +222,7 @@ export class GridManager {
 
     const planeMaterial = new THREE.MeshBasicMaterial({
       color: 0xffffff,
-      opacity: 0.05,
+      opacity: 0.01,
       transparent: true,
       side: THREE.DoubleSide
     });
@@ -296,9 +296,9 @@ export class GridManager {
     const majorTickLength = 6.0 * this.sceneScale * textScaleFactor; // Scale with zoom - increased from 4.0
     
     // Place ticks outside of workspace - move them outward by an offset
-    const xRulerOffset = 10.0 * this.sceneScale * textScaleFactor; // Offset for X axis ruler - increased from 8.0
-    const yRulerOffset = 10.0 * this.sceneScale * textScaleFactor; // Offset for Y axis ruler - increased from 8.0
-    const zRulerOffset = 10.0 * this.sceneScale * textScaleFactor; // Offset for Z axis ruler - increased from 8.0
+    const xRulerOffset = 0.5; 
+    const yRulerOffset = 0.5; 
+    const zRulerOffset = 0.5;
 
     // Create the main axes arrows
     // X axis (red)
@@ -413,8 +413,8 @@ export class GridManager {
         );
         // Scale based on camera distance - made larger
         label.scale.set(
-          8.0 * this.sceneScale * textScaleFactor, // Increased from 6.0
-          4.0 * this.sceneScale * textScaleFactor, // Increased from 3.0
+          12.0 * this.sceneScale * textScaleFactor, // Increased from 6.0
+          6.0 * this.sceneScale * textScaleFactor, // Increased from 3.0
           1
         );
         axesGroup.add(label);
@@ -468,8 +468,8 @@ export class GridManager {
         );
         // Scale based on camera distance - made larger
         label.scale.set(
-          8.0 * this.sceneScale * textScaleFactor, // Increased from 6.0
-          4.0 * this.sceneScale * textScaleFactor, // Increased from 3.0
+          12.0 * this.sceneScale * textScaleFactor, // Increased from 6.0
+          6.0 * this.sceneScale * textScaleFactor, // Increased from 3.0
           1
         );
         axesGroup.add(label);
@@ -523,8 +523,8 @@ export class GridManager {
         );
         // Scale based on camera distance - made larger
         label.scale.set(
-          8.0 * this.sceneScale * textScaleFactor, // Increased from 6.0
-          4.0 * this.sceneScale * textScaleFactor, // Increased from 3.0
+          12.0 * this.sceneScale * textScaleFactor, // Increased from 6.0
+          6.0 * this.sceneScale * textScaleFactor, // Increased from 3.0
           1
         );
         axesGroup.add(label);
