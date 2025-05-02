@@ -1097,3 +1097,172 @@
   filter: brightness(1.1);
 }
 
+/* Add these styles to the existing code-editor.css file */
+
+/* GRBL-specific syntax highlighting */
+.code-grbl-command {
+  color: var(--syntax-grbl-command, #E06C75);
+  font-weight: bold;
+}
+
+.code-grbl-realtime {
+  color: var(--syntax-grbl-realtime, #E5C07B);
+  font-weight: bold;
+}
+
+/* Right-click context menu */
+.editor-context-menu {
+  display: none;
+  position: absolute;
+  background-color: var(--editor-bg);
+  border: 1px solid var(--editor-border-color, rgba(255, 255, 255, 0.1));
+  border-radius: 4px;
+  padding: 0;
+  min-width: 150px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  z-index: 1000;
+}
+
+.editor-context-menu.show {
+  display: block;
+}
+
+.editor-context-menu ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.editor-context-menu li {
+  padding: 8px 12px;
+  cursor: pointer;
+  color: var(--editor-fg);
+  font-size: 13px;
+}
+
+.editor-context-menu li:hover {
+  background-color: var(--editor-btn-hover, rgba(255, 255, 255, 0.08));
+}
+
+/* Common GRBL parameters */
+.editor-status-bar .grbl-state {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  background-color: rgba(65, 105, 225, 0.15);
+  color: var(--editor-fg);
+  border-radius: 3px;
+  font-size: 11px;
+  margin-left: 8px;
+}
+
+.editor-status-bar .grbl-state.idle {
+  background-color: rgba(76, 175, 80, 0.15);
+}
+
+.editor-status-bar .grbl-state.run {
+  background-color: rgba(33, 150, 243, 0.15);
+}
+
+.editor-status-bar .grbl-state.hold {
+  background-color: rgba(255, 152, 0, 0.15);
+}
+
+.editor-status-bar .grbl-state.alarm {
+  background-color: rgba(244, 67, 54, 0.15);
+}
+
+/* GRBL specific metadata panel */
+.grbl-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  background-color: rgba(0, 0, 0, 0.1);
+  border-bottom: var(--editor-border);
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+.grbl-metadata-item {
+  display: flex;
+  align-items: center;
+  margin-right: 16px;
+  margin-bottom: 4px;
+}
+
+.grbl-metadata-label {
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+  margin-right: 6px;
+}
+
+.grbl-metadata-value {
+  font-weight: 500;
+  color: var(--editor-fg);
+}
+
+/* File format indicator */
+.file-format-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  padding: 0 8px;
+  height: 18px;
+  margin-left: 8px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.file-format-badge.grbl {
+  background-color: rgba(233, 30, 99, 0.15);
+  color: #E91E63;
+  border: 1px solid rgba(233, 30, 99, 0.3);
+}
+
+.file-format-badge.standard {
+  background-color: rgba(33, 150, 243, 0.15);
+  color: #2196F3;
+  border: 1px solid rgba(33, 150, 243, 0.3);
+}
+
+.code-implied {
+  opacity: 0.5;
+  font-style: italic;
+  color: var(--syntax-implied, #767676);
+  font-size: 0.9em;
+  padding-right: 4px;
+}
+
+/* Add a subtle background to lines with implied moves */
+.implied-move {
+  background-color: rgba(var(--implied-move-bg-rgb, 80, 80, 255), 0.03);
+}
+
+/* Enhanced parameter highlighting */
+.code-param {
+  color: var(--syntax-param, #9CDCFE);
+  font-weight: normal;
+}
+
+.code-value {
+  color: var(--syntax-value, #B5CEA8);
+  font-weight: normal;
+}
+
+/* Override for dark themes */
+.theme-dark .code-implied,
+.theme-dracula .code-implied,
+.theme-abyss .code-implied {
+  color: #606060;
+}
+
+/* Override for light themes */
+.theme-light .code-implied,
+.theme-light-spaced .code-implied {
+  color: #A0A0A0;
+}
+
+/* Adjust tooltip position for implied moves */
+.implied-move[data-tooltip]:hover::after {
+  margin-left: 20px; /* Offset for the implied G command prefix */
+}

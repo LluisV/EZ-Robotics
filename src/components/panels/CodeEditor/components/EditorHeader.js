@@ -2,6 +2,7 @@ import React from 'react';
 
 /**
  * Header component with toolbar for the code editor
+ * Removed format conversion buttons
  */
 const EditorHeader = ({
   fileName,
@@ -15,7 +16,10 @@ const EditorHeader = ({
   isPaused,
   pauseTransfer,
   resumeTransfer,
-  stopTransfer
+  stopTransfer,
+  codeFormat,
+  showMetadata,
+  toggleMetadata
 }) => {
   return (
     <div className="editor-toolbar">
@@ -38,9 +42,20 @@ const EditorHeader = ({
         <span className="toolbar-divider"></span>
         
         {/* Code operations */}
-        <button className="toolbar-btn" onClick={formatCode} title="Format Code">
+        <button className="toolbar-btn" onClick={() => formatCode()} title="Format Code">
           <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M21 10H3M21 6H3M21 14H3M21 18H3"/>
+          </svg>
+        </button>
+        
+        {/* Show/hide metadata */}
+        <button 
+          className={`toolbar-btn ${showMetadata ? 'active' : ''}`} 
+          onClick={toggleMetadata} 
+          title={showMetadata ? "Hide Metadata" : "Show Metadata"}
+        >
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M3 6h18M3 12h18M3 18h18"/>
           </svg>
         </button>
         
@@ -110,6 +125,11 @@ const EditorHeader = ({
           </span>
           <span className="name">{fileName}</span>
           {modified && <span className="modified-indicator">●</span>}
+          
+          {/* Format badge - still shows the format but no buttons to change it */}
+          {codeFormat === 'grbl' && (
+            <span className="file-format-badge grbl">GRBL</span>
+          )}
         </div>
       </div>
     </div>

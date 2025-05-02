@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+// Import directly from utils folder rather than through index.js to avoid circular dependencies
 import GCodeSender from '../../../../utils/GCodeSender';
 import gCodeSerialHelper from '../../../../utils/GCodeSerialHelper';
 

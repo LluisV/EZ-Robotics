@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
+import GCodeHighlighter from '../services/GCodeHighlighter';
 
 /**
- * Core editor component with syntax highlighting and line numbers
+ * Enhanced code editor component with support for consecutive coordinate-only moves
  */
 const CodeEditor = ({
   code,
@@ -13,10 +14,14 @@ const CodeEditor = ({
   selectedLine,
   setSelectedLine,
   setStatusMessage,
-  validateCode
+  validateCode,
+  editorRef
 }) => {
-  const editorRef = useRef(null);
   const lineNumbersRef = useRef(null);
+  const localEditorRef = useRef(null);
+  
+  // Use the provided ref or create our own
+  const effectiveEditorRef = editorRef || localEditorRef;
 
   // Handle code changes
   const handleCodeChange = (e) => {
@@ -43,9 +48,9 @@ const CodeEditor = ({
       position += lines[i].length + 1; // +1 for newline
     }
 
-    if (editorRef.current) {
-      editorRef.current.focus();
-      editorRef.current.setSelectionRange(position, position);
+    if (effectiveEditorRef.current) {
+      effectiveEditorRef.current.focus();
+      effectiveEditorRef.current.setSelectionRange(position, position);
     }
   };
 
@@ -80,16 +85,16 @@ const CodeEditor = ({
     }
 
     // Ensure the editor and line numbers have the same scroll position
-    if (editorRef.current && lineNumbersRef.current) {
-      lineNumbersRef.current.scrollTop = editorRef.current.scrollTop;
+    if (effectiveEditorRef.current && lineNumbersRef.current) {
+      lineNumbersRef.current.scrollTop = effectiveEditorRef.current.scrollTop;
     }
-  }, [code, highlightedLine, errors, warnings]);
+  }, [code, highlightedLine, errors, warnings, effectiveEditorRef]);
 
   // Handle cursor position and update error status
   const handleCursorPosition = () => {
-    if (!editorRef.current) return;
+    if (!effectiveEditorRef.current) return;
 
-    const pos = editorRef.current.selectionStart;
+    const pos = effectiveEditorRef.current.selectionStart;
     const codeUpToCursor = code.substring(0, pos);
     const linesUpToCursor = codeUpToCursor.split('\n');
 
@@ -112,74 +117,51 @@ const CodeEditor = ({
     }
   };
 
-  // Apply syntax highlighting for G-code
+  // Get styled G-code with syntax highlighting
   const getHighlightedCode = (text) => {
     if (!text) return '';
-  
-    const lines = text.split('\n');
-  
-    // Highlight each line
-    const highlightedLines = lines.map((line, i) => {
-      const lineNum = i + 1;
-      const hasError = errors.some(err => err.line === lineNum);
-      const hasWarning = warnings.some(warn => warn.line === lineNum);
-  
-      // Get specific error/warning message
-      const errorMsg = errors.find(err => err.line === lineNum)?.message || '';
-      const warningMsg = warnings.find(warn => warn.line === lineNum)?.message || '';
-      const tooltipMsg = errorMsg || warningMsg;
-  
-      // Highlight comments
-      let highlightedLine = line.replace(/;(.*)$/, '<span class="code-comment">;$1</span>');
-  
-      // Highlight G and M commands (with or without spaces)
-      highlightedLine = highlightedLine.replace(/([GMT]\d+\.?\d*)/g, '<span class="code-command">$1</span>');
-  
-      // Highlight parameters (X100, Y50, Z10, F1000) without spaces
-      highlightedLine = highlightedLine.replace(/([XYZFIJKRPQSE])(-?\d+\.?\d*)/g, 
-        '<span class="code-param">$1</span><span class="code-value">$2</span>');
-  
-      let lineClass = "code-line";
-      if (lineNum === highlightedLine) lineClass += ' highlighted-line';
-      if (hasError) lineClass += ' error-line';
-      if (hasWarning) lineClass += ' warning-line';
-  
-      // Add tooltip with error/warning message
-      const tooltipAttr = tooltipMsg ? ` data-tooltip="${tooltipMsg}"` : '';
-  
-      // Ensure consistent content for empty lines
-      return `<div class="${lineClass}"${tooltipAttr}>${highlightedLine || ' '}</div>`;
-    });
-  
-    return highlightedLines.join('');
+    
+    // Use the enhanced GCodeHighlighter with implied moves support
+    return GCodeHighlighter.highlightCode(text, errors, warnings, highlightedLine);
+  };
+
+  // Force validate the G-code now
+  const validateNow = () => {
+    if (code && validateCode) {
+      validateCode(code);
+    }
   };
 
   return (
-    <div className="editor-container">
-      <div
-        className="line-numbers"
-        ref={lineNumbersRef}
-        onClick={(e) => {
-          const lineNum = parseInt(e.target.textContent);
-          if (!isNaN(lineNum)) {
-            handleLineNumberClick(lineNum);
-          }
-        }}
-      ></div>
-      <div className="editor-wrapper">
-        <textarea
-          ref={editorRef}
-          value={code}
-          onChange={handleCodeChange}
-          onScroll={syncScroll}
-          onKeyUp={handleCursorPosition}
-          onClick={handleCursorPosition}
-          spellCheck="false"
-          className="editor-textarea"
-        />
-        <pre className="editor-highlighting" dangerouslySetInnerHTML={{ __html: getHighlightedCode(code) }}></pre>
+    <>
+      <div className="editor-container">
+        <div
+          className="line-numbers"
+          ref={lineNumbersRef}
+          onClick={(e) => {
+            const lineNum = parseInt(e.target.textContent);
+            if (!isNaN(lineNum)) {
+              handleLineNumberClick(lineNum);
+            }
+          }}
+        ></div>
+        <div className="editor-wrapper">
+          <textarea
+            ref={effectiveEditorRef}
+            value={code}
+            onChange={handleCodeChange}
+            onScroll={syncScroll}
+            onKeyUp={handleCursorPosition}
+            onClick={handleCursorPosition}
+            spellCheck="false"
+            className="editor-textarea"
+          />
+          <pre className="editor-highlighting" dangerouslySetInnerHTML={{ 
+            __html: getHighlightedCode(code) 
+          }}></pre>
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 

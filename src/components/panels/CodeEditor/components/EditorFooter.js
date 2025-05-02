@@ -2,6 +2,7 @@ import React from 'react';
 
 /**
  * Footer status bar component for the code editor
+ * Simplified to remove format conversion options
  */
 const EditorFooter = ({
   currentLine,
@@ -11,7 +12,8 @@ const EditorFooter = ({
   fileSize,
   errors,
   warnings,
-  modified
+  modified,
+  codeFormat
 }) => {
   return (
     <div className="editor-footer">
@@ -60,6 +62,11 @@ const EditorFooter = ({
           <span className={`mode-indicator ${modified ? 'modified' : ''}`}>
             {modified ? 'Modified' : 'Saved'}
           </span>
+          
+          {/* Simple GRBL indicator if detected */}
+          {codeFormat === 'grbl' && (
+            <span className="grbl-state">GRBL</span>
+          )}
         </div>
       </div>
     </div>
