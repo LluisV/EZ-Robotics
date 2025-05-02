@@ -30,7 +30,7 @@ import './services/SerialCommunicationService';
 import ControlPanel from './components/panels/ControlPanel';
 import MonitorPanel from './components/panels/MonitorPanel';
 import Viewer3DPanel from './components/panels/Viewer3D/exports';
-import CodeEditorPanel from './components/panels/CodeEditorPanel';
+import CodeEditorPanel from './components/panels/CodeEditor';
 import ConsolePanel from './components/panels/ConsolePanel';
 import AccelerationPanel from './components/panels/AccelerationPanel';
 

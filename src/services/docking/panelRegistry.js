@@ -24,7 +24,7 @@ try {
 }
 
 try {
-  CodeEditorPanel = require('../../components/panels/CodeEditorPanel').default;
+  CodeEditorPanel = require('../../components/panels/CodeEditor').default;
 } catch (e) {
   console.error('Failed to import CodeEditorPanel:', e);
   CodeEditorPanel = () => <div>Code Editor Panel (Import Error)</div>;
