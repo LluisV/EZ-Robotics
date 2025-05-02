@@ -29,7 +29,7 @@ const usePanelResize = ({
 }) => {
   // Handle panel resize
   const handlePanelResize = useCallback(() => {
-    if (!containerRef.current || !cameraRef.current || !rendererRef.current || !sceneRef.current) return;
+    if (!containerRef.current || !cameraRef.current || !rendererRef.current ) return;
 
     const width = containerRef.current.clientWidth;
     const height = containerRef.current.clientHeight;
@@ -105,10 +105,11 @@ const usePanelResize = ({
     }
 
     // Force a render to update the scene with new dimensions
-    // Use sceneRef.current instead of cameraRef.current.parent
-    if (rendererRef.current && cameraRef.current && sceneRef.current) {
-      rendererRef.current.render(sceneRef.current, cameraRef.current);
-    }
+    // Only use sceneRef for rendering if it exists
+  if (rendererRef.current && cameraRef.current && sceneRef?.current) {
+    rendererRef.current.render(sceneRef.current, cameraRef.current);
+  }
+    
   }, [containerRef, sceneRef, cameraRef, rendererRef, controlsRef, isPerspective, gridDimensions, sceneScale, gridManagerRef]);
 
   // Set up ResizeObserver for the container

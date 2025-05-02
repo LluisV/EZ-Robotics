@@ -118,6 +118,12 @@ const useThreeScene = ({
       containerRef.current.appendChild(renderer.domElement);
       rendererRef.current = renderer;
       console.log("Renderer created and attached to DOM");
+      
+      // Add the contextmenu event listener here
+      rendererRef.current.domElement.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+      });
+      
     } catch (error) {
       console.error("Error creating WebGL renderer:", error);
       return null;
@@ -128,6 +134,12 @@ const useThreeScene = ({
       const controls = new OrbitControls(cameraRef.current, rendererRef.current.domElement);
       controls.enableDamping = true;
       controls.dampingFactor = 0.25;
+      controls.mouseButtons = {
+        LEFT: THREE.MOUSE.ROTATE,
+        MIDDLE: THREE.MOUSE.DOLLY,
+        RIGHT: THREE.MOUSE.PAN
+      };
+      controls.enablePan = true; 
       controls.object.up.set(0, 0, 1);
       controls.target.copy(gridMidpoint);
       controls.update();
@@ -413,6 +425,12 @@ const useThreeScene = ({
     const controls = new OrbitControls(newCamera, rendererRef.current.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.25;
+    controls.mouseButtons = {
+      LEFT: THREE.MOUSE.ROTATE,
+      MIDDLE: THREE.MOUSE.DOLLY,
+      RIGHT: THREE.MOUSE.PAN
+    };
+    controls.enablePan = true; 
     controls.object.up.set(0, 0, 1);
     controls.target.copy(target);
     controls.update();
