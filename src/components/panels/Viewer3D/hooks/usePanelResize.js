@@ -39,7 +39,7 @@ const usePanelResize = ({
     
     const aspect = width / height;
 
-    console.log(`Panel resized to: ${width}x${height}, aspect: ${aspect}`);
+    //console.log(`Panel resized to: ${width}x${height}, aspect: ${aspect}`);
 
     // Calculate the grid midpoint for camera targeting
     const gridWidth = gridDimensions.width * sceneScale;
@@ -75,13 +75,13 @@ const usePanelResize = ({
     rendererRef.current.setPixelRatio(window.devicePixelRatio);
 
     // Update orbit controls if available
-    if (controlsRef.current) {
+    /*if (controlsRef.current) {
       // Update controls target if needed
       if (gridMidpoint) {
         controlsRef.current.target.set(gridMidpoint.x, gridMidpoint.y, gridMidpoint.z);
       }
       controlsRef.current.update();
-    }
+    }*/
 
     // Update grid manager with new camera distance if available
     if (gridManagerRef?.current) {
