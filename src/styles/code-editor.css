@@ -239,7 +239,7 @@
 }
 
 .line-numbers {
-  width: 48px;
+  width: 54px;
   background-color: var(--editor-line-numbers-bg);
   color: var(--editor-line-numbers-fg);
   padding: 8px 0;
@@ -1262,8 +1262,26 @@
   color: #A0A0A0;
 }
 
-/* Adjust tooltip position for implied moves */
-.implied-move[data-tooltip]:hover::after {
-  margin-left: 20px; /* Offset for the implied G command prefix */
+/* Add these styles to your code-editor.css file */
+
+/* Style for implied G-code moves - just color the background differently */
+.implied-move {
+  background-color: rgba(65, 105, 225, 0.08); /* Subtle blue background */
 }
 
+/* Remove the code-implied class that was adding visible text */
+.code-implied {
+  display: none; /* Hide this completely since it causes cursor issues */
+}
+
+/* Optional: Add a tooltip to show which G command is implied */
+.line-number.implied-hint::before {
+  content: attr(data-implied-command); /* Will show exactly "G1", "G2", etc. with no dots */
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  font-size: 8px;
+  opacity: 0.8;
+  color: rgba(65, 105, 225, 0.9);
+  font-weight: bold;
+}

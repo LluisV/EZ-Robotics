@@ -1,6 +1,6 @@
 /**
  * Enhanced G-code syntax highlighter with support for GRBL/FluidNC format
- * Handles consecutive coordinate-only moves
+ * Handles consecutive coordinate-only moves without affecting cursor position
  */
 class GCodeHighlighter {
   constructor() {
@@ -86,6 +86,10 @@ class GCodeHighlighter {
     // Add tooltip with error/warning message
     const tooltipAttr = tooltipMsg ? ` data-tooltip="${tooltipMsg}"` : '';
     
+    // Add data attribute for implied G command if applicable
+    const impliedCommandAttr = isImpliedMove && activeGMode ? 
+        ` data-implied-command="${activeGMode}"` : '';
+    
     // Apply syntax highlighting
     let highlightedContent = line;
     
@@ -94,25 +98,6 @@ class GCodeHighlighter {
     
     // Highlight GRBL $ commands
     highlightedContent = this.highlightGrblCommands(highlightedContent);
-    
-    // If this is an implied move, add a visual indicator for the implied G command
-    if (isImpliedMove && activeGMode) {
-      // Add a faded indicator of the implied G command at the beginning
-      const impliedGCommand = `<span class="code-implied">[${activeGMode}]</span> `;
-      
-      // Find the position to insert the implied command (before the first coordinate)
-      const firstCoordMatch = highlightedContent.match(/([XYZ])(-?\d+\.?\d*)/);
-      if (firstCoordMatch && firstCoordMatch.index > 0) {
-        const insertPos = firstCoordMatch.index;
-        highlightedContent = 
-          highlightedContent.substring(0, insertPos) + 
-          impliedGCommand + 
-          highlightedContent.substring(insertPos);
-      } else {
-        // If no match found, just add to the beginning
-        highlightedContent = impliedGCommand + highlightedContent;
-      }
-    }
     
     // Highlight G and M commands
     highlightedContent = this.highlightGMCommands(highlightedContent);
@@ -123,7 +108,7 @@ class GCodeHighlighter {
     // Ensure non-empty content for empty lines
     if (!highlightedContent.trim()) highlightedContent = ' ';
     
-    return `<div class="${lineClass}"${tooltipAttr}>${highlightedContent}</div>`;
+    return `<div class="${lineClass}"${tooltipAttr}${impliedCommandAttr}>${highlightedContent}</div>`;
   }
   
   /**

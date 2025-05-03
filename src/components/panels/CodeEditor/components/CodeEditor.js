@@ -3,6 +3,7 @@ import GCodeHighlighter from '../services/GCodeHighlighter';
 
 /**
  * Enhanced code editor component with support for consecutive coordinate-only moves
+ * Fixed to prevent cursor position issues with implied moves
  */
 const CodeEditor = ({
   code,
@@ -54,41 +55,89 @@ const CodeEditor = ({
     }
   };
 
-  // Update line numbers when code changes
+  // Track implied move lines and their active G command
+  const [impliedMoveInfo, setImpliedMoveInfo] = useState([]); // [{line: number, gCommand: string}]
+
+  // Detect implied moves when code changes
   useEffect(() => {
     if (!code) return;
 
+    // Analyze code for implied moves
     const lines = code.split('\n');
+    const impliedInfo = [];
+    let activeGMode = null;
 
-    // Update line numbers
-    if (lineNumbersRef.current) {
-      lineNumbersRef.current.innerHTML = lines
-        .map((_, i) => {
-          const lineNum = i + 1;
-          const hasError = errors.some(err => err.line === lineNum);
-          const hasWarning = warnings.some(warn => warn.line === lineNum);
-          const errorMsg = errors.find(err => err.line === lineNum)?.message || '';
-          const warningMsg = warnings.find(warn => warn.line === lineNum)?.message || '';
-          const tooltipMsg = errorMsg || warningMsg;
+    lines.forEach((line, i) => {
+      // Clean the line (remove comments)
+      const cleanedLine = line.replace(/\(.*?\)/g, '').split(';')[0].trim();
+      if (!cleanedLine) return;
 
-          let className = "line-number";
+      // Check for G commands
+      const gCommandMatch = cleanedLine.match(/G[0-3][0-9]*/);
+      const hasCoordinates = /[XYZ]-?\d+(\.\d+)?/.test(cleanedLine);
 
-          if (lineNum === highlightedLine) className += ' active';
-          if (hasError) className += ' error';
-          if (hasWarning) className += ' warning';
+      if (gCommandMatch) {
+        // Update active G mode
+        activeGMode = gCommandMatch[0];
+      } else if (hasCoordinates && activeGMode) {
+        // This is an implied move
+        impliedInfo.push({
+          line: i + 1,
+          gCommand: activeGMode
+        });
+      }
+    });
 
-          const tooltipAttr = tooltipMsg ? ` data-tooltip="${tooltipMsg}"` : '';
+    setImpliedMoveInfo(impliedInfo);
+  }, [code]);
 
-          return `<div class="${className}"${tooltipAttr} title="${tooltipMsg || ''}">${lineNum}</div>`;
-        })
-        .join('');
-    }
+  // Update line numbers when code changes
+  useEffect(() => {
+    if (!code || !lineNumbersRef.current) return;
+
+    const lines = code.split('\n');
+    let lineNumbersHtml = '';
+
+    // Create line numbers with the correct data attributes for implied commands
+    lines.forEach((_, i) => {
+      const lineNum = i + 1;
+      const hasError = errors.some(err => err.line === lineNum);
+      const hasWarning = warnings.some(warn => warn.line === lineNum);
+      
+      // Find if this is an implied move line
+      const impliedMove = impliedMoveInfo.find(info => info.line === lineNum);
+      const isImpliedMove = !!impliedMove;
+      
+      const errorMsg = errors.find(err => err.line === lineNum)?.message || '';
+      const warningMsg = warnings.find(warn => warn.line === lineNum)?.message || '';
+      let tooltipMsg = errorMsg || warningMsg;
+      
+      if (isImpliedMove) {
+        tooltipMsg = tooltipMsg || `Using previous ${impliedMove.gCommand} command`;
+      }
+
+      let className = "line-number";
+
+      if (lineNum === highlightedLine) className += ' active';
+      if (hasError) className += ' error';
+      if (hasWarning) className += ' warning';
+      if (isImpliedMove) className += ' implied-hint';
+
+      const tooltipAttr = tooltipMsg ? ` data-tooltip="${tooltipMsg}"` : '';
+      
+      // This is the key attribute for displaying the G command
+      const impliedCommandAttr = isImpliedMove ? ` data-implied-command="${impliedMove.gCommand}"` : '';
+
+      lineNumbersHtml += `<div class="${className}"${tooltipAttr}${impliedCommandAttr}>${lineNum}</div>`;
+    });
+    
+    lineNumbersRef.current.innerHTML = lineNumbersHtml;
 
     // Ensure the editor and line numbers have the same scroll position
     if (effectiveEditorRef.current && lineNumbersRef.current) {
       lineNumbersRef.current.scrollTop = effectiveEditorRef.current.scrollTop;
     }
-  }, [code, highlightedLine, errors, warnings, effectiveEditorRef]);
+  }, [code, highlightedLine, errors, warnings, impliedMoveInfo, effectiveEditorRef]);
 
   // Handle cursor position and update error status
   const handleCursorPosition = () => {
@@ -107,11 +156,14 @@ const CodeEditor = ({
     // Update status message if current line has errors/warnings
     const lineError = errors.find(err => err.line === line);
     const lineWarning = warnings.find(warn => warn.line === line);
+    const impliedMove = impliedMoveInfo.find(info => info.line === line);
 
     if (lineError) {
       setStatusMessage(`Error (Line ${line}): ${lineError.message}`);
     } else if (lineWarning) {
       setStatusMessage(`Warning (Line ${line}): ${lineWarning.message}`);
+    } else if (impliedMove) {
+      setStatusMessage(`Info: Using previous ${impliedMove.gCommand} command (implied move)`);
     } else {
       setStatusMessage('');
     }
