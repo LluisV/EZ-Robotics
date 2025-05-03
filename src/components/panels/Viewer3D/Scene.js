@@ -181,7 +181,8 @@ const Scene = forwardRef(({
                 gridDimensions,
                 sceneScale,
                 themeColors,
-                workOffset
+                workOffset,
+                gridPlaneRef // Pass the gridPlaneRef to the GridManager
             );
         }
         window.mouseIndicatorRef = mouseIndicatorRef.current;

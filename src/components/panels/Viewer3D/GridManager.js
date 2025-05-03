@@ -12,8 +12,9 @@ export class GridManager {
    * @param {number} sceneScale Scale factor (default: 0.1 - 10mm = 1 unit)
    * @param {Object} themeColors Theme color definitions
    * @param {Object} workOffset Work coordinate offset {x, y, z}
+   * @param {React.RefObject} gridPlaneRef Reference to grid plane for raycasting
    */
-  constructor(scene, gridDimensions, sceneScale = 0.1, themeColors, workOffset = { x: 0, y: 0, z: 0 }) {
+  constructor(scene, gridDimensions, sceneScale = 0.1, themeColors, workOffset = { x: 0, y: 0, z: 0 }, gridPlaneRef = null) {
     this.scene = scene;
     // Ensure depth is explicitly defined (not undefined or null)
     this.gridDimensions = {
@@ -29,11 +30,14 @@ export class GridManager {
     this.workOffset = { ...workOffset };
     this.cameraDistance = 10; // Default camera distance for text scaling
     
+    // Store grid plane reference if provided
+    this.gridPlaneRef = gridPlaneRef;
+    
     // References to scene objects
     this.gridHelperRef = null;
     this.axesHelperRef = null;
     this.workAxesHelperRef = null;
-    this.gridPlaneRef = null;
+    this.gridPlaneRef = gridPlaneRef;
     this.workspaceBoxRef = null;
   
     // Initial state
@@ -41,6 +45,14 @@ export class GridManager {
     this.showAxes = true;
     this.showWorkAxes = true;
     this.showWorldCoords = true;
+  }
+
+  /**
+   * Set the grid plane reference from external components
+   * @param {React.RefObject} ref Reference to grid plane for raycasting
+   */
+  setGridPlaneRef(ref) {
+    this.gridPlaneRef = ref;
   }
 
   /**
@@ -119,10 +131,62 @@ export class GridManager {
     console.log("Creating workspace box with dimensions:", JSON.stringify(this.gridDimensions));
     this.createWorkspaceBox();
     
+    // Update the raycasting grid plane with new dimensions
+    this.updateGridPlane();
+    
     // Log if dimensions changed
     if (dimensionsChanged) {
       console.log("Grid dimensions updated:", JSON.stringify(this.gridDimensions));
     }
+  }
+
+  /**
+   * Update the grid plane used for raycasting to match current dimensions
+   */
+  updateGridPlane() {
+    if (!this.scene) return;
+    
+    // Remove existing grid plane if it exists
+    if (this.gridPlaneRef && this.gridPlaneRef.current) {
+      this.scene.remove(this.gridPlaneRef.current);
+      
+      if (this.gridPlaneRef.current.geometry) {
+        this.gridPlaneRef.current.geometry.dispose();
+      }
+      
+      if (this.gridPlaneRef.current.material) {
+        this.gridPlaneRef.current.material.dispose();
+      }
+    }
+    
+    // Create a new grid plane with updated dimensions
+    const gridWidth = this.gridDimensions.width * this.sceneScale;
+    const gridHeight = this.gridDimensions.height * this.sceneScale;
+    
+    const planeGeometry = new THREE.PlaneGeometry(gridWidth, gridHeight);
+    
+    // Adjust the plane's position to match the grid (origin at bottom-left)
+    planeGeometry.translate(-gridWidth / 2, gridHeight / 2, 0);
+    
+    const planeMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      opacity: 0.01,
+      transparent: true,
+      side: THREE.DoubleSide
+    });
+    
+    const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+    plane.position.z = -0.01; // Just slightly below the grid
+    plane.name = 'grid-plane';
+    this.scene.add(plane);
+    
+    // Update the reference if available
+    if (this.gridPlaneRef) {
+      this.gridPlaneRef.current = plane;
+    }
+    
+    console.log("Grid plane updated to match new dimensions:", 
+      { width: gridWidth, height: gridHeight });
   }
 
   /**
@@ -210,27 +274,6 @@ export class GridManager {
     // Add grid to scene
     this.scene.add(gridGroup);
     this.gridHelperRef = gridGroup;
-
-    // Create a plane for the grid surface for raycasting
-    if (this.gridPlaneRef) {
-      this.scene.remove(this.gridPlaneRef);
-    }
-
-    const planeGeometry = new THREE.PlaneGeometry(gridWidth, gridHeight);
-    // Adjust the plane's position to match the grid (origin at bottom-left)
-    planeGeometry.translate(-gridWidth / 2, gridHeight / 2, 0);
-
-    const planeMaterial = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      opacity: 0.01,
-      transparent: true,
-      side: THREE.DoubleSide
-    });
-    const plane = new THREE.Mesh(planeGeometry, planeMaterial);
-    plane.position.z = -0.01; // Just slightly below the grid
-    plane.name = 'grid-plane';
-    this.scene.add(plane);
-    this.gridPlaneRef = plane;
   }
 
 
@@ -765,7 +808,7 @@ export class GridManager {
    * @returns {THREE.Mesh} The grid plane
    */
   getGridPlane() {
-    return this.gridPlaneRef;
+    return this.gridPlaneRef?.current;
   }
 
   /**
@@ -775,15 +818,15 @@ export class GridManager {
     this.removeObjects();
     
     // Remove the grid plane
-    if (this.gridPlaneRef) {
-      if (this.gridPlaneRef.geometry) {
-        this.gridPlaneRef.geometry.dispose();
+    if (this.gridPlaneRef && this.gridPlaneRef.current) {
+      if (this.gridPlaneRef.current.geometry) {
+        this.gridPlaneRef.current.geometry.dispose();
       }
-      if (this.gridPlaneRef.material) {
-        this.gridPlaneRef.material.dispose();
+      if (this.gridPlaneRef.current.material) {
+        this.gridPlaneRef.current.material.dispose();
       }
-      this.scene.remove(this.gridPlaneRef);
-      this.gridPlaneRef = null;
+      this.scene.remove(this.gridPlaneRef.current);
+      this.gridPlaneRef.current = null;
     }
   }
 }
