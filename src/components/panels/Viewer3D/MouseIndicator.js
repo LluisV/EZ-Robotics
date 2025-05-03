@@ -10,11 +10,13 @@ export class MouseIndicator {
    * @param {THREE.Scene} scene THREE.js scene to render into
    * @param {Object} themeColors Theme color definitions
    * @param {number} sceneScale Scale factor (default: 0.1 - 10mm = 1 unit)
+   * @param {number} planeXSize Size of the plane in X direction (default: 100)
    */
-  constructor(scene, themeColors, sceneScale = 0.1) {
+  constructor(scene, themeColors, sceneScale = 0.1, planeXSize = 100) {
     this.scene = scene;
     this.themeColors = themeColors;
     this.sceneScale = sceneScale;
+    this.planeXSize = planeXSize;
     
     // Create a group to hold all indicator parts
     this.indicatorGroup = new THREE.Group();
@@ -206,30 +208,30 @@ export class MouseIndicator {
       color: new THREE.Color(this.themeColors.yAxis),
       transparent: true,
       opacity: 0.5,
-      dashSize: 0.1,
-      gapSize: 0.05,
+      dashSize: 0.3,
+      gapSize: 0.3,
       depthTest: true,
-      linewidth: 1.5
+      linewidth: 3
     });
     
     const yProjectionMaterial = new THREE.LineDashedMaterial({
       color: new THREE.Color(this.themeColors.xAxis),
       transparent: true,
       opacity: 0.5,
-      dashSize: 0.1,
-      gapSize: 0.05,
+      dashSize: 0.3,
+      gapSize: 0.3,
       depthTest: true,
-      linewidth: 1.5
+      linewidth: 3
     });
     
     const zProjectionMaterial = new THREE.LineDashedMaterial({
       color: new THREE.Color(this.themeColors.zAxis),
       transparent: true,
       opacity: 0.5,
-      dashSize: 0.1,
-      gapSize: 0.05,
+      dashSize: 0.3,
+      gapSize: 0.3,
       depthTest: true,
-      linewidth: 1.5
+      linewidth: 3
     });
     
     // Create initial geometries (will be updated later with actual positions)
@@ -269,7 +271,7 @@ export class MouseIndicator {
     this.zProjectionLine = zProjectionLine;
     
     // Create small dots at projection intersections
-    const dotGeometry = new THREE.SphereGeometry(0.03, 8, 8);
+    const dotGeometry = new THREE.SphereGeometry(0.15, 8, 8);
     
     const xDotMaterial = new THREE.MeshBasicMaterial({
       color: new THREE.Color(this.themeColors.yAxis),
@@ -341,9 +343,9 @@ export class MouseIndicator {
    * @param {THREE.Vector3} position Current indicator position
    */
   updateProjectionLines(position) {
-    // X projection (to YZ plane)
-    // Projected point is at (0, position.y, position.z)
-    const xProjectPoint = new THREE.Vector3(0, position.y, position.z);
+    // X projection to fixed negative position
+    const fixedXPosition = -this.planeXSize / 10;
+    const xProjectPoint = new THREE.Vector3(fixedXPosition, position.y, position.z);
     
     // Update X projection line
     const xPoints = [
@@ -388,6 +390,18 @@ export class MouseIndicator {
     
     // Update Z dot position
     this.zDot.position.copy(zProjectPoint);
+  }
+  
+  /**
+   * Set the plane size in X direction
+   * @param {number} size Size of the plane in X direction
+   */
+  setPlaneXSize(size) {
+    this.planeXSize = size;
+    // Update the projection lines if the indicator is visible
+    if (this.indicatorGroup.visible) {
+      this.updateProjectionLines(this.lastPosition);
+    }
   }
   
   /**

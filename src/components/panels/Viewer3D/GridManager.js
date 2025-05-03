@@ -339,12 +339,12 @@ export class GridManager {
     // Add "World" label - SIZE SCALES WITH ZOOM
     if (this.showWorldCoords) {
       const canvas = document.createElement('canvas');
-      canvas.width = 512; // Half the original size
-      canvas.height = 256;
+      canvas.width = 512*2; // Half the original size
+      canvas.height = 256*2;
       const context = canvas.getContext('2d');
       context.fillStyle = this.themeColors.worldCoord;
       context.font = 'Bold 192px Arial';
-      context.fillText('World', 20, 192);
+      context.fillText('Machine', 20, 192);
 
       const texture = new THREE.CanvasTexture(canvas);
       const labelMaterial = new THREE.SpriteMaterial({
@@ -353,10 +353,9 @@ export class GridManager {
       });
       const label = new THREE.Sprite(labelMaterial);
       label.position.set(-length - 2.0 * this.sceneScale, 0, 0);
-      // Scale text based on camera distance
       label.scale.set(
-        6.0 * this.sceneScale * textScaleFactor, // Increased from 5.0
-        3.0 * this.sceneScale * textScaleFactor, // Increased from 2.5
+        12.0 * this.sceneScale * textScaleFactor, // Increased from 5.0
+        6.0 * this.sceneScale * textScaleFactor, // Increased from 2.5
         1
       );
       axesGroup.add(label);
@@ -617,8 +616,8 @@ export class GridManager {
     // Add "Work" label - SCALE WITH ZOOM
     if (this.showWorldCoords) {
       const canvas = document.createElement('canvas');
-      canvas.width = 512; // Half the original size
-      canvas.height = 256;
+      canvas.width = 512*2; // Half the original size
+      canvas.height = 256*2;
       const context = canvas.getContext('2d');
       context.fillStyle = this.themeColors.workCoord;
       context.font = 'Bold 200px Arial';
@@ -637,8 +636,8 @@ export class GridManager {
       );
       // Scale text based on camera distance
       label.scale.set(
-        6.0 * this.sceneScale * textScaleFactor, // Increased from 5.0
-        3.0 * this.sceneScale * textScaleFactor, // Increased from 2.5
+        12.0 * this.sceneScale * textScaleFactor, // Increased from 5.0
+        6.0 * this.sceneScale * textScaleFactor, // Increased from 2.5
         1
       );
       workAxesGroup.add(label);

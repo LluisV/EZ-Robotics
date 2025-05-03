@@ -167,7 +167,7 @@ const useThreeScene = ({
     planeGeometry.translate(
       -gridDimensions.width * sceneScale / 2,
       gridDimensions.height * sceneScale / 2,
-      0
+      0.0100001
     );
 
     const planeMaterial = new THREE.MeshBasicMaterial({
