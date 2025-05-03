@@ -1266,3 +1266,4 @@
 .implied-move[data-tooltip]:hover::after {
   margin-left: 20px; /* Offset for the implied G command prefix */
 }
+

@@ -1,12 +1,24 @@
-/**
- * Class for visualizing toolpaths in a THREE.js scene
- */
 import * as THREE from 'three';
 
-class ToolpathVisualizer {
-  constructor(scene) {
-    this.scale = 0.1; // Scale factor for visualization (0.1 means 10mm = 1 unit)
+/**
+ * Enhanced class for rendering and visualizing toolpaths in a THREE.js scene
+ * Supports all G-code move types with distinct visual styling
+ * Now with support for implicit moves
+ */
+class ToolpathRenderer {
+  /**
+   * Create a toolpath renderer
+   * 
+   * @param {THREE.Scene} scene THREE.js scene to render into
+   * @param {number} scale Scale factor for visualization (default: 0.1 - 10mm = 1 unit)
+   * @param {Object} themeColors Theme color definitions
+   */
+  constructor(scene, scale = 0.1, themeColors) {
+    this.scale = scale;
     this.scene = scene;
+    this.themeColors = themeColors;
+    
+    // Create a group to hold all toolpath objects
     this.toolpathGroup = new THREE.Group();
     this.toolpathGroup.name = 'toolpath';
     this.scene.add(this.toolpathGroup);
@@ -31,35 +43,116 @@ class ToolpathVisualizer {
       z: 0
     };
     
-    // Materials for different move types
+    // Materials for different move types with distinctive styling
     this.materials = {
+      // Rapid moves (G0) - blue dashed lines
       rapid: new THREE.LineDashedMaterial({ 
         color: 0x00AAFF, 
-        linewidth: 1,
+        linewidth: 1.5,
         transparent: true,
-        opacity: 0.6,
-        dashSize: 1,
+        opacity: 0.7,
+        dashSize: 2,
         gapSize: 1
       }),
+      
+      // Normal cutting moves (G1) - orange solid lines
       cut: new THREE.LineBasicMaterial({ 
         color: 0xFFAA00, 
-        linewidth: 2, 
+        linewidth: 2.5, 
         opacity: 0.9
       }),
+      
+      // Plunge moves (Z going down) - red solid lines
       plunge: new THREE.LineBasicMaterial({ 
-        color: 0xFF0000, 
-        linewidth: 2,
+        color: 0xFF3333, 
+        linewidth: 2.5,
         opacity: 0.9
       }),
+      
+      // Retract/lift moves (Z going up) - green solid lines
       lift: new THREE.LineBasicMaterial({ 
-        color: 0x00FF00, 
-        linewidth: 2,
+        color: 0x33CC33, 
+        linewidth: 2.5,
         opacity: 0.9
       }),
+      
+      // Clockwise arc moves (G2) - purple solid lines
+      arcCW: new THREE.LineBasicMaterial({
+        color: 0xCC66FF,
+        linewidth: 2.5,
+        opacity: 0.9
+      }),
+      
+      // Counter-clockwise arc moves (G3) - teal solid lines
+      arcCCW: new THREE.LineBasicMaterial({
+        color: 0x33CCCC,
+        linewidth: 2.5,
+        opacity: 0.9
+      }),
+      
+      // Overall path when showing complete toolpath
       path: new THREE.LineBasicMaterial({ 
-        color: 0xFFFFFF,
+        color: 0xCCCCCC,
         linewidth: 1,
-        opacity: 0.5
+        opacity: 0.3,
+        transparent: true
+      }),
+      
+      // Highlighted path segment
+      highlight: new THREE.LineBasicMaterial({ 
+        color: 0xFFFF00, 
+        linewidth: 3.5,
+        opacity: 1
+      }),
+      
+      // Implicit moves - same colors but with a brighter highlight
+      implicitRapid: new THREE.LineDashedMaterial({ 
+        color: 0x55CCFF, 
+        linewidth: 2.0,
+        transparent: true,
+        opacity: 0.8,
+        dashSize: 2,
+        gapSize: 1
+      }),
+      
+      implicitCut: new THREE.LineBasicMaterial({ 
+        color: 0xFFCC33, 
+        linewidth: 3.0, 
+        opacity: 0.95
+      }),
+      
+      implicitPlunge: new THREE.LineBasicMaterial({ 
+        color: 0xFF6666, 
+        linewidth: 3.0,
+        opacity: 0.95
+      }),
+      
+      implicitLift: new THREE.LineBasicMaterial({ 
+        color: 0x66FF66, 
+        linewidth: 3.0,
+        opacity: 0.95
+      }),
+      
+      implicitArcCW: new THREE.LineBasicMaterial({
+        color: 0xDD88FF,
+        linewidth: 3.0,
+        opacity: 0.95
+      }),
+      
+      implicitArcCCW: new THREE.LineBasicMaterial({
+        color: 0x66DDDD,
+        linewidth: 3.0,
+        opacity: 0.95
+      }),
+      
+      // Starts and endpoints
+      start: new THREE.MeshBasicMaterial({
+        color: 0x22FF22,
+        opacity: 0.9
+      }),
+      end: new THREE.MeshBasicMaterial({
+        color: 0xFF2222,
+        opacity: 0.9
       })
     };
 
@@ -67,26 +160,34 @@ class ToolpathVisualizer {
     this.pathPoints = [];
     this.showPathLine = true;
     
-    // Store reference to current gcode
-    this.currentGCode = '';
+    // Store reference to current toolpath
+    this.currentToolpath = null;
+    
+    // For showing the toolpath hierarchy - segments grouped by tool and operation
+    this.showStructuredView = false;
     
     // Create debug sphere for the tool position
     const sphereGeometry = new THREE.SphereGeometry(0.05, 16, 16);
     this.toolPositionSphere = new THREE.Mesh(
       sphereGeometry,
-      new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.5 })
+      new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.8 })
     );
     this.toolPositionSphere.visible = false;
     this.scene.add(this.toolPositionSphere);
+    
+    // Start and end markers
+    this.startMarker = null;
+    this.endMarker = null;
   }
 
   /**
-   * Set transformation values
-   * @param {Object} values - The transformation values
+   * Set transformation values for toolpath
+   * @param {Object} values Transformation values
    */
   setTransformValues(values) {
     this.transformValues = {...this.transformValues, ...values};
-    // Visualize again if we have a current toolpath
+    
+    // Re-visualize if we have a current toolpath
     if (this.currentToolpath) {
       this.visualize(this.currentToolpath);
     }
@@ -94,11 +195,12 @@ class ToolpathVisualizer {
 
   /**
    * Set work offset
-   * @param {Object} offset - The work offset {x, y, z}
+   * @param {Object} offset Work offset {x, y, z}
    */
   setWorkOffset(offset) {
     this.workOffset = {...offset};
-    // Visualize again if we have a current toolpath
+    
+    // Re-visualize if we have a current toolpath
     if (this.currentToolpath) {
       this.visualize(this.currentToolpath);
     }
@@ -106,8 +208,8 @@ class ToolpathVisualizer {
 
   /**
    * Apply transformations to a point
-   * @param {Object} point - The point {x, y, z} to transform
-   * @returns {Object} - The transformed point
+   * @param {Object} point The point {x, y, z} to transform
+   * @returns {Object} The transformed point
    */
   applyTransformations(point) {
     // First apply work offset to convert from work coordinates to world coordinates
@@ -138,7 +240,7 @@ class ToolpathVisualizer {
     y += this.transformValues.moveY;
     z += this.transformValues.moveZ;
     
-    // Apply display scale
+    // Apply display scale and invert X for visualization
     return {
       x: -x * this.scale,
       y: y * this.scale,
@@ -163,11 +265,29 @@ class ToolpathVisualizer {
     }
     
     this.pathPoints = [];
+    
+    // Hide tool position marker
+    this.hideToolPosition();
+    
+    // Remove start/end markers if they exist
+    if (this.startMarker) {
+      this.scene.remove(this.startMarker);
+      if (this.startMarker.geometry) this.startMarker.geometry.dispose();
+      if (this.startMarker.material) this.startMarker.material.dispose();
+      this.startMarker = null;
+    }
+    
+    if (this.endMarker) {
+      this.scene.remove(this.endMarker);
+      if (this.endMarker.geometry) this.endMarker.geometry.dispose();
+      if (this.endMarker.material) this.endMarker.material.dispose();
+      this.endMarker = null;
+    }
   }
 
   /**
    * Visualize a parsed toolpath
-   * @param {Object} toolpath - Parsed toolpath data from GCodeParser
+   * @param {Object} toolpath Parsed toolpath data from GCodeParser
    */
   visualize(toolpath) {
     // Always clear and redraw when visualization is requested
@@ -180,14 +300,19 @@ class ToolpathVisualizer {
       return;
     }
     
-    // Visualize each segment
-    toolpath.segments.forEach(segment => {
-      if (segment.type === 'line') {
-        this.addLineSegment(segment);
-      } else if (segment.type === 'arc') {
-        this.addArcSegment(segment);
-      }
-    });
+    // Create groups to organize toolpath by tool and operation
+    if (this.showStructuredView) {
+      this.organizeToolpathByOperation(toolpath);
+    } else {
+      // Visualize each segment individually
+      toolpath.segments.forEach((segment, index) => {
+        if (segment.type === 'line') {
+          this.addLineSegment(segment);
+        } else if (segment.type === 'arc') {
+          this.addArcSegment(segment);
+        }
+      });
+    }
     
     // Add the overall path line if needed
     if (this.showPathLine && this.pathPoints.length > 1) {
@@ -196,14 +321,100 @@ class ToolpathVisualizer {
       pathLine.name = 'path-overview';
       this.toolpathGroup.add(pathLine);
     }
+    
+    // Add start and end markers
+    if (toolpath.segments.length > 0) {
+      // Start marker at the beginning of the first segment
+      const firstSegment = toolpath.segments[0];
+      const transformedStart = this.applyTransformations(firstSegment.start);
+      
+      // End marker at the end of the last segment
+      const lastSegment = toolpath.segments[toolpath.segments.length - 1];
+      const transformedEnd = this.applyTransformations(lastSegment.end);
+      
+      // Create markers
+      this.createMarkers(transformedStart, transformedEnd);
+    }
+  }
+
+  /**
+   * Create start and end markers
+   * @param {Object} start Start position
+   * @param {Object} end End position
+   */
+  createMarkers(start, end) {
+    const startGeometry = new THREE.SphereGeometry(0.08, 16, 16);
+    const endGeometry = new THREE.SphereGeometry(0.08, 16, 16);
+    
+    this.startMarker = new THREE.Mesh(startGeometry, this.materials.start);
+    this.endMarker = new THREE.Mesh(endGeometry, this.materials.end);
+    
+    this.startMarker.position.set(start.x, start.y, start.z);
+    this.endMarker.position.set(end.x, end.y, end.z);
+    
+    this.scene.add(this.startMarker);
+    this.scene.add(this.endMarker);
+  }
+
+  /**
+   * Organize toolpath by tool and operation type for clearer visualization
+   * @param {Object} toolpath Parsed toolpath data
+   */
+  organizeToolpathByOperation(toolpath) {
+    // Group segments by tool number and operation type
+    const operations = new Map();
+    
+    toolpath.segments.forEach((segment, index) => {
+      // Create a key based on operation characteristics
+      // Use tool number, rapid/cut/plunge/etc, and Z value to distinguish operations
+      const toolNum = segment.toolNumber || 0;
+      let moveType = segment.rapid ? 'rapid' : 
+                   segment.type === 'arc' ? (segment.clockwise ? 'arcCW' : 'arcCCW') :
+                   segment.end.z < segment.start.z ? 'plunge' :
+                   segment.end.z > segment.start.z ? 'lift' : 'cut';
+                   
+      // Add "implicit" prefix for implicit moves
+      if (segment.isImplicit) {
+        moveType = 'implicit' + moveType.charAt(0).toUpperCase() + moveType.slice(1);
+      }
+                   
+      const zLayer = segment.end.z.toFixed(2); // Group by Z height for layers
+      const key = `tool_${toolNum}_${moveType}_${zLayer}`;
+      
+      if (!operations.has(key)) {
+        operations.set(key, []);
+      }
+      
+      operations.get(key).push(segment);
+    });
+    
+    // Process each operation group
+    operations.forEach((segments, key) => {
+      // Create a subgroup for this operation
+      const operationGroup = new THREE.Group();
+      operationGroup.name = key;
+      
+      // Now add all segments in this operation
+      segments.forEach(segment => {
+        if (segment.type === 'line') {
+          this.addLineSegment(segment, operationGroup);
+        } else if (segment.type === 'arc') {
+          this.addArcSegment(segment, operationGroup);
+        }
+      });
+      
+      // Add the operation group to the main toolpath group
+      this.toolpathGroup.add(operationGroup);
+    });
   }
 
   /**
    * Add a line segment to the visualization
-   * @param {Object} segment - Line segment data
+   * @param {Object} segment Line segment data
+   * @param {THREE.Group} [targetGroup] Optional target group to add to
    */
-  addLineSegment(segment) {
-    const { start, end, rapid, toolOn } = segment;
+  addLineSegment(segment, targetGroup = this.toolpathGroup) {
+    const { start, end, rapid, toolOn, isImplicit } = segment;
     
     // Apply transformations
     const transformedStart = this.applyTransformations(start);
@@ -225,52 +436,55 @@ class ToolpathVisualizer {
     let material;
     
     if (rapid) {
-      // Rapid moves
-      material = this.materials.rapid;
+      // Rapid moves - use implicit variant if needed
+      material = isImplicit ? this.materials.implicitRapid : this.materials.rapid;
     } else if (toolOn) {
       // Cutting moves
       
       // Check if this is a plunge (Z decreasing)
       if (end.z < start.z) {
-        material = this.materials.plunge;
+        material = isImplicit ? this.materials.implicitPlunge : this.materials.plunge;
       } 
       // Check if this is a lift (Z increasing)
       else if (end.z > start.z) {
-        material = this.materials.lift;
+        material = isImplicit ? this.materials.implicitLift : this.materials.lift;
       } 
       // Normal cut
       else {
-        material = this.materials.cut;
+        material = isImplicit ? this.materials.implicitCut : this.materials.cut;
       }
     } else {
-      // Non-cutting moves
-      material = this.materials.rapid;
+      // Non-cutting moves - use implicit variant if needed
+      material = isImplicit ? this.materials.implicitRapid : this.materials.rapid;
     }
     
     // Create the line
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
     const line = new THREE.Line(geometry, material);
-    line.name = `segment-${this.toolpathGroup.children.length}`;
+    line.name = `segment-${targetGroup.children.length}`;
 
-    if (material === this.materials.rapid) {
+    // For dashed lines like rapids, we need to compute line distances
+    if (material === this.materials.rapid || material === this.materials.implicitRapid) {
       line.computeLineDistances();
     }
       
-    // Set userData for potential interaction
+    // Set userData for potential interaction and highlighting
     line.userData = {
       segment,
-      lineIndex: segment.lineIndex
+      lineIndex: segment.lineIndex,
+      isImplicit: segment.isImplicit
     };
     
-    this.toolpathGroup.add(line);
+    targetGroup.add(line);
   }
 
   /**
    * Add an arc segment to the visualization
-   * @param {Object} segment - Arc segment data
+   * @param {Object} segment Arc segment data
+   * @param {THREE.Group} [targetGroup] Optional target group to add to
    */
-  addArcSegment(segment) {
-    const { start, end, center, clockwise, toolOn } = segment;
+  addArcSegment(segment, targetGroup = this.toolpathGroup) {
+    const { start, end, center, clockwise, toolOn, isImplicit } = segment;
     
     // Apply transformations
     const transformedStart = this.applyTransformations(start);
@@ -296,8 +510,9 @@ class ToolpathVisualizer {
       0                               // rotation
     );
     
-    // Get points along the curve
-    const curvePoints = curve.getPoints(32);
+    // Get points along the curve - higher resolution for arcs
+    const numPoints = Math.max(16, Math.floor(radius * 10));
+    const curvePoints = curve.getPoints(numPoints);
     
     // Convert curve points to 3D and interpolate Z
     const points = curvePoints.map((pt, i) => {
@@ -323,44 +538,46 @@ class ToolpathVisualizer {
     if (toolOn) {
       // If the tool is on, this is a cutting move
       
-      // Check if this is a plunge (Z decreasing)
+      // Check if this is a plunge or lift while also an arc
       if (end.z < start.z) {
-        material = this.materials.plunge;
+        material = isImplicit ? this.materials.implicitPlunge : this.materials.plunge;
       } 
-      // Check if this is a lift (Z increasing)
       else if (end.z > start.z) {
-        material = this.materials.lift;
+        material = isImplicit ? this.materials.implicitLift : this.materials.lift;
       } 
-      // Normal cut
+      // Otherwise use arc-specific material based on direction
+      else if (clockwise) {
+        material = isImplicit ? this.materials.implicitArcCW : this.materials.arcCW;
+      }
       else {
-        material = this.materials.cut;
+        material = isImplicit ? this.materials.implicitArcCCW : this.materials.arcCCW;
       }
     } else {
-      // Non-cutting moves
-      material = this.materials.rapid;
+      // Non-cutting moves - probably won't be arcs, but just in case
+      material = isImplicit ? this.materials.implicitRapid : this.materials.rapid;
     }
     
     // Create the line
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
     const line = new THREE.Line(geometry, material);
-    line.name = `segment-${this.toolpathGroup.children.length}`;
+    line.name = `segment-${targetGroup.children.length}`;
     
     // Set userData for potential interaction
     line.userData = {
       segment,
-      lineIndex: segment.lineIndex
+      lineIndex: segment.lineIndex,
+      isImplicit: segment.isImplicit
     };
     
-    this.toolpathGroup.add(line);
+    targetGroup.add(line);
   }
 
   /**
-   * Show a debug sphere at a specific tool position
-   * @param {Object} position - The position {x, y, z}
+   * Show tool position indicator at a specific position
+   * @param {Object} position Position {x, y, z}
    */
   showToolPosition(position) {
     if (position) {
-      // Position is already transformed if coming from highlightLine
       this.toolPositionSphere.position.set(
         position.x, 
         position.y, 
@@ -368,44 +585,63 @@ class ToolpathVisualizer {
       );
       this.toolPositionSphere.visible = true;
     } else {
-      this.toolPositionSphere.visible = false;
+      this.hideToolPosition();
     }
   }
 
   /**
+   * Hide tool position indicator
+   */
+  hideToolPosition() {
+    this.toolPositionSphere.visible = false;
+  }
+
+  /**
    * Highlight a specific line in the G-code
-   * @param {number} lineIndex - The line index to highlight
+   * @param {number} lineIndex Line index to highlight
    */
   highlightLine(lineIndex) {
     // Reset all materials
-    this.toolpathGroup.children.forEach(obj => {
+    this.toolpathGroup.traverse(obj => {
       if (obj.userData && obj.userData.segment) {
         const segment = obj.userData.segment;
+        const isImplicit = obj.userData.isImplicit;
         
         // Determine the original material based on the segment type
         if (segment.rapid) {
-          obj.material = this.materials.rapid;
+          obj.material = isImplicit ? this.materials.implicitRapid : this.materials.rapid;
         } else if (segment.toolOn) {
-          if (segment.end.z < segment.start.z) {
-            obj.material = this.materials.plunge;
-          } else if (segment.end.z > segment.start.z) {
-            obj.material = this.materials.lift;
-          } else {
-            obj.material = this.materials.cut;
+          // Arcs
+          if (segment.type === 'arc') {
+            if (segment.end.z < segment.start.z) {
+              obj.material = isImplicit ? this.materials.implicitPlunge : this.materials.plunge;
+            } else if (segment.end.z > segment.start.z) {
+              obj.material = isImplicit ? this.materials.implicitLift : this.materials.lift;
+            } else if (segment.clockwise) {
+              obj.material = isImplicit ? this.materials.implicitArcCW : this.materials.arcCW;
+            } else {
+              obj.material = isImplicit ? this.materials.implicitArcCCW : this.materials.arcCCW;
+            }
+          } 
+          // Lines
+          else {
+            if (segment.end.z < segment.start.z) {
+              obj.material = isImplicit ? this.materials.implicitPlunge : this.materials.plunge;
+            } else if (segment.end.z > segment.start.z) {
+              obj.material = isImplicit ? this.materials.implicitLift : this.materials.lift;
+            } else {
+              obj.material = isImplicit ? this.materials.implicitCut : this.materials.cut;
+            }
           }
         } else {
-          obj.material = this.materials.rapid;
+          obj.material = isImplicit ? this.materials.implicitRapid : this.materials.rapid;
         }
         
         // If this segment matches the lineIndex, highlight it
         if (segment.lineIndex === lineIndex) {
-          obj.material = new THREE.LineBasicMaterial({ 
-            color: 0xFFFF00, 
-            linewidth: 3,
-            opacity: 1
-          });
+          obj.material = this.materials.highlight;
           
-          // Also show the tool position at the end of this segment
+          // Show the tool position at the end of this segment
           const transformedEnd = this.applyTransformations(segment.end);
           this.showToolPosition(transformedEnd);
         }
@@ -414,12 +650,58 @@ class ToolpathVisualizer {
   }
 
   /**
-   * Set the current G-code
-   * @param {string} gcode - The current G-code
+   * Toggle path line visibility
+   * @param {boolean} visible Whether to show the path line
    */
-  setCurrentGCode(gcode) {
-    this.currentGCode = gcode;
+  togglePathLine(visible) {
+    this.showPathLine = visible;
+    
+    // Re-visualize to update
+    if (this.currentToolpath) {
+      this.visualize(this.currentToolpath);
+    }
+  }
+
+  /**
+   * Toggle structured view of the toolpath
+   * @param {boolean} enabled Whether to organize toolpath by operation
+   */
+  toggleStructuredView(enabled) {
+    this.showStructuredView = enabled;
+    
+    // Re-visualize to update
+    if (this.currentToolpath) {
+      this.visualize(this.currentToolpath);
+    }
+  }
+
+  /**
+   * Clean up resources
+   */
+  dispose() {
+    this.clear();
+    
+    // Dispose of tool position indicator
+    if (this.toolPositionSphere) {
+      if (this.toolPositionSphere.geometry) {
+        this.toolPositionSphere.geometry.dispose();
+      }
+      if (this.toolPositionSphere.material) {
+        this.toolPositionSphere.material.dispose();
+      }
+      this.scene.remove(this.toolPositionSphere);
+    }
+    
+    // Dispose material resources
+    for (const key in this.materials) {
+      if (this.materials[key]) {
+        this.materials[key].dispose();
+      }
+    }
+    
+    // Remove the toolpath group from the scene
+    this.scene.remove(this.toolpathGroup);
   }
 }
 
-export default ToolpathVisualizer;
+export default ToolpathRenderer;

@@ -5,6 +5,7 @@
  * - Traditional G-code with spaces between commands
  * - GRBL/FluidNC format with no spaces
  * - Extracts toolpath information for visualization
+ * - Now properly handles consecutive coordinate-only moves (implicit G-mode)
  */
 class GCodeParser {
   constructor() {
@@ -37,6 +38,9 @@ class GCodeParser {
     this.spindleSpeed = 0;
     this.toolNumber = 0;
     this.workOffset = { x: 0, y: 0, z: 0 }; // For G54-G59
+    
+    // Track the active G mode for implicit moves
+    this.activeGMode = null;
     
     // Stats about the code
     this.stats = {
@@ -184,20 +188,56 @@ class GCodeParser {
       tokens[letter] = parseFloat(value);
     }
     
-    // Process modal G-codes
-    if (tokens.G !== undefined) {
+    // Check if this is a coordinate-only line (just X, Y, Z with no G command)
+    const hasGCommand = tokens.G !== undefined;
+    const hasCoordinates = tokens.X !== undefined || tokens.Y !== undefined || tokens.Z !== undefined;
+    
+    // Handle coordinate-only move with active G mode (implicit move)
+    if (hasCoordinates && !hasGCommand && this.activeGMode !== null) {
+      // This is an implicit move - use the active G mode
+      switch (this.activeGMode) {
+        case 0: // Implicit G0 (rapid move)
+          this.processMove('G0', tokens, lineIndex, true); // true indicates it's an implicit move
+          break;
+          
+        case 1: // Implicit G1 (linear move)
+          this.processMove('G1', tokens, lineIndex, true);
+          break;
+          
+        case 2: // Implicit G2 (CW arc)
+          this.processArc('G2', tokens, lineIndex, true);
+          break;
+          
+        case 3: // Implicit G3 (CCW arc)
+          this.processArc('G3', tokens, lineIndex, true);
+          break;
+          
+        default:
+          // For other G modes, handle as G1 move
+          this.processMove('G1', tokens, lineIndex, true);
+      }
+    } 
+    // Process normal command with explicit G code
+    else if (tokens.G !== undefined) {
       switch (tokens.G) {
         case 0: // Rapid move
+          this.activeGMode = 0; // Update active G mode
           this.processMove('G0', tokens, lineIndex);
           break;
           
         case 1: // Linear move
+          this.activeGMode = 1; // Update active G mode
           this.processMove('G1', tokens, lineIndex);
           break;
           
         case 2: // Clockwise arc
+          this.activeGMode = 2; // Update active G mode
+          this.processArc('G2', tokens, lineIndex);
+          break;
+          
         case 3: // Counter-clockwise arc
-          this.processArc(tokens.G === 2 ? 'G2' : 'G3', tokens, lineIndex);
+          this.activeGMode = 3; // Update active G mode
+          this.processArc('G3', tokens, lineIndex);
           break;
           
         case 17: // XY plane selection
@@ -284,8 +324,9 @@ class GCodeParser {
    * @param {string} command - The command (G0/G1)
    * @param {Object} tokens - Parsed tokens
    * @param {number} lineIndex - Line number in the original G-code
+   * @param {boolean} isImplicit - Whether this is an implicit move (no G command)
    */
-  processMove(command, tokens, lineIndex) {
+  processMove(command, tokens, lineIndex, isImplicit = false) {
     // Calculate new position
     const newX = tokens.X !== undefined
       ? (this.absolutePositioning ? tokens.X : this.position.x + tokens.X)
@@ -326,7 +367,8 @@ class GCodeParser {
         rapid: isRapid,
         toolOn: this.toolOn && !isRapid, // Typically G0 moves don't cut
         feedRate: isRapid ? this.rapidFeedRate : this.feedRate,
-        lineIndex
+        lineIndex,
+        isImplicit // Add flag to identify implicit moves
       });
       
       // Add point to the list
@@ -342,8 +384,9 @@ class GCodeParser {
    * @param {string} command - The command (G2/G3)
    * @param {Object} tokens - Parsed tokens
    * @param {number} lineIndex - Line number in the original G-code
+   * @param {boolean} isImplicit - Whether this is an implicit arc (no G command)
    */
-  processArc(command, tokens, lineIndex) {
+  processArc(command, tokens, lineIndex, isImplicit = false) {
     // Calculate end position
     const endX = tokens.X !== undefined
       ? (this.absolutePositioning ? tokens.X : this.position.x + tokens.X)
@@ -439,7 +482,8 @@ class GCodeParser {
       clockwise,
       toolOn: this.toolOn,
       feedRate: this.feedRate,
-      lineIndex
+      lineIndex,
+      isImplicit // Add flag to identify implicit moves
     });
     
     // Add several intermediate points along the arc for better visualization
