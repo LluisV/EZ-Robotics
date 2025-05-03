@@ -208,6 +208,7 @@ const CodeEditorPanel = () => {
   // Update when selected line changes
   useEffect(() => {
     if (selectedLine >= 0 && selectedLine !== highlightedLine) {
+      return;
       setHighlightedLine(selectedLine);
 
       // Position cursor at the beginning of the line

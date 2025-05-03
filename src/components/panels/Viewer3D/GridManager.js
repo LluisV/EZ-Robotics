@@ -56,58 +56,69 @@ export class GridManager {
   }
 
   /**
-   * Update grid and axes based on current settings
-   * 
-   * @param {Object} options Configuration options
-   * @param {boolean} options.isGridVisible Whether to show the grid
-   * @param {boolean} options.showAxes Whether to show world axes
-   * @param {boolean} options.showWorkAxes Whether to show work axes
-   * @param {Object} options.gridDimensions Grid dimensions {width, height, depth}
-   * @param {Object} options.workOffset Work offset {x, y, z}
-   * @param {boolean} options.showWorldCoords Whether to show world coordinates
-   * @param {number} options.cameraDistance Current camera distance for text scaling
-   */
-  updateGridAndAxes({
-    isGridVisible = this.isGridVisible,
-    showAxes = this.showAxes,
-    showWorkAxes = this.showWorkAxes,
-    gridDimensions = this.gridDimensions,
-    workOffset = this.workOffset,
-    showWorldCoords = this.showWorldCoords,
-    cameraDistance = this.cameraDistance
-  } = {}) {
-    console.log("updateGridAndAxes called with dimensions:", JSON.stringify(gridDimensions));
-    console.log("Current dimensions:", JSON.stringify(this.gridDimensions));
+ * Update grid and axes based on current settings
+ * 
+ * @param {Object} options Configuration options
+ * @param {boolean} options.isGridVisible Whether to show the grid
+ * @param {boolean} options.showAxes Whether to show world axes
+ * @param {boolean} options.showWorkAxes Whether to show work axes
+ * @param {Object} options.gridDimensions Grid dimensions {width, height, depth}
+ * @param {Object} options.workOffset Work offset {x, y, z}
+ * @param {boolean} options.showWorldCoords Whether to show world coordinates
+ * @param {number} options.cameraDistance Current camera distance for text scaling
+ */
+updateGridAndAxes({
+  isGridVisible = this.isGridVisible,
+  showAxes = this.showAxes,
+  showWorkAxes = this.showWorkAxes,
+  gridDimensions = this.gridDimensions,
+  workOffset = this.workOffset,
+  showWorldCoords = this.showWorldCoords,
+  cameraDistance = this.cameraDistance
+} = {}) {
+  console.log("updateGridAndAxes called with dimensions:", JSON.stringify(gridDimensions));
+  console.log("Current dimensions:", JSON.stringify(this.gridDimensions));
+  
+  // Update internal state
+  this.isGridVisible = isGridVisible;
+  this.showAxes = showAxes;
+  this.showWorkAxes = showWorkAxes;
+  
+  // Check if grid dimensions have changed - important for box update
+  const dimensionsChanged = 
+    this.gridDimensions.width !== gridDimensions.width ||
+    this.gridDimensions.height !== gridDimensions.height ||
+    (this.gridDimensions.depth !== gridDimensions.depth && gridDimensions.depth !== undefined);
+  
+  // Explicitly handle depth to ensure it's never undefined
+  const newDepth = gridDimensions.depth !== undefined ? 
+    gridDimensions.depth : 
+    this.gridDimensions.depth || Math.min(gridDimensions.width, gridDimensions.height);
+  
+  // Update dimensions
+  this.gridDimensions = {
+    width: gridDimensions.width,
+    height: gridDimensions.height,
+    depth: newDepth
+  };
+  
+  console.log("Updated dimensions:", JSON.stringify(this.gridDimensions));
+  console.log("Dimensions changed:", dimensionsChanged);
+  
+  this.workOffset = { ...workOffset };
+  this.showWorldCoords = showWorldCoords;
+  this.cameraDistance = cameraDistance;
+
+  // Only rebuild the scene if dimensions or visibility settings have changed
+  if (dimensionsChanged || 
+      this._lastIsGridVisible !== isGridVisible ||
+      this._lastShowAxes !== showAxes ||
+      this._lastShowWorkAxes !== showWorkAxes) {
     
-    // Update internal state
-    this.isGridVisible = isGridVisible;
-    this.showAxes = showAxes;
-    this.showWorkAxes = showWorkAxes;
-    
-    // Check if grid dimensions have changed - important for box update
-    const dimensionsChanged = 
-      this.gridDimensions.width !== gridDimensions.width ||
-      this.gridDimensions.height !== gridDimensions.height ||
-      (this.gridDimensions.depth !== gridDimensions.depth && gridDimensions.depth !== undefined);
-    
-    // Explicitly handle depth to ensure it's never undefined
-    const newDepth = gridDimensions.depth !== undefined ? 
-      gridDimensions.depth : 
-      this.gridDimensions.depth || Math.min(gridDimensions.width, gridDimensions.height);
-    
-    // Update dimensions
-    this.gridDimensions = {
-      width: gridDimensions.width,
-      height: gridDimensions.height,
-      depth: newDepth
-    };
-    
-    console.log("Updated dimensions:", JSON.stringify(this.gridDimensions));
-    console.log("Dimensions changed:", dimensionsChanged);
-    
-    this.workOffset = { ...workOffset };
-    this.showWorldCoords = showWorldCoords;
-    this.cameraDistance = cameraDistance;
+    // Store current state for future comparison
+    this._lastIsGridVisible = isGridVisible;
+    this._lastShowAxes = showAxes;
+    this._lastShowWorkAxes = showWorkAxes;
   
     // Remove existing grid and axes
     this.removeObjects();
@@ -138,7 +149,11 @@ export class GridManager {
     if (dimensionsChanged) {
       console.log("Grid dimensions updated:", JSON.stringify(this.gridDimensions));
     }
+  } else {
+    // Skip rebuilding since nothing relevant has changed
+    console.log("Skipping grid rebuild - no relevant changes detected");
   }
+}
 
   /**
    * Update the grid plane used for raycasting to match current dimensions
@@ -582,22 +597,11 @@ export class GridManager {
    * @param {number} distance Camera distance
    */
   setCameraDistance(distance) {
-    // Only update if the camera distance has changed significantly (>10%)
-    // This prevents unnecessary updates when camera distance changes slightly
-    if (Math.abs(this.cameraDistance - distance) / this.cameraDistance > 0.1) {
-      console.log(`Camera distance changed significantly: ${this.cameraDistance} -> ${distance}`);
-      this.cameraDistance = distance;
-      window.lastCameraDistance = distance;
-      
-      // Update rulers and text to scale with the new distance
-      this.updateGridAndAxes({
-        cameraDistance: distance
-      });
-    } else {
-      // Still update stored value but don't regenerate
-      this.cameraDistance = distance;
-      window.lastCameraDistance = distance;
-    }
+     // Just store the distance, but don't trigger any updates
+    this.cameraDistance = distance;
+    window.lastCameraDistance = distance;
+    
+    // No longer calling updateGridAndAxes or any other update method
   }
 
   /**

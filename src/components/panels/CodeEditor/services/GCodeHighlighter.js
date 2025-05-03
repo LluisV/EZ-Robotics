@@ -17,6 +17,7 @@ class GCodeHighlighter {
    * @returns {string} HTML with syntax highlighting
    */
   static highlightCode(code, errors, warnings, highlightedLine) {
+    return;
     if (!code) return '';
     
     const lines = code.split('\n');
@@ -67,6 +68,7 @@ class GCodeHighlighter {
    * @returns {string} HTML with syntax highlighting
    */
   static highlightLine(line, lineNum, errors, warnings, highlightedLine, isImpliedMove = false, activeGMode = null) {
+    return;
     // Check if this line has errors or warnings
     const hasError = errors.some(err => err.line === lineNum);
     const hasWarning = warnings.some(warn => warn.line === lineNum);

@@ -100,7 +100,7 @@ const useTransfer = (code, fileName, setStatusMessage, setSelectedLine) => {
           
           // Highlight current line in editor
           if (data.acknowledged > 0 && data.acknowledged <= totalLines) {
-            setSelectedLine(data.acknowledged);
+            //setSelectedLine(data.acknowledged);
           }
         },
         
@@ -115,7 +115,7 @@ const useTransfer = (code, fileName, setStatusMessage, setSelectedLine) => {
           
           // Clear line highlight after transfer
           setTimeout(() => {
-            setSelectedLine(-1);
+            //setSelectedLine(-1);
           }, 2000);
         },
         
@@ -137,7 +137,7 @@ const useTransfer = (code, fileName, setStatusMessage, setSelectedLine) => {
           logToConsole('error', `Error at line ${lineIndex+1}: ${errorMessage} - ${lineContent}`);
           
           // Highlight the line with error
-          setSelectedLine(lineIndex + 1);
+          //setSelectedLine(lineIndex + 1);
           
           // Add retry information to status
           const status = gcodeSenderRef.current.getStatus();

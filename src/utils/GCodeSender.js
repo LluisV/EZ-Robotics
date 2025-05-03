@@ -41,7 +41,7 @@ class GCodeSender {
     this.responseHandler = this.handleResponse.bind(this);
     
     // Debug logging
-    this.debug = true; // Set to false to disable debug logging
+    this.debug = false; // Set to false to disable debug logging
   }
   
   /**

@@ -201,10 +201,10 @@ const CodeEditor = ({
           <textarea
             ref={effectiveEditorRef}
             value={code}
-            onChange={handleCodeChange}
+            //onChange={handleCodeChange}
             onScroll={syncScroll}
-            onKeyUp={handleCursorPosition}
-            onClick={handleCursorPosition}
+            //onKeyUp={handleCursorPosition}
+            o//nClick={handleCursorPosition}
             spellCheck="false"
             className="editor-textarea"
           />
