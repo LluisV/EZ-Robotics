@@ -10,13 +10,13 @@ export class MouseIndicator {
    * @param {THREE.Scene} scene THREE.js scene to render into
    * @param {Object} themeColors Theme color definitions
    * @param {number} sceneScale Scale factor (default: 0.1 - 10mm = 1 unit)
-   * @param {number} planeXSize Size of the plane in X direction (default: 100)
+   * @param {Object} gridDimensions Grid dimensions {width, height, depth}
    */
-  constructor(scene, themeColors, sceneScale = 0.1, planeXSize = 100) {
+  constructor(scene, themeColors, sceneScale = 0.1, gridDimensions = { width: 240, height: 350, depth: 150 }) {
     this.scene = scene;
     this.themeColors = themeColors;
     this.sceneScale = sceneScale;
-    this.planeXSize = planeXSize;
+    this.gridDimensions = gridDimensions;
     
     // Create a group to hold all indicator parts
     this.indicatorGroup = new THREE.Group();
@@ -343,8 +343,8 @@ export class MouseIndicator {
    * @param {THREE.Vector3} position Current indicator position
    */
   updateProjectionLines(position) {
-    // X projection to fixed negative position
-    const fixedXPosition = -this.planeXSize / 10;
+    // X projection to fixed negative position based on grid dimensions
+    const fixedXPosition = -this.gridDimensions.width / 10;
     const xProjectPoint = new THREE.Vector3(fixedXPosition, position.y, position.z);
     
     // Update X projection line
@@ -393,11 +393,11 @@ export class MouseIndicator {
   }
   
   /**
-   * Set the plane size in X direction
-   * @param {number} size Size of the plane in X direction
+   * Update grid dimensions
+   * @param {Object} dimensions New grid dimensions {width, height, depth}
    */
-  setPlaneXSize(size) {
-    this.planeXSize = size;
+  setGridDimensions(dimensions) {
+    this.gridDimensions = dimensions;
     // Update the projection lines if the indicator is visible
     if (this.indicatorGroup.visible) {
       this.updateProjectionLines(this.lastPosition);

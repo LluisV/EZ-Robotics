@@ -388,6 +388,15 @@ const Scene = forwardRef(({
         updateRobotToolPosition
     ]);
 
+    // Effect to update MouseIndicator when grid dimensions change
+    useEffect(() => {
+        if (mouseIndicatorRef?.current && typeof mouseIndicatorRef.current.setGridDimensions === 'function') {
+        // Update the MouseIndicator with the current grid dimensions
+        mouseIndicatorRef.current.setGridDimensions(gridDimensions);
+        console.log("Updated MouseIndicator with new grid dimensions:", gridDimensions);
+        }
+    }, [gridDimensions, mouseIndicatorRef]);
+
     // Effect to ensure grid dimensions updates are processed
     useEffect(() => {
         console.log("Grid dimensions changed:", gridDimensions);

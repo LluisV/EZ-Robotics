@@ -186,10 +186,10 @@ const useThreeScene = ({
 
     // Create enhanced mouse position indicator
     try {
-      // Create new mouse indicator
-      const mouseIndicator = new MouseIndicator(scene, themeColors, sceneScale);
+       // Create new mouse indicator with grid dimensions
+      const mouseIndicator = new MouseIndicator(scene, themeColors, sceneScale, gridDimensions);
       mouseIndicatorRef.current = mouseIndicator;
-      console.log("Enhanced mouse indicator created");
+      console.log("Enhanced mouse indicator created with grid dimensions:", gridDimensions);
     } catch (error) {
       console.error("Error creating mouse indicator:", error);
       
