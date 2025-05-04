@@ -1,10 +1,10 @@
 /**
- * Simplified G-Code Sender for GRBL/FluidNC machines
+ * Enhanced G-Code Sender for GRBL/FluidNC machines
  * 
- * Implements a safe line-by-line approach where each line must be
- * acknowledged before the next one is sent.
- * 
- * PERFORMANCE OPTIMIZED: Added throttling for UI updates to prevent UI lag
+ * Implements a safe line-by-line approach with support for:
+ * - Line numbering to track execution progress
+ * - Separate tracking of sending vs. execution progress
+ * - Improved error handling and recovery
  */
 class GCodeSender {
   constructor() {
@@ -14,6 +14,15 @@ class GCodeSender {
     this.isSending = false;         // Whether we're currently sending
     this.isPaused = false;          // Whether sending is paused
     this.isChecking = false;        // Whether we're in check mode
+    
+    // Execution tracking
+    this.isExecuting = false;       // Whether code is still being executed
+    this.executedLineIndex = 0;     // Last line executed by the controller
+    
+    // Line numbering
+    this.useLineNumbers = true;     // Whether to use line numbers
+    this.lineNumberPrefix = 'N';    // Prefix for line numbers
+    this.startLineNumber = 1;       // Starting line number
     
     // Retry configuration
     this.MAX_RETRIES = 3;           // Maximum number of retries per line
@@ -26,14 +35,16 @@ class GCodeSender {
     
     // Callback functions
     this.callbacks = {
-      onProgress: null,      // Called when progress is made
-      onComplete: null,      // Called when all sending is complete
-      onError: null,         // Called when errors occur
-      onLineSuccess: null,   // Called when a line is successfully sent
-      onLineError: null,     // Called when a line fails
-      onPause: null,         // Called when sending is paused
-      onResume: null,        // Called when sending is resumed
-      onStatusUpdate: null   // Called when machine status updates
+      onProgress: null,           // Called when send progress is made
+      onExecutionProgress: null,  // Called when execution progress is made
+      onComplete: null,           // Called when all sending is complete
+      onExecutionComplete: null,  // Called when execution is complete
+      onError: null,              // Called when errors occur
+      onLineSuccess: null,        // Called when a line is successfully sent
+      onLineError: null,          // Called when a line fails
+      onPause: null,              // Called when sending is paused
+      onResume: null,             // Called when sending is resumed
+      onStatusUpdate: null        // Called when machine status updates
     };
     
     // Serial service reference
@@ -48,6 +59,7 @@ class GCodeSender {
     // PERFORMANCE OPTIMIZATION: Add throttling for UI updates
     this.UI_UPDATE_INTERVAL = 250; // Only update UI every 250ms
     this.lastProgressUpdate = 0;
+    this.lastExecutionUpdate = 0;
     
     // Track progress separately from UI updates
     this.currentProgress = {
@@ -56,6 +68,18 @@ class GCodeSender {
       total: 0,
       progress: 0
     };
+    
+    // Track execution progress
+    this.executionProgress = {
+      executed: 0,
+      total: 0,
+      progress: 0
+    };
+    
+    // For tracking when execution is actually complete (after all lines are sent)
+    this.executionCompleteTimeout = null;
+    this.EXECUTION_COMPLETE_TIMEOUT = 2000; // 2 seconds after last status update
+    this.lastStatusTime = 0;
   }
   
   /**
@@ -63,7 +87,7 @@ class GCodeSender {
    */
   log(...args) {
     if (this.debug) {
-      console.log("[SimpleGCodeSender]", ...args);
+      console.log("[EnhancedGCodeSender]", ...args);
     }
   }
   
@@ -75,17 +99,29 @@ class GCodeSender {
   loadGCode(gcode) {
     // Reset state
     this.currentLineIndex = 0;
+    this.executedLineIndex = 0;
     
     // Split G-code into lines and clean them
     this.lines = gcode.split('\n')
       .map(line => {
+        // Remove any existing line numbers first
+        let cleanLine = line.replace(/^N\d+\s+/, '');
+        
         // Remove comments and trim whitespace
-        const commentIndex = line.indexOf(';');
-        return (commentIndex >= 0 ? line.substring(0, commentIndex) : line).trim();
+        const commentIndex = cleanLine.indexOf(';');
+        return (commentIndex >= 0 ? cleanLine.substring(0, commentIndex) : cleanLine).trim();
       })
       .filter(line => line); // Remove empty lines
     
     this.log(`Loaded ${this.lines.length} lines of G-code`);
+    
+    // Reset execution tracking
+    this.executionProgress = {
+      executed: 0,
+      total: this.lines.length,
+      progress: 0
+    };
+    
     return this.lines.length;
   }
   
@@ -128,16 +164,25 @@ class GCodeSender {
     // Setup
     this.serialService = serialService;
     this.isSending = true;
+    this.isExecuting = true;
     this.isPaused = false;
     this.isChecking = checkMode;
     this.currentLineIndex = 0;
+    this.executedLineIndex = 0;
     this.currentRetries = 0;
     this.lastProgressUpdate = 0;
+    this.lastExecutionUpdate = 0;
+    this.lastStatusTime = Date.now();
     
     // Clear any existing timeout
     if (this.responseTimeout) {
       clearTimeout(this.responseTimeout);
       this.responseTimeout = null;
+    }
+    
+    if (this.executionCompleteTimeout) {
+      clearTimeout(this.executionCompleteTimeout);
+      this.executionCompleteTimeout = null;
     }
     
     // Remove any existing event listener to avoid duplicates
@@ -146,24 +191,9 @@ class GCodeSender {
     // Set up event listener for responses
     document.addEventListener('serialdata', this.responseHandler);
     
-    this.log(`Starting G-code transfer: ${this.lines.length} lines, Check mode: ${checkMode}`);
-    
+    // Send configuration commands to FluidNC
     try {
-      // If check mode is enabled, send the $C command to enable it
-      if (checkMode) {
-        await this.serialService.send('$C');
-        this.log("Enabled check mode");
-      }
-      
-      // Flush any pending commands and ensure controller is ready
-      await this.serialService.flush();
-      this.log("Flushed controller buffer before starting transfer");
-      
-      // Send a single status query
-      await this.serialService.send('?');
-      
-      // Wait a moment to ensure controller is ready
-      await new Promise(resolve => setTimeout(resolve, 100));
+     
       
       // Send the first line
       await this.sendNextLine();
@@ -205,6 +235,43 @@ class GCodeSender {
   }
   
   /**
+   * Update execution progress based on controller status
+   * @param {number} executedLine - The line currently being executed
+   */
+  updateExecutionProgress(executedLine) {
+    // Check if it's a valid line number
+    if (executedLine !== undefined && executedLine >= 0) {
+      this.executedLineIndex = executedLine;
+      
+      // Update internal execution progress
+      this.executionProgress = {
+        executed: executedLine,
+        total: this.lines.length,
+        progress: Math.min((executedLine / this.lines.length) * 100, 100)
+      };
+      
+      // Only notify UI at throttled intervals
+      const now = Date.now();
+      if ((now - this.lastExecutionUpdate) >= this.UI_UPDATE_INTERVAL) {
+        this.lastExecutionUpdate = now;
+        
+        if (this.callbacks.onExecutionProgress) {
+          this.callbacks.onExecutionProgress(this.executionProgress);
+        }
+      }
+      
+      // Update last status time to track execution completion
+      this.lastStatusTime = Date.now();
+      
+      // Reset execution complete timeout since we're still executing
+      if (this.executionCompleteTimeout) {
+        clearTimeout(this.executionCompleteTimeout);
+        this.executionCompleteTimeout = null;
+      }
+    }
+  }
+  
+  /**
    * Send the next line of GCode
    */
   async sendNextLine() {
@@ -218,7 +285,13 @@ class GCodeSender {
       return;
     }
     
-    const line = this.lines[this.currentLineIndex];
+    let line = this.lines[this.currentLineIndex];
+    
+    // Add line number if enabled
+    if (this.useLineNumbers) {
+      const lineNumber = this.startLineNumber + this.currentLineIndex;
+      line = `${this.lineNumberPrefix}${lineNumber} ${line}`;
+    }
     
     try {
       // Log what we're sending for debugging
@@ -314,7 +387,7 @@ class GCodeSender {
     // Skip empty responses
     if (!response) return;
     
-    // Skip status responses and handle them separately
+    // Handle status responses
     if (response.startsWith('<') && response.includes('|')) {
       this.handleStatusResponse(response);
       return;
@@ -407,11 +480,23 @@ class GCodeSender {
    * @param {string} status - Status message from controller
    */
   handleStatusResponse(status) {
-    // Parse status response (e.g., "<Idle|MPos:0.000,0.000,0.000|FS:0,0|WCO:0.000,0.000,0.000>")
+    // Parse status response
     try {
+      // Update last status time
+      this.lastStatusTime = Date.now();
+      
       // Extract state
       const stateMatch = status.match(/<([^|>]+)/);
       const state = stateMatch ? stateMatch[1] : "Unknown";
+      
+      // Check for line number information for execution tracking
+      const lineMatch = status.match(/Ln:(\d+)/);
+      if (lineMatch) {
+        const executedLine = parseInt(lineMatch[1], 10);
+        
+        // Update execution progress
+        this.updateExecutionProgress(executedLine);
+      }
       
       // Extract machine position
       const posMatch = status.match(/MPos:([^|>]+)/);
@@ -432,12 +517,29 @@ class GCodeSender {
         workOffset,
         feedRate: feedSpeed[0] || 0,
         spindleSpeed: feedSpeed[1] || 0,
+        executedLine: lineMatch ? parseInt(lineMatch[1], 10) : -1,
         raw: status
       };
       
       // Notify callback if available
       if (this.callbacks.onStatusUpdate) {
         this.callbacks.onStatusUpdate(statusObj);
+      }
+      
+      // Check if execution is complete
+      // This happens when the state is Idle and we've sent all lines
+      if (state === "Idle" && this.currentLineIndex >= this.lines.length && this.isExecuting) {
+        // Don't immediately consider execution complete - wait a short time
+        // to ensure there are no more movements
+        if (!this.executionCompleteTimeout) {
+          this.executionCompleteTimeout = setTimeout(() => {
+            this.onExecutionComplete();
+          }, this.EXECUTION_COMPLETE_TIMEOUT);
+        }
+      } else if (this.executionCompleteTimeout) {
+        // If we're not idle or haven't sent all lines, cancel the timeout
+        clearTimeout(this.executionCompleteTimeout);
+        this.executionCompleteTimeout = null;
       }
     } catch (error) {
       this.log("Error parsing status:", error);
@@ -461,12 +563,12 @@ class GCodeSender {
     }
     
     this.isSending = false;
-    this.isPaused = false;
     
-    // Clean up
-    document.removeEventListener('serialdata', this.responseHandler);
+    // Note: We don't set isExecuting to false here, as the machine
+    // might still be moving for a while. Execution completion is tracked
+    // separately via status updates.
     
-    // Cancel any timeout
+    // Clean up sending resources
     if (this.responseTimeout) {
       clearTimeout(this.responseTimeout);
       this.responseTimeout = null;
@@ -475,6 +577,42 @@ class GCodeSender {
     if (this.callbacks.onComplete) {
       this.callbacks.onComplete({
         sent: this.currentLineIndex,
+        total: this.lines.length
+      });
+    }
+
+  }
+  
+  /**
+   * Called when execution is complete
+   */
+  onExecutionComplete() {
+    if (!this.isExecuting) return;
+    
+    this.log("G-code execution complete");
+    this.isExecuting = false;
+    
+    // Clear all timeouts
+    if (this.executionCompleteTimeout) {
+      clearTimeout(this.executionCompleteTimeout);
+      this.executionCompleteTimeout = null;
+    }
+
+    
+    // Clean up the event listener
+    document.removeEventListener('serialdata', this.responseHandler);
+    
+    // Final execution progress update
+    this.executionProgress.executed = this.lines.length;
+    this.executionProgress.progress = 100;
+    
+    if (this.callbacks.onExecutionProgress) {
+      this.callbacks.onExecutionProgress(this.executionProgress);
+    }
+    
+    if (this.callbacks.onExecutionComplete) {
+      this.callbacks.onExecutionComplete({
+        executed: this.lines.length,
         total: this.lines.length
       });
     }
@@ -543,12 +681,13 @@ class GCodeSender {
    * Stop sending
    */
   stop() {
-    if (!this.isSending) return false;
+    if (!this.isSending && !this.isExecuting) return false;
     
     this.log("Stopping G-code sending");
     
     this.isSending = false;
     this.isPaused = false;
+    this.isExecuting = false;
     
     // Clean up
     document.removeEventListener('serialdata', this.responseHandler);
@@ -557,6 +696,11 @@ class GCodeSender {
     if (this.responseTimeout) {
       clearTimeout(this.responseTimeout);
       this.responseTimeout = null;
+    }
+    
+    if (this.executionCompleteTimeout) {
+      clearTimeout(this.executionCompleteTimeout);
+      this.executionCompleteTimeout = null;
     }
     
     // Optional: send a feed hold and then a reset
@@ -583,10 +727,17 @@ class GCodeSender {
    */
   getStatus() {
     // Calculate progress safely
-    let progress = 0;
+    let sendProgress = 0;
+    let executionProgress = 0;
+    
     if (this.lines.length > 0) {
-      progress = Math.min(
+      sendProgress = Math.min(
         (this.currentLineIndex / this.lines.length) * 100,
+        100
+      );
+      
+      executionProgress = Math.min(
+        (this.executedLineIndex / this.lines.length) * 100,
         100
       );
     }
@@ -594,15 +745,20 @@ class GCodeSender {
     return {
       isSending: this.isSending,
       isPaused: this.isPaused,
+      isExecuting: this.isExecuting,
       isChecking: this.isChecking,
       currentLine: this.currentLineIndex < this.lines.length ? 
         this.lines[this.currentLineIndex] : null,
       currentLineIndex: this.currentLineIndex,
+      executedLineIndex: this.executedLineIndex,
       totalLines: this.lines.length,
-      progress: progress,
+      sendProgress: sendProgress,
+      executionProgress: executionProgress,
       remainingLines: this.lines.length - this.currentLineIndex,
+      remainingExecution: this.lines.length - this.executedLineIndex,
       retryCount: this.currentRetries,
-      maxRetries: this.MAX_RETRIES
+      maxRetries: this.MAX_RETRIES,
+      useLineNumbers: this.useLineNumbers
     };
   }
 }

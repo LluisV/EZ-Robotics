@@ -1285,3 +1285,299 @@
   color: rgba(65, 105, 225, 0.9);
   font-weight: bold;
 }
+
+/* Execution tracking styles */
+.execution-tracker {
+  margin-top: 6px;
+}
+
+.execution-status {
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.status-indicator.execution-indicator {
+  background-color: var(--execution-color, #4CAF50);
+  animation: execution-pulse 1.5s infinite;
+}
+
+@keyframes execution-pulse {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.execution-bar {
+  background-color: rgba(76, 175, 80, 0.1);
+}
+
+.execution-fill {
+  background-color: var(--execution-color, #4CAF50);
+  opacity: 0.7;
+}
+
+/* Different colors for different states */
+.execution-indicator.idle {
+  background-color: var(--idle-color, #4CAF50);
+}
+
+.execution-indicator.running {
+  background-color: var(--running-color, #2196F3);
+}
+
+.execution-indicator.holding {
+  background-color: var(--holding-color, #FF9800);
+}
+
+.execution-indicator.alarm {
+  background-color: var(--alarm-color, #F44336);
+}
+
+/* Executed line highlight in editor */
+.executing-line {
+  background-color: rgba(76, 175, 80, 0.15) !important;
+  border-left: 3px solid rgba(76, 175, 80, 0.5) !important;
+}
+
+/* Add a small gap between transfer progress and execution progress */
+.execution-tracker {
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 6px;
+}
+
+/* Define CSS variables for color themes */
+:root {
+  /* Execution colors */
+  --execution-color: #4CAF50;
+  --idle-color: #4CAF50;
+  --running-color: #2196F3;
+  --holding-color: #FF9800;
+  --alarm-color: #F44336;
+}
+
+/* Enhanced status text */
+.execution-status .status-text {
+  font-size: 0.85em;
+  opacity: 0.85;
+}
+
+/* Styles for executed line highlighting */
+
+/* Line number indication for executed line */
+.line-number.executed {
+  color: var(--execution-color, #4CAF50) !important;
+  background-color: rgba(76, 175, 80, 0.1);
+  border-right: 3px solid var(--execution-color, #4CAF50) !important;
+  font-weight: bold;
+}
+
+/* Special content highlighting for executed line */
+.executing-line {
+  background-color: rgba(76, 175, 80, 0.05);
+  border-left: 3px solid var(--execution-color, #4CAF50);
+  position: relative;
+}
+
+/* Add a subtle animation for the currently executing line */
+@keyframes executing-pulse {
+  0% {
+    border-left-color: rgba(76, 175, 80, 0.7);
+  }
+  50% {
+    border-left-color: rgba(76, 175, 80, 0.3);
+  }
+  100% {
+    border-left-color: rgba(76, 175, 80, 0.7);
+  }
+}
+
+.executing-line {
+  animation: executing-pulse 2s infinite;
+}
+
+/* Make sure execution highlighting takes precedence over regular highlighting */
+.code-line.executing-line.error-line {
+  border-left: 3px solid var(--execution-color, #4CAF50) !important;
+}
+
+.code-line.executing-line.warning-line {
+  border-left: 3px solid var(--execution-color, #4CAF50) !important;
+}
+
+/* Status indicator for execution */
+.status-indicator.execution-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  background-color: var(--execution-color, #4CAF50);
+}
+
+/* Add an execution state animation */
+.status-indicator.execution-indicator.executing {
+  animation: status-pulse 1.5s infinite;
+}
+
+@keyframes status-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Execution container styles - completely separated from transfer progress */
+.execution-container {
+  margin-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 8px;
+}
+
+.execution-progress-container {
+  padding: 8px 10px;
+  background-color: rgba(76, 175, 80, 0.05);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  border: 1px solid rgba(76, 175, 80, 0.2);
+}
+
+.execution-status {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.status-indicator.execution-indicator {
+  background-color: var(--execution-color, #4CAF50);
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  animation: execution-pulse 1.5s infinite;
+}
+
+@keyframes execution-pulse {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.execution-bar {
+  background-color: rgba(76, 175, 80, 0.1);
+  height: 6px;
+}
+
+.execution-fill {
+  background-color: var(--execution-color, #4CAF50);
+  height: 100%;
+  transition: width 0.3s ease;
+  opacity: 0.8;
+}
+
+/* Line number indication for executed line */
+.line-number.executed {
+  color: var(--execution-color, #4CAF50) !important;
+  background-color: rgba(76, 175, 80, 0.1);
+  border-right: 3px solid var(--execution-color, #4CAF50) !important;
+  font-weight: bold;
+}
+
+/* Special content highlighting for executed line */
+.executing-line {
+  background-color: rgba(76, 175, 80, 0.05);
+  border-left: 3px solid var(--execution-color, #4CAF50);
+  position: relative;
+}
+
+/* Add a subtle animation for the currently executing line */
+@keyframes executing-pulse {
+  0% {
+    border-left-color: rgba(76, 175, 80, 0.7);
+  }
+  50% {
+    border-left-color: rgba(76, 175, 80, 0.3);
+  }
+  100% {
+    border-left-color: rgba(76, 175, 80, 0.7);
+  }
+}
+
+.executing-line {
+  animation: executing-pulse 2s infinite;
+}
+
+/* Make sure execution highlighting takes precedence over regular highlighting */
+.code-line.executing-line.error-line {
+  border-left: 3px solid var(--execution-color, #4CAF50) !important;
+}
+
+.code-line.executing-line.warning-line {
+  border-left: 3px solid var(--execution-color, #4CAF50) !important;
+}
+
+/* Define CSS variables for color themes */
+:root {
+  /* Execution colors */
+  --execution-color: #4CAF50;
+  --idle-color: #4CAF50;
+  --running-color: #2196F3;
+  --holding-color: #FF9800;
+  --alarm-color: #F44336;
+}
+
+/* Enhanced status text */
+.execution-status .status-text {
+  font-size: 0.9em;
+}
+
+/* Give transfer progress container a distinct background */
+.transfer-progress-container {
+  background-color: rgba(33, 150, 243, 0.05);
+  border-radius: 6px;
+  border: 1px solid rgba(33, 150, 243, 0.2);
+}
+
+/* Different color for transfer progress bar */
+.progress-bar {
+  background-color: rgba(33, 150, 243, 0.1);
+  height: 6px;
+}
+
+.progress-fill {
+  background-color: var(--transfer-color, #2196F3);
+  height: 100%;
+  transition: width 0.3s ease;
+  opacity: 0.8;
+}
+
+:root {
+  --transfer-color: #2196F3;
+}

@@ -239,7 +239,7 @@ class SerialCommunicationService {
         this.startReading();
         
         // Start position polling with a more responsive rate
-        this.startPositionPolling(250);
+        //this.startPositionPolling(250);
 
         // Notify listeners
         this.notifyListeners('connect', { port: this.port.getInfo() });
@@ -256,8 +256,9 @@ class SerialCommunicationService {
         // Send initial queries to FluidNC
         await this.send("$I"); // Request system information
         await this.send("$#"); // Request parameters
-        await this.send("$Report/Interval=0"); // Set status report interval to 50ms
-        
+        await this.send("$Report/Interval=100"); // Set status report interval to 50ms
+        await this.send("$/use_line_numbers=true"); 
+
         resolve(true);
       } catch (error) {
         console.error("Serial connection error:", error);

@@ -2,8 +2,8 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import GCodeHighlighter from '../services/GCodeHighlighter';
 
 /**
- * Enhanced code editor component with support for consecutive coordinate-only moves
- * Fixed to prevent cursor position issues with implied moves
+ * Enhanced code editor component with support for execution line tracking
+ * Separates highlighting for selected lines vs. executed lines
  * 
  * PERFORMANCE OPTIMIZATION: Added debounced updates and low performance mode
  * PERFORMANCE OPTIMIZATION: Separated line number highlighting from code rendering
@@ -17,6 +17,7 @@ const CodeEditor = ({
   setHighlightedLine,
   selectedLine,
   setSelectedLine,
+  executedLine = 0, // NEW: line currently being executed
   setStatusMessage,
   validateCode,
   editorRef,
@@ -25,6 +26,7 @@ const CodeEditor = ({
   const lineNumbersRef = useRef(null);
   const localEditorRef = useRef(null);
   const lastHighlightedLineRef = useRef(-1);
+  const lastExecutedLineRef = useRef(-1);
   const highlightTimeoutRef = useRef(null);
   const totalLines = useMemo(() => code ? code.split('\n').length : 0, [code]);
   
@@ -131,6 +133,9 @@ const CodeEditor = ({
       const impliedMove = impliedMoveInfo.find(info => info.line === lineNum);
       const isImpliedMove = !!impliedMove;
       
+      // Check if this is the currently executed line
+      const isExecuted = executedLine === lineNum;
+      
       const errorMsg = errors.find(err => err.line === lineNum)?.message || '';
       const warningMsg = warnings.find(warn => warn.line === lineNum)?.message || '';
       let tooltipMsg = errorMsg || warningMsg;
@@ -142,6 +147,7 @@ const CodeEditor = ({
       let className = "line-number";
 
       if (lineNum === highlightedLine) className += ' active';
+      if (isExecuted) className += ' executed'; // New class for executed line
       if (hasError) className += ' error';
       if (hasWarning) className += ' warning';
       if (isImpliedMove) className += ' implied-hint';
@@ -155,7 +161,7 @@ const CodeEditor = ({
     });
     
     return lineNumbersHtml;
-  }, [code, highlightedLine, errors, warnings, impliedMoveInfo]);
+  }, [code, highlightedLine, executedLine, errors, warnings, impliedMoveInfo]);
 
   // Update line numbers when highlighting changes
   useEffect(() => {
@@ -185,7 +191,7 @@ const CodeEditor = ({
     
     // Save the current highlighted line for comparison
     lastHighlightedLineRef.current = highlightedLine;
-  }, [highlightedLine, createLineNumbers, effectiveEditorRef, lowPerformanceMode, totalLines]);
+  }, [highlightedLine, executedLine, createLineNumbers, effectiveEditorRef, lowPerformanceMode, totalLines]);
 
   // Handle cursor position and update error status
   const handleCursorPosition = useCallback(() => {
@@ -231,8 +237,23 @@ const CodeEditor = ({
     }
     
     // Use the enhanced GCodeHighlighter with implied moves support
-    return GCodeHighlighter.highlightCode(code, errors, warnings);
-  }, [code, errors, warnings, lowPerformanceMode]);
+    return GCodeHighlighter.highlightCode(code, errors, warnings, executedLine);
+  }, [code, errors, warnings, lowPerformanceMode, executedLine]);
+
+  // Ensure executed line is visible
+  useEffect(() => {
+    if (executedLine > 0 && executedLine !== lastExecutedLineRef.current) {
+      // Check if we need to scroll to the executed line
+      if (lineNumbersRef.current) {
+        const lineElement = lineNumbersRef.current.querySelector(`.line-number:nth-child(${executedLine})`);
+        if (lineElement) {
+          // Scroll to keep executed line visible
+          lineElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+      lastExecutedLineRef.current = executedLine;
+    }
+  }, [executedLine]);
 
   // Force validate the G-code now
   const validateNow = () => {

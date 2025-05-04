@@ -1,6 +1,7 @@
 /**
  * Enhanced G-code syntax highlighter with GRBL/FluidNC format support
  * Handles consecutive coordinate-only moves without affecting cursor position
+ * Added support for highlighting executed lines
  * 
  * PERFORMANCE OPTIMIZATION: Added low performance mode for faster rendering
  * PERFORMANCE OPTIMIZATION: Removed background highlight from line content
@@ -16,10 +17,10 @@ class GCodeHighlighter {
    * @param {string} code - G-code text to highlight
    * @param {Array} errors - Array of error objects
    * @param {Array} warnings - Array of warning objects 
-   * @param {number} highlightedLine - Currently highlighted line number
+   * @param {number} executedLine - Line currently being executed by the machine
    * @returns {string} HTML with syntax highlighting
    */
-  static highlightCode(code, errors, warnings, highlightedLine) {
+  static highlightCode(code, errors, warnings, executedLine = 0) {
     if (!code) return '';
     
     const lines = code.split('\n');
@@ -52,7 +53,7 @@ class GCodeHighlighter {
       const isImpliedMove = hasCoordinates && gCommands.length === 0 && activeGMode;
       
       // Apply highlighting
-      return this.highlightLine(line, lineNum, errors, warnings, isImpliedMove, activeGMode);
+      return this.highlightLine(line, lineNum, errors, warnings, isImpliedMove, activeGMode, executedLine);
     });
     
     return highlightedLines.join('');
@@ -61,10 +62,10 @@ class GCodeHighlighter {
   /**
    * PERFORMANCE OPTIMIZATION: Simplified highlighting for low performance mode
    * @param {string} code - G-code text to highlight 
-   * @param {number} highlightedLine - Currently highlighted line number (not used)
+   * @param {number} executedLine - Line being executed (not used in low perf mode)
    * @returns {string} HTML with minimal highlighting
    */
-  static highlightCodeLowPerf(text, highlightedLine) {
+  static highlightCodeLowPerf(text, executedLine = 0) {
     if (!text) return '';
     
     const lines = text.split('\n');
@@ -73,13 +74,18 @@ class GCodeHighlighter {
     const highlightedLines = lines.map((line, i) => {
       const lineNum = i + 1;
       
+      // Check if this is the currently executed line
+      const isExecuted = executedLine === lineNum;
+      let lineClass = "code-line";
+      if (isExecuted) lineClass += ' executing-line';
+      
       // Very minimal highlighting - just comments
       let content = line.replace(/;(.*)$/, '<span class="code-comment">;$1</span>');
       if (/\(.*?\)/.test(content)) {
         content = content.replace(/\((.*?)\)/g, '<span class="code-comment">($1)</span>');
       }
       
-      return `<div class="code-line">${content || ' '}</div>`;
+      return `<div class="${lineClass}">${content || ' '}</div>`;
     });
     
     return highlightedLines.join('');
@@ -93,23 +99,28 @@ class GCodeHighlighter {
    * @param {Array} warnings - Array of warning objects
    * @param {boolean} isImpliedMove - Whether this line is a coordinate-only implied move
    * @param {string} activeGMode - The active G mode (G0, G1, etc.)
+   * @param {number} executedLine - Line currently being executed by the machine
    * @returns {string} HTML with syntax highlighting
    */
-  static highlightLine(line, lineNum, errors, warnings, isImpliedMove = false, activeGMode = null) {
+  static highlightLine(line, lineNum, errors, warnings, isImpliedMove = false, activeGMode = null, executedLine = 0) {
     // Check if this line has errors or warnings
     const hasError = errors.some(err => err.line === lineNum);
     const hasWarning = warnings.some(warn => warn.line === lineNum);
+    
+    // Check if this line is being executed
+    const isExecuted = executedLine === lineNum;
     
     // Get error/warning message for tooltip
     const errorMsg = errors.find(err => err.line === lineNum)?.message || '';
     const warningMsg = warnings.find(warn => warn.line === lineNum)?.message || '';
     const tooltipMsg = errorMsg || warningMsg;
     
-    // Set line class based on state - REMOVED highlighted-line class
+    // Set line class based on state
     let lineClass = "code-line";
     if (hasError) lineClass += ' error-line';
     if (hasWarning) lineClass += ' warning-line';
     if (isImpliedMove) lineClass += ' implied-move';
+    if (isExecuted) lineClass += ' executing-line'; // Add class for executed line
     
     // Add tooltip with error/warning message
     const tooltipAttr = tooltipMsg ? ` data-tooltip="${tooltipMsg}"` : '';

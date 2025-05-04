@@ -1,9 +1,8 @@
 import React from 'react';
 
 /**
- * Transfer progress component for displaying file transfer status
- * 
- * SIMPLIFIED: Removed animation, directly shows transfer progress
+ * Transfer progress component ONLY for displaying file transfer status
+ * No execution tracking - keeps concerns completely separate
  */
 const TransferProgress = ({
   statusMessage,
@@ -63,7 +62,7 @@ const TransferProgress = ({
           </div>
         </div>
 
-        {/* Simplified: Use transferProgress directly */}
+        {/* Transfer progress bar - ONLY shows file transfer progress */}
         <div className="progress-bar">
           <div
             className="progress-fill"
