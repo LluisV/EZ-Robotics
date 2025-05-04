@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { VisualizationModes } from '../utils/VisualizationModes';
 
 /**
- * Component to control toolpath visualization settings
+ * Enhanced VisualizationSettings component with improved UI
  * 
  * @param {Object} props Component properties
  * @param {string} props.visualizationMode Current visualization mode
@@ -15,7 +15,6 @@ import { VisualizationModes } from '../utils/VisualizationModes';
  * @param {Function} props.setDirectionIndicatorScale Function to update indicator scale
  * @param {boolean} props.showPathLine Whether to show path line
  * @param {Function} props.setShowPathLine Function to update path line visibility
- * @param {Function} props.reapplyVisualization Function to reapply visualization
  */
 const VisualizationSettings = ({
   visualizationMode,
@@ -27,11 +26,8 @@ const VisualizationSettings = ({
   directionIndicatorScale = 0.5,
   setDirectionIndicatorScale,
   showPathLine,
-  setShowPathLine,
-  reapplyVisualization
+  setShowPathLine
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  
   // Define available visualization modes
   const visualizationOptions = [
     { value: VisualizationModes.MOVE_TYPE, label: 'Move Type' },
@@ -66,234 +62,169 @@ const VisualizationSettings = ({
   };
   
   return (
-    <div style={{ margin: '8px 0' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px' }}>
-          Visualization:
-        </label>
-        
-        <select
-          value={visualizationMode}
-          onChange={handleVisualizationModeChange}
-          style={{
-            fontSize: '12px',
-            padding: '2px 4px',
-            border: '1px solid var(--border-color)',
-            borderRadius: '3px',
-            background: 'var(--bg-light)'
-          }}
-        >
-          {visualizationOptions.map(option => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          style={{
-            backgroundColor: 'transparent',
-            border: 'none',
-            fontSize: '10px',
-            cursor: 'pointer',
-            padding: '0 4px'
-          }}
-          title="Visualization settings"
-        >
-          {isExpanded ? '▼' : '▶︎'}
-        </button>
+    <div className="visualization-settings">
+      <div className="vis-settings-header">
+        <div className="vis-selector">
+          <select
+            value={visualizationMode}
+            onChange={handleVisualizationModeChange}
+            className="vis-select"
+            title="Visualization Mode"
+          >
+            {visualizationOptions.map(option => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
       
-      {isExpanded && (
-        <div style={{ 
-          marginTop: '5px', 
-          marginLeft: '20px', 
-          fontSize: '11px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '8px',
-          background: 'var(--bg-medium)',
-          padding: '8px',
-          borderRadius: '4px'
-        }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+      <div className="vis-settings-options">
+        <div className="vis-option">
+          <label className="vis-checkbox-label">
             <input
               type="checkbox"
               checked={showPathLine}
               onChange={handlePathLineChange}
-              style={{ margin: 0 }}
+              className="vis-checkbox"
             />
-            Show Path Overview
+            <span>Show Path Overview</span>
           </label>
-          
-          <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+        </div>
+        
+        <div className="vis-option">
+          <label className="vis-checkbox-label">
             <input
               type="checkbox"
               checked={showDirectionIndicators}
               onChange={handleDirectionIndicatorsChange}
-              style={{ margin: 0 }}
+              className="vis-checkbox"
             />
-            Show Direction Indicators
+            <span>Show Direction Indicators</span>
           </label>
-          
-          {showDirectionIndicators && (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginLeft: '20px' }}>
-                <span>Density:</span>
+        </div>
+        
+        {showDirectionIndicators && (
+          <div className="vis-slider-options">
+            <div className="vis-slider-container">
+              <div className="vis-slider-label">Density:</div>
+              <div className="vis-slider-control">
                 <input
                   type="range"
                   min="1"
                   max="20"
                   value={directionIndicatorDensity * 100}
                   onChange={handleDensityChange}
-                  style={{ width: '100px' }}
+                  className="vis-slider"
                 />
-                <span>{Math.round(directionIndicatorDensity * 100)}%</span>
+                <span className="vis-slider-value">{Math.round(directionIndicatorDensity * 100)}%</span>
               </div>
-              
-              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginLeft: '20px' }}>
-                <span>Size:</span>
+            </div>
+            
+            <div className="vis-slider-container">
+              <div className="vis-slider-label">Size:</div>
+              <div className="vis-slider-control">
                 <input
                   type="range"
                   min="10"
                   max="200"
                   value={directionIndicatorScale * 100}
                   onChange={handleScaleChange}
-                  style={{ width: '100px' }}
+                  className="vis-slider"
                 />
-                <span>{Math.round(directionIndicatorScale * 100)}%</span>
+                <span className="vis-slider-value">{Math.round(directionIndicatorScale * 100)}%</span>
               </div>
-            </>
+            </div>
+          </div>
+        )}
+        
+        <div className="vis-legend">
+          <div className="vis-legend-title">Legend:</div>
+          
+          {visualizationMode === VisualizationModes.MOVE_TYPE && (
+            <div className="vis-legend-content move-type-legend">
+              <div className="vis-legend-item">
+                <div className="vis-legend-color rapid"></div>
+                <span>Rapid</span>
+              </div>
+              <div className="vis-legend-item">
+                <div className="vis-legend-color cut"></div>
+                <span>Cut</span>
+              </div>
+              <div className="vis-legend-item">
+                <div className="vis-legend-color plunge"></div>
+                <span>Plunge</span>
+              </div>
+              <div className="vis-legend-item">
+                <div className="vis-legend-color lift"></div>
+                <span>Lift</span>
+              </div>
+            </div>
           )}
           
-          {/* Visualization Legends */}
-          <div style={{ marginTop: '5px' }}>
-            <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>Legend:</div>
-            
-            {visualizationMode === VisualizationModes.MOVE_TYPE && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <div style={{ width: '12px', height: '12px', backgroundColor: '#3498db', borderRadius: '2px' }}></div>
-                  <span>Rapid Move</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <div style={{ width: '12px', height: '12px', backgroundColor: '#f39c12', borderRadius: '2px' }}></div>
-                  <span>Cut</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <div style={{ width: '12px', height: '12px', backgroundColor: '#e74c3c', borderRadius: '2px' }}></div>
-                  <span>Plunge</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <div style={{ width: '12px', height: '12px', backgroundColor: '#2ecc71', borderRadius: '2px' }}></div>
-                  <span>Lift</span>
-                </div>
+          {visualizationMode === VisualizationModes.FEED_RATE && (
+            <div className="vis-legend-content">
+              <div className="vis-legend-gradient feed-gradient"></div>
+              <div className="vis-legend-labels">
+                <span>Low</span>
+                <span>Feed Rate</span>
+                <span>High</span>
               </div>
-            )}
-            
-            {visualizationMode === VisualizationModes.FEED_RATE && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                <div style={{ 
-                  height: '20px', 
-                  background: 'linear-gradient(to right, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000)',
-                  borderRadius: '2px',
-                  marginBottom: '4px'
-                }}></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Low</span>
-                  <span>Feed Rate</span>
-                  <span>High</span>
-                </div>
+            </div>
+          )}
+          
+          {visualizationMode === VisualizationModes.Z_HEIGHT && (
+            <div className="vis-legend-content">
+              <div className="vis-legend-gradient z-gradient"></div>
+              <div className="vis-legend-labels">
+                <span>Min</span>
+                <span>Z-Height</span>
+                <span>Max</span>
               </div>
-            )}
-            
-            {visualizationMode === VisualizationModes.Z_HEIGHT && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                <div style={{ 
-                  height: '20px', 
-                  background: 'linear-gradient(to right, #ff0000, #ff00ff, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000)',
-                  borderRadius: '2px',
-                  marginBottom: '4px'
-                }}></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Min</span>
-                  <span>Z-Height</span>
-                  <span>Max</span>
-                </div>
+            </div>
+          )}
+          
+          {visualizationMode === VisualizationModes.MOVE_DISTANCE && (
+            <div className="vis-legend-content">
+              <div className="vis-legend-gradient distance-gradient"></div>
+              <div className="vis-legend-labels">
+                <span>Short</span>
+                <span>Distance</span>
+                <span>Long</span>
               </div>
-            )}
-            
-            {visualizationMode === VisualizationModes.MOVE_DISTANCE && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                <div style={{ 
-                  height: '20px', 
-                  background: 'linear-gradient(to right, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000)',
-                  borderRadius: '2px',
-                  marginBottom: '4px'
-                }}></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Short</span>
-                  <span>Distance</span>
-                  <span>Long</span>
-                </div>
+            </div>
+          )}
+          
+          {visualizationMode === VisualizationModes.SEQUENCE && (
+            <div className="vis-legend-content">
+              <div className="vis-legend-gradient sequence-gradient"></div>
+              <div className="vis-legend-labels">
+                <span>Start</span>
+                <span>Sequence</span>
+                <span>End</span>
               </div>
-            )}
-            
-            {visualizationMode === VisualizationModes.SEQUENCE && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                <div style={{ 
-                  height: '20px', 
-                  background: 'linear-gradient(to right, #ff0000, #ff00ff, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000)',
-                  borderRadius: '2px',
-                  marginBottom: '4px'
-                }}></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Start</span>
-                  <span>Sequence</span>
-                  <span>End</span>
-                </div>
+            </div>
+          )}
+          
+          {visualizationMode === VisualizationModes.TOOL_NUMBER && (
+            <div className="vis-legend-content tool-legend">
+              <div className="vis-legend-item">
+                <div className="vis-legend-color tool1"></div>
+                <span>Tool 1</span>
               </div>
-            )}
-            
-            {visualizationMode === VisualizationModes.TOOL_NUMBER && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <div style={{ width: '12px', height: '12px', backgroundColor: '#e74c3c', borderRadius: '2px' }}></div>
-                  <span>Tool 1</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <div style={{ width: '12px', height: '12px', backgroundColor: '#3498db', borderRadius: '2px' }}></div>
-                  <span>Tool 2</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <div style={{ width: '12px', height: '12px', backgroundColor: '#2ecc71', borderRadius: '2px' }}></div>
-                  <span>Tool 3</span>
-                </div>
-                <div style={{ fontSize: '10px', fontStyle: 'italic', marginTop: '3px' }}>
-                  Colors assigned sequentially to tool numbers
-                </div>
+              <div className="vis-legend-item">
+                <div className="vis-legend-color tool2"></div>
+                <span>Tool 2</span>
               </div>
-            )}
-            
-            <button
-              onClick={reapplyVisualization}
-              style={{
-                marginTop: '8px',
-                padding: '3px 8px',
-                fontSize: '11px',
-                backgroundColor: 'var(--btn-primary-bg)',
-                color: 'var(--btn-primary-text)',
-                border: 'none',
-                borderRadius: '3px',
-                cursor: 'pointer'
-              }}
-            >
-              Reapply Visualization
-            </button>
-          </div>
+              <div className="vis-legend-item">
+                <div className="vis-legend-color tool3"></div>
+                <span>Tool 3+</span>
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 };

@@ -17,6 +17,7 @@ import './styles/console.css';
 import './styles/control-panel.css';
 import './styles/monitor-panel.css';
 import './styles/serial-connection.css';
+import './styles/3dview-panel.css';
 
 import Header from './components/common/Header';
 import Footer from './components/common/Footer';

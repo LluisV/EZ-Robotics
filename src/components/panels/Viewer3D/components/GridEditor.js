@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
 /**
- * Grid Editor component
+ * Enhanced GridEditor component with improved UI
  * Allows editing the workspace grid dimensions (width, height, and depth)
  */
 const GridEditor = ({ gridDimensions, setGridDimensions }) => {
@@ -30,61 +30,24 @@ const GridEditor = ({ gridDimensions, setGridDimensions }) => {
     setGridDimensions(tempDimensions);
     setIsEditing(false);
   };
+  
+  // Cancel editing
+  const cancelEditing = () => {
+    setTempDimensions({
+      width: gridDimensions.width,
+      height: gridDimensions.height,
+      depth: gridDimensions.depth || Math.min(gridDimensions.width, gridDimensions.height)
+    });
+    setIsEditing(false);
+  };
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', marginTop: '8px' }}>
-      <span>Workspace:</span>
-      {isEditing ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-            <span>W:</span>
-            <input
-              type="number"
-              name="width"
-              value={tempDimensions.width}
-              onChange={handleDimensionChange}
-              style={{ width: '50px', padding: '2px', fontSize: '12px' }}
-            />
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-            <span>H:</span>
-            <input
-              type="number"
-              name="height"
-              value={tempDimensions.height}
-              onChange={handleDimensionChange}
-              style={{ width: '50px', padding: '2px', fontSize: '12px' }}
-            />
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-            <span>D:</span>
-            <input
-              type="number"
-              name="depth"
-              value={tempDimensions.depth}
-              onChange={handleDimensionChange}
-              style={{ width: '50px', padding: '2px', fontSize: '12px' }}
-            />
-          </div>
-          <span>mm</span>
-          <button
-            onClick={applyDimensions}
-            style={{ padding: '2px 5px', fontSize: '10px' }}
-          >
-            Apply
-          </button>
-          <button
-            onClick={() => setIsEditing(false)}
-            style={{ padding: '2px 5px', fontSize: '10px' }}
-          >
-            Cancel
-          </button>
-        </div>
-      ) : (
-        <>
-          <span>
+    <div className="grid-editor">
+      {!isEditing ? (
+        <div className="grid-dimensions-display">
+          <div className="dimensions-value">
             {gridDimensions.width} × {gridDimensions.height} × {gridDimensions.depth || Math.min(gridDimensions.width, gridDimensions.height)} mm
-          </span>
+          </div>
           <button
             onClick={() => {
               setTempDimensions({
@@ -94,11 +57,64 @@ const GridEditor = ({ gridDimensions, setGridDimensions }) => {
               });
               setIsEditing(true);
             }}
-            style={{ padding: '2px 5px', fontSize: '10px' }}
+            className="edit-dimensions-btn"
           >
             Edit
           </button>
-        </>
+        </div>
+      ) : (
+        <div className="grid-dimensions-editor">
+          <div className="dimensions-inputs">
+            <div className="dimension-input-group">
+              <label className="dimension-label">W:</label>
+              <input
+                type="number"
+                name="width"
+                value={tempDimensions.width}
+                onChange={handleDimensionChange}
+                className="dimension-input"
+                min="1"
+              />
+            </div>
+            <div className="dimension-input-group">
+              <label className="dimension-label">H:</label>
+              <input
+                type="number"
+                name="height"
+                value={tempDimensions.height}
+                onChange={handleDimensionChange}
+                className="dimension-input"
+                min="1"
+              />
+            </div>
+            <div className="dimension-input-group">
+              <label className="dimension-label">D:</label>
+              <input
+                type="number"
+                name="depth"
+                value={tempDimensions.depth}
+                onChange={handleDimensionChange}
+                className="dimension-input"
+                min="1"
+              />
+            </div>
+            <div className="dimension-unit">mm</div>
+          </div>
+          <div className="dimension-actions">
+            <button
+              onClick={applyDimensions}
+              className="apply-dimensions-btn"
+            >
+              Apply
+            </button>
+            <button
+              onClick={cancelEditing}
+              className="cancel-dimensions-btn"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

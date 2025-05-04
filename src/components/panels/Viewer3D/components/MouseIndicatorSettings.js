@@ -1,17 +1,15 @@
-import React, { useState } from 'react';
+import React from 'react';
 
 /**
- * Mouse Indicator Settings component
- * Allows customizing the mouse position indicator appearance
+ * Enhanced MouseIndicatorSettings component with improved UI
+ * Controls the appearance and behavior of the mouse position indicator
  */
 const MouseIndicatorSettings = ({ 
-  showMousePosition, 
+  showMousePosition,
   toggleMousePosition,
   indicatorSettings,
   setIndicatorSettings
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  
   // Default settings if not provided
   const settings = indicatorSettings || {
     showProjectionLines: true,
@@ -41,83 +39,47 @@ const MouseIndicatorSettings = ({
   };
 
   return (
-    <div style={{ margin: '8px 0' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px' }}>
-          <input
-            type="checkbox"
-            checked={showMousePosition}
-            onChange={toggleMousePosition}
-            style={{ margin: 0 }}
-          />
-          Show Coordinates
-        </label>
-        
-        {showMousePosition && (
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            style={{
-              backgroundColor: 'transparent',
-              border: 'none',
-              fontSize: '10px',
-              cursor: 'pointer',
-              padding: '0 4px'
-            }}
-            title="Indicator settings"
-          >
-            {isExpanded ? '▼' : '▶︎'}
-          </button>
-        )}
-      </div>
-      
-      {showMousePosition && isExpanded && (
-        <div style={{ 
-          marginTop: '5px', 
-          marginLeft: '20px', 
-          fontSize: '11px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '5px'
-        }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+    <div className="mouse-indicator-settings">
+      <div className="indicator-options">
+        <div className="indicator-option">
+          <label className="indicator-checkbox-label">
             <input
               type="checkbox"
               checked={settings.showProjectionLines}
               onChange={handleToggleProjectionLines}
-              style={{ margin: 0 }}
+              className="indicator-checkbox"
             />
-            Show Projection Lines
+            <span>Projection Lines</span>
           </label>
-          
-          <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+        </div>
+        
+        <div className="indicator-option">
+          <label className="indicator-checkbox-label">
             <input
               type="checkbox"
               checked={settings.pulseAnimation}
               onChange={handleTogglePulse}
-              style={{ margin: 0 }}
+              className="indicator-checkbox"
             />
-            Pulse Animation
+            <span>Pulse Animation</span>
           </label>
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+        </div>
+        
+        <div className="indicator-option size-selector">
+          <label className="indicator-select-label">
             <span>Size:</span>
             <select
               value={settings.size}
               onChange={handleSizeChange}
-              style={{ 
-                fontSize: '10px', 
-                padding: '2px',
-                border: '1px solid var(--border-color)',
-                borderRadius: '3px'
-              }}
+              className="indicator-select"
             >
               <option value="small">Small</option>
               <option value="medium">Medium</option>
               <option value="large">Large</option>
             </select>
-          </div>
+          </label>
         </div>
-      )}
+      </div>
     </div>
   );
 };

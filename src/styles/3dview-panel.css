@@ -1,0 +1,605 @@
+/* Viewer3D Controls Styles */
+
+/* Main controls container */
+.viewer-controls {
+    width: 100%;
+    background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, var(--bg-light));
+    border-bottom: 1px solid var(--dv-separator-border, var(--border-color));
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    position: relative;
+    z-index: 10;
+  }
+  
+  /* Controls toolbar */
+  .controls-toolbar {
+    display: flex;
+    align-items: center;
+    padding: 6px 8px;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  
+  /* Controls section */
+  .controls-section {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  
+  /* Controls divider */
+  .controls-divider {
+    width: 1px;
+    height: 24px;
+    background-color: var(--dv-separator-border, var(--border-color));
+    margin: 0 4px;
+  }
+  
+  /* Toggle switch container + dropdown button */
+  .section-toggle-container {
+    display: flex;
+    align-items: center;
+  }
+  
+  /* Toggle switches styling */
+  .toggle-switch {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-right: 8px;
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+  }
+  
+  .toggle-switch.active-toggle {
+    padding-right: 20px; /* Make room for the indicator */
+  }
+  
+  .toggle-switch input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    cursor: pointer;
+    accent-color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  }
+  
+  .toggle-label {
+    font-size: 12px;
+    color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
+  }
+  
+  .toggle-indicator {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+  }
+  
+  .toggle-indicator.on {
+    background-color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+    box-shadow: 0 0 4px rgba(var(--accent-blue-rgb, 0, 119, 204), 0.5);
+  }
+  
+  .toggle-indicator.off {
+    background-color: var(--dv-separator-border, var(--border-color));
+    opacity: 0.5;
+  }
+  
+  .toggle-group {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px 12px;
+  }
+  
+  /* Dropdown toggle button */
+  .dropdown-toggle-btn {
+    background: none;
+    border: none;
+    padding: 0 5px;
+    font-size: 10px;
+    color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.15s ease;
+  }
+  
+  .dropdown-toggle-btn:hover {
+    opacity: 1;
+  }
+  
+  .dropdown-toggle-btn.active {
+    opacity: 1;
+    color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  }
+  
+  /* Controls dropdown */
+  .controls-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: fit-content;
+    min-width: 250px;
+    max-width: 400px;
+    background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, var(--bg-light));
+    border: 1px solid var(--dv-separator-border, var(--border-color));
+    border-radius: 4px;
+    padding: 12px;
+    z-index: 20;
+    margin-top: 4px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    animation: fadeIn 0.2s ease;
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  /* Dropdown toggle button */
+  .controls-section-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    padding: 5px 8px;
+    font-size: 12px;
+    color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.15s ease;
+  }
+  
+  .controls-section-toggle:hover {
+    background-color: var(--dv-tabs-hover-background-color, rgba(255, 255, 255, 0.1));
+  }
+  
+  .controls-section-toggle.active {
+    background-color: var(--dv-tabs-hover-background-color, rgba(255, 255, 255, 0.1));
+    font-weight: 500;
+  }
+  
+  .toggle-icon {
+    font-size: 10px;
+    opacity: 0.7;
+  }
+  
+  /* View buttons styling */
+  .view-buttons {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  
+  .view-btn {
+    padding: 5px 8px;
+    background-color: transparent;
+    border: 1px solid var(--dv-separator-border, var(--border-color));
+    border-radius: 4px;
+    color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  
+  .view-btn:hover {
+    background-color: var(--dv-tabs-hover-background-color, rgba(255, 255, 255, 0.1));
+  }
+  
+  .view-btn.active {
+    background-color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+    color: white;
+    border-color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  }
+  
+  .import-btn {
+    background-color: rgba(0, 0, 0, 0.1);
+    font-weight: 500;
+  }
+  
+  /* Mouse Indicator Settings Styling */
+  .mouse-indicator-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .indicator-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .indicator-option {
+    display: flex;
+    align-items: center;
+  }
+  
+  .indicator-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  
+  .indicator-checkbox {
+    margin: 0;
+    cursor: pointer;
+    accent-color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  }
+  
+  .size-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .indicator-select-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+  }
+  
+  .indicator-select {
+    padding: 3px 6px;
+    border-radius: 3px;
+    border: 1px solid var(--dv-separator-border, var(--border-color));
+    background-color: var(--bg-medium);
+    color: var(--text-primary);
+    font-size: 12px;
+  }
+  
+  /* GridEditor Styling */
+  .grid-editor {
+    width: 100%;
+  }
+  
+  .grid-dimensions-display {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  
+  .dimensions-value {
+    font-size: 12px;
+    font-weight: 500;
+  }
+  
+  .edit-dimensions-btn {
+    padding: 3px 8px;
+    background-color: transparent;
+    border: 1px solid var(--dv-separator-border, var(--border-color));
+    border-radius: 3px;
+    color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  
+  .edit-dimensions-btn:hover {
+    background-color: var(--dv-tabs-hover-background-color, rgba(255, 255, 255, 0.1));
+  }
+  
+  .grid-dimensions-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .dimensions-inputs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  
+  .dimension-input-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  
+  .dimension-label {
+    font-size: 12px;
+    font-weight: 500;
+    width: 14px;
+    text-align: right;
+  }
+  
+  .dimension-input {
+    width: 50px;
+    padding: 4px 6px;
+    border-radius: 3px;
+    border: 1px solid var(--dv-separator-border, var(--border-color));
+    background-color: var(--bg-medium);
+    color: var(--text-primary);
+    font-size: 12px;
+  }
+  
+  .dimension-unit {
+    font-size: 12px;
+    color: var(--dv-inactivegroup-visiblepanel-tab-color, var(--text-secondary));
+    margin-left: 4px;
+  }
+  
+  .dimension-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 4px;
+  }
+  
+  .apply-dimensions-btn {
+    padding: 4px 10px;
+    background-color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+    color: white;
+    border: none;
+    border-radius: 3px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  
+  .apply-dimensions-btn:hover {
+    filter: brightness(1.1);
+  }
+  
+  .cancel-dimensions-btn {
+    padding: 4px 10px;
+    background-color: transparent;
+    border: 1px solid var(--dv-separator-border, var(--border-color));
+    border-radius: 3px;
+    color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  
+  .cancel-dimensions-btn:hover {
+    background-color: var(--dv-tabs-hover-background-color, rgba(255, 255, 255, 0.1));
+  }
+  
+  /* VisualizationSettings Styling */
+  .visualization-settings {
+    width: 100%;
+    min-width: 300px;
+  }
+  
+  .vis-settings-header {
+    margin-bottom: 16px;
+  }
+  
+  .vis-selector {
+    width: 100%;
+  }
+  
+  .vis-select {
+    width: 100%;
+    padding: 5px 8px;
+    border-radius: 3px;
+    border: 1px solid var(--dv-separator-border, var(--border-color));
+    background-color: var(--bg-medium);
+    color: var(--text-primary);
+    font-size: 12px;
+  }
+  
+  .vis-settings-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .vis-option {
+    display: flex;
+    align-items: center;
+  }
+  
+  .vis-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  
+  .vis-checkbox {
+    margin: 0;
+    cursor: pointer;
+    accent-color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  }
+  
+  .vis-slider-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-left: 4px;
+    padding-left: 20px;
+    border-left: 2px solid var(--dv-separator-border, var(--border-color));
+  }
+  
+  .vis-slider-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  
+  .vis-slider-label {
+    font-size: 12px;
+    width: 50px;
+  }
+  
+  .vis-slider-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+  }
+  
+  .vis-slider {
+    flex: 1;
+    height: 4px;
+    -webkit-appearance: none;
+    background: var(--dv-activegroup-hiddenpanel-tab-background-color, var(--bg-medium));
+    border-radius: 2px;
+    outline: none;
+  }
+  
+  .vis-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--dv-paneview-active-outline-color, var(--accent-blue));
+    cursor: pointer;
+  }
+  
+  .vis-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--dv-paneview-active-outline-color, var(--accent-blue));
+    cursor: pointer;
+    border: none;
+  }
+  
+  .vis-slider-value {
+    font-size: 11px;
+    min-width: 30px;
+    text-align: right;
+  }
+  
+  /* Legend styling */
+  .vis-legend {
+    background-color: rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+    padding: 10px;
+    margin-top: 8px;
+  }
+  
+  .vis-legend-title {
+    font-size: 12px;
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: var(--dv-inactivegroup-visiblepanel-tab-color, var(--text-secondary));
+  }
+  
+  /* Move Type Legend */
+  .move-type-legend {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+    gap: 6px;
+  }
+  
+  .vis-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+  }
+  
+  .vis-legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+  }
+  
+  .vis-legend-color.rapid {
+    background-color: #3498db;
+  }
+  
+  .vis-legend-color.cut {
+    background-color: #f39c12;
+  }
+  
+  .vis-legend-color.plunge {
+    background-color: #e74c3c;
+  }
+  
+  .vis-legend-color.lift {
+    background-color: #2ecc71;
+  }
+  
+  .vis-legend-color.tool1 {
+    background-color: #e74c3c;
+  }
+  
+  .vis-legend-color.tool2 {
+    background-color: #3498db;
+  }
+  
+  .vis-legend-color.tool3 {
+    background-color: #2ecc71;
+  }
+  
+  /* Gradient Legends */
+  .vis-legend-gradient {
+    height: 16px;
+    width: 100%;
+    border-radius: 2px;
+    margin-bottom: 4px;
+  }
+  
+  .feed-gradient {
+    background: linear-gradient(to right, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000);
+  }
+  
+  .z-gradient {
+    background: linear-gradient(to right, #ff0000, #ff00ff, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000);
+  }
+  
+  .distance-gradient {
+    background: linear-gradient(to right, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000);
+  }
+  
+  .sequence-gradient {
+    background: linear-gradient(to right, #ff0000, #ff00ff, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000);
+  }
+  
+  .vis-legend-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--dv-inactivegroup-visiblepanel-tab-color, var(--text-secondary));
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .controls-toolbar {
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    
+    .controls-divider {
+      display: none;
+    }
+    
+    .controls-section {
+      flex-basis: calc(50% - 8px);
+    }
+    
+    .controls-dropdown {
+      width: 100%;
+      max-width: calc(100vw - 20px);
+      position: fixed;
+      left: 10px;
+      right: 10px;
+    }
+    
+    .view-buttons {
+      width: 100%;
+      justify-content: space-between;
+    }
+    
+    .view-btn {
+      flex: 1;
+    }
+  }

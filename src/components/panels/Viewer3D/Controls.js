@@ -5,8 +5,8 @@ import VisualizationSettings from './components/VisualizationSettings';
 import { VisualizationModes } from './utils/VisualizationModes';
 
 /**
- * Controls component for the Viewer3D panel
- * Provides UI controls for various display options
+ * Enhanced Controls component for the Viewer3D panel
+ * Provides UI controls for various display options in a streamlined horizontal layout
  */
 const Controls = ({
   showAxes,
@@ -26,7 +26,7 @@ const Controls = ({
   fileInputRef,
   gridDimensions,
   setGridDimensions,
-  onFileSelect,  // For importing STL files
+  onFileSelect,
   visualizationMode = VisualizationModes.MOVE_TYPE,
   setVisualizationMode,
   showDirectionIndicators = false,
@@ -39,131 +39,202 @@ const Controls = ({
   setShowPathLine,
   reapplyVisualization
 }) => {
+  const [activeSection, setActiveSection] = useState(null);
+  
   // Handle STL import
   const handleImportClick = () => {
     if (fileInputRef.current) {
       fileInputRef.current.click();
     }
   };
+  
+  // Toggle section visibility
+  const toggleSection = (section) => {
+    if (activeSection === section) {
+      setActiveSection(null);
+    } else {
+      setActiveSection(section);
+    }
+  };
 
   return (
-    <div className="panel-header" style={{ flexWrap: 'wrap' }}>
-      <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px' }}>
-            <input
-              type="checkbox"
-              checked={showAxes}
-              onChange={() => setShowAxes(!showAxes)}
-              style={{ margin: 0 }}
-            />
-            World Axes
-          </label>
-
-          <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px' }}>
-            <input
-              type="checkbox"
-              checked={showWorkAxes}
-              onChange={() => setShowWorkAxes(!showWorkAxes)}
-              style={{ margin: 0 }}
-            />
-            Work Axes
-          </label>
-
-          <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px' }}>
-            <input
-              type="checkbox"
-              checked={isGridVisible}
-              onChange={() => setIsGridVisible(!isGridVisible)}
-              style={{ margin: 0 }}
-            />
-            Grid
-          </label>
-
-          <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px' }}>
-            <input
-              type="checkbox"
-              checked={showToolpath}
-              onChange={() => setShowToolpath(!showToolpath)}
-              style={{ margin: 0 }}
-            />
-            Toolpath
-          </label>
-
-          <MouseIndicatorSettings
-            showMousePosition={showMousePosition}
-            toggleMousePosition={toggleMousePosition}
-            indicatorSettings={indicatorSettings}
-            setIndicatorSettings={setIndicatorSettings}
-          />
+    <div className="viewer-controls">
+      <div className="controls-toolbar">
+        {/* Display options */}
+        <div className="controls-section">
+          <div className="controls-display-toggles">
+            <div className="toggle-group">
+              <label className="toggle-switch active-toggle" title="Show/Hide World Axes">
+                <input
+                  type="checkbox"
+                  checked={showAxes}
+                  onChange={() => setShowAxes(!showAxes)}
+                />
+                <span className="toggle-label">World Axes</span>
+                <span className={`toggle-indicator ${showAxes ? 'on' : 'off'}`}></span>
+              </label>
+              
+              <label className="toggle-switch active-toggle" title="Show/Hide Work Axes">
+                <input
+                  type="checkbox"
+                  checked={showWorkAxes}
+                  onChange={() => setShowWorkAxes(!showWorkAxes)}
+                />
+                <span className="toggle-label">Work Axes</span>
+                <span className={`toggle-indicator ${showWorkAxes ? 'on' : 'off'}`}></span>
+              </label>
+              
+              <label className="toggle-switch active-toggle" title="Show/Hide Grid">
+                <input
+                  type="checkbox"
+                  checked={isGridVisible}
+                  onChange={() => setIsGridVisible(!isGridVisible)}
+                />
+                <span className="toggle-label">Grid</span>
+                <span className={`toggle-indicator ${isGridVisible ? 'on' : 'off'}`}></span>
+              </label>
+            </div>
+          </div>
         </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderLeft: '1px solid var(--border-color)', paddingLeft: '8px' }}>
-          <button
-            className={`toolbar-button ${!isPerspective ? 'primary' : ''}`}
-            onClick={togglePerspective}
-            title="Orthographic View"
-            style={{ padding: '4px 8px', fontSize: '11px' }}
+        
+        <div className="controls-divider"></div>
+        
+        {/* Mouse indicator settings - Combined toggle and dropdown */}
+        <div className="controls-section mouse-indicator-section">
+          <div className="section-toggle-container">
+            <label className="toggle-switch active-toggle" title="Show/Hide Mouse Indicator">
+              <input
+                type="checkbox"
+                checked={showMousePosition}
+                onChange={toggleMousePosition}
+              />
+              <span className="toggle-label">Mouse Indicator</span>
+              <span className={`toggle-indicator ${showMousePosition ? 'on' : 'off'}`}></span>
+            </label>
+            
+            <button 
+              className={`dropdown-toggle-btn ${activeSection === 'mouse' ? 'active' : ''}`}
+              onClick={() => toggleSection('mouse')}
+              title="Mouse Indicator Settings"
+            >
+              <span className="toggle-icon">{activeSection === 'mouse' ? '▼' : '▶'}</span>
+            </button>
+          </div>
+          
+          {activeSection === 'mouse' && (
+            <div className="controls-dropdown">
+              <MouseIndicatorSettings
+                showMousePosition={showMousePosition}
+                toggleMousePosition={toggleMousePosition}
+                indicatorSettings={indicatorSettings}
+                setIndicatorSettings={setIndicatorSettings}
+              />
+            </div>
+          )}
+        </div>
+        
+        <div className="controls-divider"></div>
+        
+        {/* Toolpath and Visualization settings - Combined toggle and dropdown */}
+        <div className="controls-section visualization-section">
+          <div className="section-toggle-container">
+            <label className="toggle-switch active-toggle" title="Show/Hide Toolpath">
+              <input
+                type="checkbox"
+                checked={showToolpath}
+                onChange={() => setShowToolpath(!showToolpath)}
+              />
+              <span className="toggle-label">Toolpath</span>
+              <span className={`toggle-indicator ${showToolpath ? 'on' : 'off'}`}></span>
+            </label>
+            
+            <button 
+              className={`dropdown-toggle-btn ${activeSection === 'visualization' ? 'active' : ''}`}
+              onClick={() => toggleSection('visualization')}
+              title="Visualization Settings"
+            >
+              <span className="toggle-icon">{activeSection === 'visualization' ? '▼' : '▶'}</span>
+            </button>
+          </div>
+          
+          {activeSection === 'visualization' && (
+            <div className="controls-dropdown">
+              <VisualizationSettings
+                visualizationMode={visualizationMode}
+                setVisualizationMode={setVisualizationMode}
+                showDirectionIndicators={showDirectionIndicators}
+                setShowDirectionIndicators={setShowDirectionIndicators}
+                directionIndicatorDensity={directionIndicatorDensity}
+                setDirectionIndicatorDensity={setDirectionIndicatorDensity}
+                directionIndicatorScale={directionIndicatorScale}
+                setDirectionIndicatorScale={setDirectionIndicatorScale}
+                showPathLine={showPathLine}
+                setShowPathLine={setShowPathLine}
+              />
+            </div>
+          )}
+        </div>
+        
+        <div className="controls-divider"></div>
+        
+        {/* Grid editor */}
+        <div className="controls-section grid-section">
+          <button 
+            className={`controls-section-toggle ${activeSection === 'grid' ? 'active' : ''}`}
+            onClick={() => toggleSection('grid')}
+            title="Grid Settings"
           >
-            Ortho
+            <span>Workspace</span>
+            <span className="toggle-icon">{activeSection === 'grid' ? '▼' : '▶'}</span>
           </button>
-          <button
-            className={`toolbar-button ${isPerspective ? 'primary' : ''}`}
-            onClick={togglePerspective}
-            title="Perspective View"
-            style={{ padding: '4px 8px', fontSize: '11px' }}
-          >
-            Persp
-          </button>
-          <button
-            className="toolbar-button"
-            onClick={handleImportClick}
-            title="Import STL file"
-            style={{ padding: '4px 8px', fontSize: '11px' }}
-          >
-            Import STL
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".stl"
-            multiple
-            style={{ display: 'none' }}
-            onChange={onFileSelect}
-          />
+          
+          {activeSection === 'grid' && (
+            <div className="controls-dropdown">
+              <GridEditor 
+                gridDimensions={gridDimensions} 
+                setGridDimensions={setGridDimensions} 
+              />
+            </div>
+          )}
+        </div>
+        
+        <div className="controls-divider"></div>
+        
+        {/* View and import options */}
+        <div className="controls-section view-options">
+          <div className="view-buttons">
+            <button
+              className={`view-btn ${!isPerspective ? 'active' : ''}`}
+              onClick={togglePerspective}
+              title="Orthographic View"
+            >
+              Ortho
+            </button>
+            <button
+              className={`view-btn ${isPerspective ? 'active' : ''}`}
+              onClick={togglePerspective}
+              title="Perspective View"
+            >
+              Persp
+            </button>
+            <button
+              className="view-btn import-btn"
+              onClick={handleImportClick}
+              title="Import STL file"
+            >
+              Import STL
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".stl"
+              multiple
+              style={{ display: 'none' }}
+              onChange={onFileSelect}
+            />
+          </div>
         </div>
       </div>
-      
-      {/* New visualization settings section */}
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'flex-start', 
-        gap: '12px', 
-        marginTop: '10px', 
-        paddingTop: '10px',
-        borderTop: '1px solid var(--border-color)',
-        flexWrap: 'wrap'
-      }}>
-        <VisualizationSettings
-          visualizationMode={visualizationMode}
-          setVisualizationMode={setVisualizationMode}
-          showDirectionIndicators={showDirectionIndicators}
-          setShowDirectionIndicators={setShowDirectionIndicators}
-          directionIndicatorDensity={directionIndicatorDensity}
-          setDirectionIndicatorDensity={setDirectionIndicatorDensity}
-          directionIndicatorScale={directionIndicatorScale}
-          setDirectionIndicatorScale={setDirectionIndicatorScale}
-          showPathLine={showPathLine}
-          setShowPathLine={setShowPathLine}
-          reapplyVisualization={reapplyVisualization}
-        />
-      </div>
-
-      {/* Workspace size controls */}
-      <GridEditor 
-        gridDimensions={gridDimensions} 
-        setGridDimensions={setGridDimensions} 
-      />
     </div>
   );
 };
