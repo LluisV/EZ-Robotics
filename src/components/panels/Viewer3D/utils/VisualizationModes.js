@@ -125,14 +125,12 @@ export function getRainbowColor(value) {
 export function createVisualizationMaterials(themeColors) {
   // Standard move type materials (default)
   const moveTypeMaterials = {
-    rapid: new THREE.LineDashedMaterial({ 
+    rapid:  new THREE.LineBasicMaterial({ 
       color: 0x3498db, // Blue
-      linewidth: 1.5,
+      linewidth: 0.75,
       transparent: true,
-      opacity: 0.7,
-      dashSize: 2,
-      gapSize: 2
-    }),
+      opacity: 0.6,
+    }) ,
     cut: new THREE.LineBasicMaterial({ 
       color: 0xf39c12, // Orange
       linewidth: 2.5, 
@@ -237,13 +235,11 @@ export function generateDynamicMaterials(materials, mode, toolpath, options = {}
     }
     
     // Add rapid move material
-    materials['rapid'] = new THREE.LineDashedMaterial({ 
+    materials['rapid'] = new THREE.LineBasicMaterial({ 
       color: 0x3498db, // Blue
-      linewidth: 1.5,
+      linewidth: 0.75,
       transparent: true,
-      opacity: 0.7,
-      dashSize: 2,
-      gapSize: 2
+      opacity: 0.6,
     });
     
     // Add highlight material
@@ -290,13 +286,11 @@ export function generateDynamicMaterials(materials, mode, toolpath, options = {}
     }
     
     // Add rapid move material
-    materials['rapid'] = new THREE.LineDashedMaterial({ 
+    materials['rapid'] = new THREE.LineBasicMaterial({ 
       color: 0x3498db, // Blue
-      linewidth: 1.5,
+      linewidth: 0.75,
       transparent: true,
-      opacity: 0.7,
-      dashSize: 2,
-      gapSize: 2
+      opacity: 0.6,
     });
     
     // Add highlight material
@@ -352,13 +346,11 @@ export function generateDynamicMaterials(materials, mode, toolpath, options = {}
     });
     
     // Add rapid move material
-    materials['rapid'] = new THREE.LineDashedMaterial({ 
+    materials['rapid'] = new THREE.LineBasicMaterial({ 
       color: 0x3498db, // Blue
-      linewidth: 1.5,
+      linewidth: 0.75,
       transparent: true,
-      opacity: 0.7,
-      dashSize: 2,
-      gapSize: 2
+      opacity: 0.6,
     });
     
     // Add highlight material
@@ -464,9 +456,13 @@ export function generateDynamicMaterials(materials, mode, toolpath, options = {}
 export function getMaterialForSegment(segment, materials, mode, index, total) {
   // For standard move type visualization
   if (mode === VisualizationModes.MOVE_TYPE) {
-    if (segment.rapid) {
+    // FIX: Properly differentiate G0 (rapid) from G1 (feed) moves
+    // Check the 'rapid' flag which should be set for G0 moves
+    if (segment.rapid === true) {
       return materials.rapid;
-    } else if (segment.toolOn) {
+    } 
+    // If not rapid, we have a feed move (G1, G2, G3)
+    else if (segment.toolOn) {
       if (segment.end.z < segment.start.z) {
         return materials.plunge;
       } else if (segment.end.z > segment.start.z) {
@@ -474,7 +470,13 @@ export function getMaterialForSegment(segment, materials, mode, index, total) {
       } else {
         return materials.cut;
       }
-    } else {
+    } 
+    // Backup check - if no tool state is specified but we have a feed rate, it's a cut
+    else if (segment.feedRate && segment.feedRate > 0 && !segment.rapid) {
+      return materials.cut;
+    }
+    // Default to rapid if we couldn't determine the move type
+    else {
       return materials.rapid;
     }
   }
@@ -482,7 +484,7 @@ export function getMaterialForSegment(segment, materials, mode, index, total) {
   // For feed rate visualization
   else if (mode === VisualizationModes.FEED_RATE) {
     // If it's a rapid move, use the rapid material
-    if (segment.rapid) {
+    if (segment.rapid === true) {
       return materials.rapid;
     }
     
@@ -501,7 +503,7 @@ export function getMaterialForSegment(segment, materials, mode, index, total) {
   // For Z-height visualization
   else if (mode === VisualizationModes.Z_HEIGHT) {
     // For rapid moves, use the rapid material
-    if (segment.rapid) {
+    if (segment.rapid === true) {
       return materials.rapid;
     }
     
@@ -518,7 +520,7 @@ export function getMaterialForSegment(segment, materials, mode, index, total) {
   // For tool number visualization
   else if (mode === VisualizationModes.TOOL_NUMBER) {
     // For rapid moves, use the rapid material
-    if (segment.rapid) {
+    if (segment.rapid === true) {
       return materials.rapid;
     }
     

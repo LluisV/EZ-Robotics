@@ -202,9 +202,13 @@ class ToolpathRenderer {
     
     this.visualizationMode = mode;
     
-    // Generate dynamic materials if needed
-    if (!this.allMaterials[mode] || Object.keys(this.allMaterials[mode]).length === 0) {
+    // Initialize materials for this mode if they don't exist yet
+    if (!this.allMaterials[mode]) {
       this.allMaterials[mode] = {};
+    }
+    
+    // Generate dynamic materials if needed
+    if (Object.keys(this.allMaterials[mode]).length === 0) {
       generateDynamicMaterials(this.allMaterials[mode], mode, this.currentToolpath);
     }
     
@@ -399,9 +403,12 @@ class ToolpathRenderer {
     }
     
     // Ensure materials are available for the current visualization mode
-    if (!this.allMaterials[this.visualizationMode] || 
-        Object.keys(this.allMaterials[this.visualizationMode]).length === 0) {
+    if (!this.allMaterials[this.visualizationMode]) {
       this.allMaterials[this.visualizationMode] = {};
+    }
+    
+    // Generate materials if they don't exist for this mode
+    if (Object.keys(this.allMaterials[this.visualizationMode]).length === 0) {
       generateDynamicMaterials(
         this.allMaterials[this.visualizationMode], 
         this.visualizationMode, 
@@ -664,8 +671,19 @@ class ToolpathRenderer {
     // Determine material to use based on visualization mode
     let material = getMaterialForSegment(segment, this.materials, this.visualizationMode, index, total);
     
+    // Check if material is undefined and provide a fallback
+    if (!material) {
+      // Use a default material as fallback (rapid or any other defined material)
+      material = this.materials.rapid || this.materials.cut || 
+                Object.values(this.materials)[0] || 
+                new THREE.LineBasicMaterial({ color: 0xffffff });
+      
+      console.warn(`Material is undefined for segment at index ${index}. Using fallback material.`);
+    }
+    
     // Get a unique key for the material for batching
-    const materialKey = material.uuid;
+    // Make sure material exists and has a uuid before trying to access it
+    const materialKey = material && material.uuid ? material.uuid : 'default-material-key';
     
     // Initialize batch for this material if it doesn't exist
     if (!batchedSegments[materialKey]) {
@@ -751,8 +769,19 @@ class ToolpathRenderer {
     // Determine material to use based on visualization mode
     let material = getMaterialForSegment(segment, this.materials, this.visualizationMode, index, total);
     
+    // Check if material is undefined and provide a fallback
+    if (!material) {
+      // Use a default material as fallback
+      material = this.materials.rapid || this.materials.cut || 
+                Object.values(this.materials)[0] || 
+                new THREE.LineBasicMaterial({ color: 0xffffff });
+      
+      console.warn(`Material is undefined for arc segment at index ${index}. Using fallback material.`);
+    }
+    
     // Get a unique key for the material for batching
-    const materialKey = material.uuid;
+    // Make sure material exists and has a uuid before trying to access it
+    const materialKey = material && material.uuid ? material.uuid : 'default-material-key';
     
     // Initialize batch for this material if it doesn't exist
     if (!batchedSegments[materialKey]) {
@@ -889,7 +918,17 @@ class ToolpathRenderer {
     this.pathPoints.push(points[1]);
     
     // Determine material to use based on visualization mode
-    const material = getMaterialForSegment(segment, this.materials, this.visualizationMode, index, total);
+    let material = getMaterialForSegment(segment, this.materials, this.visualizationMode, index, total);
+    
+    // Check if material is undefined and provide a fallback
+    if (!material) {
+      // Use a default material as fallback
+      material = this.materials.rapid || this.materials.cut || 
+                Object.values(this.materials)[0] || 
+                new THREE.LineBasicMaterial({ color: 0xffffff });
+      
+      console.warn(`Material is undefined for segment at index ${index}. Using fallback material.`);
+    }
     
     // Create the line
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
@@ -981,7 +1020,17 @@ class ToolpathRenderer {
     this.pathPoints.push(...points);
     
     // Determine material to use based on visualization mode
-    const material = getMaterialForSegment(segment, this.materials, this.visualizationMode, index, total);
+    let material = getMaterialForSegment(segment, this.materials, this.visualizationMode, index, total);
+    
+    // Check if material is undefined and provide a fallback
+    if (!material) {
+      // Use a default material as fallback
+      material = this.materials.rapid || this.materials.cut || 
+                Object.values(this.materials)[0] || 
+                new THREE.LineBasicMaterial({ color: 0xffffff });
+      
+      console.warn(`Material is undefined for arc segment at index ${index}. Using fallback material.`);
+    }
     
     // Create the line
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
