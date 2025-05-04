@@ -185,6 +185,7 @@ export function createVisualizationMaterials(themeColors) {
 
 /**
  * Dynamically create materials for a visualization mode based on toolpath data
+ * Optimized for better performance with large toolpaths
  * 
  * @param {Object} materials Materials object to update
  * @param {string} mode Visualization mode
@@ -199,21 +200,29 @@ export function generateDynamicMaterials(materials, mode, toolpath, options = {}
   
   const segments = toolpath.segments;
   
-  // For feed rate visualization
+  // For feed rate visualization - heavily optimized for performance with large toolpaths
   if (mode === VisualizationModes.FEED_RATE) {
-    // Find min and max feed rates
+    // Find min and max feed rates - scan only a sample of segments for very large toolpaths
     let minFeedRate = Infinity;
     let maxFeedRate = 0;
     
-    for (const segment of segments) {
+    const sampleSize = Math.min(segments.length, 1000); // Limit sample size for large toolpaths
+    const step = Math.max(1, Math.floor(segments.length / sampleSize));
+    
+    for (let i = 0; i < segments.length; i += step) {
+      const segment = segments[i];
       if (segment.feedRate && segment.feedRate > 0) {
         minFeedRate = Math.min(minFeedRate, segment.feedRate);
         maxFeedRate = Math.max(maxFeedRate, segment.feedRate);
       }
     }
     
-    // Create gradient materials based on feed rate range
-    const numSteps = 10;
+    // If no valid feed rates found, use defaults
+    if (minFeedRate === Infinity || maxFeedRate === 0) {
+      minFeedRate = 100;
+      maxFeedRate = 1000;
+    }
+    
     // Store range information
     materials.metaData = {
       min: minFeedRate,
@@ -221,10 +230,13 @@ export function generateDynamicMaterials(materials, mode, toolpath, options = {}
       unit: 'mm/min'
     };
     
+    // Create a FIXED number of materials - USE FEWER MATERIALS for better performance
+    // 5 discrete feed rate ranges instead of 10
+    const numSteps = 5; 
+    
     // Create materials for different feed rate ranges
     for (let i = 0; i < numSteps; i++) {
-      const feedRate = minFeedRate + (maxFeedRate - minFeedRate) * (i / (numSteps - 1));
-      const normalizedValue = (i / (numSteps - 1)); // 0 to 1
+      const normalizedValue = i / (numSteps - 1); // 0 to 1
       const color = getHeatMapColor(normalizedValue);
       
       materials[`feed-${i}`] = new THREE.LineBasicMaterial({
@@ -252,15 +264,25 @@ export function generateDynamicMaterials(materials, mode, toolpath, options = {}
   
   // For Z-height visualization
   else if (mode === VisualizationModes.Z_HEIGHT) {
-    // Find min and max Z values
+    // Find min and max Z values - optimize by sampling for large toolpaths
     let minZ = Infinity;
     let maxZ = -Infinity;
     
-    for (const segment of segments) {
+    const sampleSize = Math.min(segments.length, 1000);
+    const step = Math.max(1, Math.floor(segments.length / sampleSize));
+    
+    for (let i = 0; i < segments.length; i += step) {
+      const segment = segments[i];
       if (segment.start && segment.end) {
         minZ = Math.min(minZ, segment.start.z, segment.end.z);
         maxZ = Math.max(maxZ, segment.start.z, segment.end.z);
       }
+    }
+    
+    // If no valid Z values found, use defaults
+    if (minZ === Infinity || maxZ === -Infinity) {
+      minZ = 0;
+      maxZ = 10;
     }
     
     // Store range information
@@ -270,11 +292,10 @@ export function generateDynamicMaterials(materials, mode, toolpath, options = {}
       unit: 'mm'
     };
     
-    // Create gradient materials based on Z-height range
-    const numSteps = 20;
+    // Create gradient materials - fewer steps for better performance
+    const numSteps = 10; // Reduced from 20
     
     for (let i = 0; i < numSteps; i++) {
-      const z = minZ + (maxZ - minZ) * (i / (numSteps - 1));
       const normalizedValue = (i / (numSteps - 1)); // 0 to 1
       const color = getRainbowColor(normalizedValue);
       
@@ -367,7 +388,12 @@ export function generateDynamicMaterials(materials, mode, toolpath, options = {}
     let minDistance = Infinity;
     let maxDistance = 0;
     
-    for (const segment of segments) {
+    // Use sampling for large toolpaths
+    const sampleSize = Math.min(segments.length, 1000);
+    const step = Math.max(1, Math.floor(segments.length / sampleSize));
+    
+    for (let i = 0; i < segments.length; i += step) {
+      const segment = segments[i];
       if (segment.start && segment.end) {
         const dx = segment.end.x - segment.start.x;
         const dy = segment.end.y - segment.start.y;
@@ -381,6 +407,12 @@ export function generateDynamicMaterials(materials, mode, toolpath, options = {}
       }
     }
     
+    // If no valid distances found, use defaults
+    if (minDistance === Infinity || maxDistance === 0) {
+      minDistance = 0.1;
+      maxDistance = 10;
+    }
+    
     // Store range information
     materials.metaData = {
       min: minDistance,
@@ -388,8 +420,8 @@ export function generateDynamicMaterials(materials, mode, toolpath, options = {}
       unit: 'mm'
     };
     
-    // Create gradient materials based on distance range
-    const numSteps = 10;
+    // Create gradient materials based on distance range - reduced steps for performance
+    const numSteps = 8; // Reduced from 10
     
     for (let i = 0; i < numSteps; i++) {
       const normalizedValue = i / (numSteps - 1); // 0 to 1
@@ -413,7 +445,8 @@ export function generateDynamicMaterials(materials, mode, toolpath, options = {}
   // For sequence visualization
   else if (mode === VisualizationModes.SEQUENCE) {
     // Create a gradient across the entire toolpath
-    const numSteps = 20;
+    // Reduce number of materials for better performance
+    const numSteps = 12; // Reduced from 20
     const totalSegments = segments.length;
     
     // Store metadata
@@ -445,6 +478,7 @@ export function generateDynamicMaterials(materials, mode, toolpath, options = {}
 
 /**
  * Get material for a segment based on visualization mode
+ * Optimized for better performance with large toolpaths
  * 
  * @param {Object} segment Segment data
  * @param {Object} materials Materials object for the current mode
@@ -481,26 +515,32 @@ export function getMaterialForSegment(segment, materials, mode, index, total) {
     }
   }
   
-  // For feed rate visualization
+  // For feed rate visualization - OPTIMIZED VERSION
   else if (mode === VisualizationModes.FEED_RATE) {
     // If it's a rapid move, use the rapid material
     if (segment.rapid === true) {
       return materials.rapid;
     }
     
-    // Get feed rate and normalize
+    // Get feed rate and normalize - with bounds checking
     const feedRate = segment.feedRate || 0;
     if (feedRate <= 0) return materials.rapid;
     
-    const { min, max } = materials.metaData;
-    const normalizedFeedRate = (feedRate - min) / (max - min);
+    // Get metadata with bounds checking
+    const meta = materials.metaData || { min: 100, max: 1000 };
+    const min = meta.min || 100;
+    const max = meta.max || 1000;
     
-    // Map to material index
-    const materialIndex = Math.min(9, Math.max(0, Math.floor(normalizedFeedRate * 10)));
-    return materials[`feed-${materialIndex}`];
+    // Normalize feed rate to 0-1 range
+    let normalizedFeedRate = (feedRate - min) / (max - min);
+    normalizedFeedRate = Math.min(1, Math.max(0, normalizedFeedRate)); // Clamp to 0-1
+    
+    // Map to material index - FEWER STEPS for better performance
+    const materialIndex = Math.min(4, Math.max(0, Math.floor(normalizedFeedRate * 5)));
+    return materials[`feed-${materialIndex}`] || materials.rapid; // Fallback to rapid
   }
   
-  // For Z-height visualization
+  // For Z-height visualization - OPTIMIZED VERSION
   else if (mode === VisualizationModes.Z_HEIGHT) {
     // For rapid moves, use the rapid material
     if (segment.rapid === true) {
@@ -509,12 +549,19 @@ export function getMaterialForSegment(segment, materials, mode, index, total) {
     
     // Get Z-height (use end Z as the reference)
     const z = segment.end.z;
-    const { min, max } = materials.metaData;
-    const normalizedZ = (z - min) / (max - min);
     
-    // Map to material index
-    const materialIndex = Math.min(19, Math.max(0, Math.floor(normalizedZ * 20)));
-    return materials[`z-${materialIndex}`];
+    // Get metadata with bounds checking
+    const meta = materials.metaData || { min: 0, max: 10 };
+    const min = meta.min || 0;
+    const max = meta.max || 10;
+    
+    // Normalize Z value
+    let normalizedZ = (z - min) / (max - min);
+    normalizedZ = Math.min(1, Math.max(0, normalizedZ)); // Clamp to 0-1
+    
+    // Map to material index - FEWER STEPS for better performance
+    const materialIndex = Math.min(9, Math.max(0, Math.floor(normalizedZ * 10)));
+    return materials[`z-${materialIndex}`] || materials.rapid; // Fallback to rapid
   }
   
   // For tool number visualization
@@ -529,9 +576,9 @@ export function getMaterialForSegment(segment, materials, mode, index, total) {
     return materials[`tool-${toolNumber}`] || materials.rapid;
   }
   
-  // For move distance visualization
+  // For move distance visualization - OPTIMIZED VERSION
   else if (mode === VisualizationModes.MOVE_DISTANCE) {
-    // Get move distance
+    // Get move distance with bounds checking
     if (!segment.start || !segment.end) return materials['distance-0'];
     
     const dx = segment.end.x - segment.start.x;
@@ -539,22 +586,29 @@ export function getMaterialForSegment(segment, materials, mode, index, total) {
     const dz = segment.end.z - segment.start.z;
     const distance = Math.sqrt(dx*dx + dy*dy + dz*dz);
     
-    const { min, max } = materials.metaData;
-    const normalizedDistance = (distance - min) / (max - min);
+    // Get metadata with bounds checking
+    const meta = materials.metaData || { min: 0.1, max: 10 };
+    const min = meta.min || 0.1;
+    const max = meta.max || 10;
     
-    // Map to material index
-    const materialIndex = Math.min(9, Math.max(0, Math.floor(normalizedDistance * 10)));
-    return materials[`distance-${materialIndex}`];
+    // Normalize distance value
+    let normalizedDistance = (distance - min) / (max - min);
+    normalizedDistance = Math.min(1, Math.max(0, normalizedDistance)); // Clamp to 0-1
+    
+    // Map to material index - FEWER STEPS for better performance
+    const materialIndex = Math.min(7, Math.max(0, Math.floor(normalizedDistance * 8)));
+    return materials[`distance-${materialIndex}`] || materials['distance-0']; // Fallback
   }
   
-  // For sequence visualization
+  // For sequence visualization - OPTIMIZED VERSION
   else if (mode === VisualizationModes.SEQUENCE) {
     // Normalize by position in the sequence
-    const normalizedIndex = index / (total - 1);
+    let normalizedIndex = index / (total - 1);
+    normalizedIndex = Math.min(1, Math.max(0, normalizedIndex)); // Clamp to 0-1
     
-    // Map to material index
-    const materialIndex = Math.min(19, Math.max(0, Math.floor(normalizedIndex * 20)));
-    return materials[`seq-${materialIndex}`];
+    // Map to material index - FEWER STEPS for better performance
+    const materialIndex = Math.min(11, Math.max(0, Math.floor(normalizedIndex * 12)));
+    return materials[`seq-${materialIndex}`] || materials[`seq-0`]; // Fallback
   }
   
   // Default fallback to rapid material

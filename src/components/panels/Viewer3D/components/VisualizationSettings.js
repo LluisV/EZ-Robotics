@@ -15,6 +15,10 @@ import { VisualizationModes } from '../utils/VisualizationModes';
  * @param {Function} props.setDirectionIndicatorScale Function to update indicator scale
  * @param {boolean} props.showPathLine Whether to show path line
  * @param {Function} props.setShowPathLine Function to update path line visibility
+ * @param {number} props.lineWidthMultiplier Line width multiplier
+ * @param {Function} props.setLineWidthMultiplier Function to update line width multiplier
+ * @param {number} props.opacityMultiplier Opacity multiplier
+ * @param {Function} props.setOpacityMultiplier Function to update opacity multiplier
  */
 const VisualizationSettings = ({
   visualizationMode,
@@ -26,7 +30,11 @@ const VisualizationSettings = ({
   directionIndicatorScale = 0.5,
   setDirectionIndicatorScale,
   showPathLine,
-  setShowPathLine
+  setShowPathLine,
+  lineWidthMultiplier = 1.0,
+  setLineWidthMultiplier,
+  opacityMultiplier = 1.0,
+  setOpacityMultiplier
 }) => {
   // Define available visualization modes
   const visualizationOptions = [
@@ -61,6 +69,16 @@ const VisualizationSettings = ({
     setShowPathLine(e.target.checked);
   };
   
+  const handleLineWidthMultiplierChange = (e) => {
+    const value = parseFloat(e.target.value);
+    setLineWidthMultiplier(value / 100); // Convert percent to decimal
+  };
+  
+  const handleOpacityMultiplierChange = (e) => {
+    const value = parseFloat(e.target.value);
+    setOpacityMultiplier(value / 100); // Convert percent to decimal
+  };
+  
   return (
     <div className="visualization-settings">
       <div className="vis-settings-header">
@@ -81,6 +99,39 @@ const VisualizationSettings = ({
       </div>
       
       <div className="vis-settings-options">
+        {/* Global toolpath appearance controls */}
+        <div className="vis-appearance-controls">
+          <div className="vis-slider-container">
+            <div className="vis-slider-label">Line Width:</div>
+            <div className="vis-slider-control">
+              <input
+                type="range"
+                min="10"  // Changed from 50 to 10
+                max="200"
+                value={lineWidthMultiplier * 100}
+                onChange={handleLineWidthMultiplierChange}
+                className="vis-slider"
+              />
+              <span className="vis-slider-value">{Math.round(lineWidthMultiplier * 100)}%</span>
+            </div>
+          </div>
+          
+          <div className="vis-slider-container">
+            <div className="vis-slider-label">Opacity:</div>
+            <div className="vis-slider-control">
+              <input
+                type="range"
+                min="10"  // Changed from 20 to 10
+                max="100"
+                value={opacityMultiplier * 100}
+                onChange={handleOpacityMultiplierChange}
+                className="vis-slider"
+              />
+              <span className="vis-slider-value">{Math.round(opacityMultiplier * 100)}%</span>
+            </div>
+          </div>
+        </div>
+        
         <div className="vis-option">
           <label className="vis-checkbox-label">
             <input

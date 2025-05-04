@@ -35,7 +35,11 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
   const [showDirectionIndicators, setShowDirectionIndicators] = useState(false);
   const [directionIndicatorDensity, setDirectionIndicatorDensity] = useState(0.05); // 5%
   const [directionIndicatorScale, setDirectionIndicatorScale] = useState(0.5); // 50%
-  const [showPathLine, setShowPathLine] = useState(true);
+  const [showPathLine, setShowPathLine] = useState(false); // Changed to false by default
+  
+  // Add new global line width and opacity multipliers
+  const [lineWidthMultiplier, setLineWidthMultiplier] = useState(1.0);
+  const [opacityMultiplier, setOpacityMultiplier] = useState(1.0);
   
   const [stlFiles, setStlFiles] = useState([]);
   const [panelDimensions, setPanelDimensions] = useState({ width: 0, height: 0 });
@@ -205,6 +209,16 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     }));
   }, []);
 
+  // Handle line width multiplier change
+  const handleLineWidthMultiplierChange = useCallback((value) => {
+    setLineWidthMultiplier(value);
+  }, []);
+
+  // Handle opacity multiplier change
+  const handleOpacityMultiplierChange = useCallback((value) => {
+    setOpacityMultiplier(value);
+  }, []);
+
   // Apply visualization changes to the ToolpathRenderer
   const applyVisualizationSettings = useCallback(() => {
     if (sceneRef.current && sceneRef.current.toolpathRendererRef && sceneRef.current.toolpathRendererRef.current) {
@@ -220,6 +234,10 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
       // Set path line visibility
       toolpathRenderer.togglePathLine(showPathLine);
       
+      // Set line width and opacity multipliers
+      toolpathRenderer.setLineWidthMultiplier(lineWidthMultiplier);
+      toolpathRenderer.setOpacityMultiplier(opacityMultiplier);
+      
       // Reapply visualization
       if (parsedToolpath) {
         toolpathRenderer.visualize(parsedToolpath);
@@ -231,6 +249,8 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     directionIndicatorDensity, 
     directionIndicatorScale, 
     showPathLine,
+    lineWidthMultiplier,
+    opacityMultiplier,
     parsedToolpath
   ]);
 
@@ -243,6 +263,8 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     directionIndicatorDensity, 
     directionIndicatorScale, 
     showPathLine,
+    lineWidthMultiplier,
+    opacityMultiplier,
     applyVisualizationSettings
   ]);
 
@@ -293,6 +315,8 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     directionIndicatorDensity,
     directionIndicatorScale,
     showPathLine,
+    lineWidthMultiplier,
+    opacityMultiplier,
     setToolpathRendererRef // Pass callback to get reference to the toolpath renderer
   };
 
@@ -336,6 +360,10 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
         setDirectionIndicatorScale={setDirectionIndicatorScale}
         showPathLine={showPathLine}
         setShowPathLine={setShowPathLine}
+        lineWidthMultiplier={lineWidthMultiplier}
+        setLineWidthMultiplier={handleLineWidthMultiplierChange}
+        opacityMultiplier={opacityMultiplier}
+        setOpacityMultiplier={handleOpacityMultiplierChange}
         reapplyVisualization={applyVisualizationSettings}
       />
 

@@ -35,8 +35,12 @@ const Controls = ({
   setDirectionIndicatorDensity,
   directionIndicatorScale = 0.5,
   setDirectionIndicatorScale,
-  showPathLine = true,
+  showPathLine = false,
   setShowPathLine,
+  lineWidthMultiplier = 1.0,
+  setLineWidthMultiplier,
+  opacityMultiplier = 1.0,
+  setOpacityMultiplier,
   reapplyVisualization
 }) => {
   const [activeSection, setActiveSection] = useState(null);
@@ -170,6 +174,10 @@ const Controls = ({
                 setDirectionIndicatorScale={setDirectionIndicatorScale}
                 showPathLine={showPathLine}
                 setShowPathLine={setShowPathLine}
+                lineWidthMultiplier={lineWidthMultiplier}
+                setLineWidthMultiplier={setLineWidthMultiplier}
+                opacityMultiplier={opacityMultiplier}
+                setOpacityMultiplier={setOpacityMultiplier}
               />
             </div>
           )}
