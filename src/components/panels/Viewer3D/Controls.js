@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import GridEditor from './components/GridEditor';
 import MouseIndicatorSettings from './components/MouseIndicatorSettings';
+import VisualizationSettings from './components/VisualizationSettings';
+import { VisualizationModes } from './utils/VisualizationModes';
 
 /**
  * Controls component for the Viewer3D panel
@@ -24,7 +26,18 @@ const Controls = ({
   fileInputRef,
   gridDimensions,
   setGridDimensions,
-  onFileSelect  // Added this parameter
+  onFileSelect,  // For importing STL files
+  visualizationMode = VisualizationModes.MOVE_TYPE,
+  setVisualizationMode,
+  showDirectionIndicators = false,
+  setShowDirectionIndicators,
+  directionIndicatorDensity = 0.05,
+  setDirectionIndicatorDensity,
+  directionIndicatorScale = 0.5,
+  setDirectionIndicatorScale,
+  showPathLine = true,
+  setShowPathLine,
+  reapplyVisualization
 }) => {
   // Handle STL import
   const handleImportClick = () => {
@@ -116,9 +129,34 @@ const Controls = ({
             accept=".stl"
             multiple
             style={{ display: 'none' }}
-            onChange={onFileSelect}  // Using parameter directly instead of props.onFileSelect
+            onChange={onFileSelect}
           />
         </div>
+      </div>
+      
+      {/* New visualization settings section */}
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'flex-start', 
+        gap: '12px', 
+        marginTop: '10px', 
+        paddingTop: '10px',
+        borderTop: '1px solid var(--border-color)',
+        flexWrap: 'wrap'
+      }}>
+        <VisualizationSettings
+          visualizationMode={visualizationMode}
+          setVisualizationMode={setVisualizationMode}
+          showDirectionIndicators={showDirectionIndicators}
+          setShowDirectionIndicators={setShowDirectionIndicators}
+          directionIndicatorDensity={directionIndicatorDensity}
+          setDirectionIndicatorDensity={setDirectionIndicatorDensity}
+          directionIndicatorScale={directionIndicatorScale}
+          setDirectionIndicatorScale={setDirectionIndicatorScale}
+          showPathLine={showPathLine}
+          setShowPathLine={setShowPathLine}
+          reapplyVisualization={reapplyVisualization}
+        />
       </div>
 
       {/* Workspace size controls */}

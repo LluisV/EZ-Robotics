@@ -22,6 +22,16 @@ const ControlPanel = () => {
   const [isConnected, setIsConnected] = useState(false);
   // Add flag to track whether inputs have been initialized
   const [inputsInitialized, setInputsInitialized] = useState(false);
+  
+  // Refs for continuous jogging
+  const jogIntervalRef = useRef(null);
+  const isPressedRef = useRef(false);
+  const jogStartTimeRef = useRef(0);
+  
+  // Jogging constants
+  const CLICK_THRESHOLD_MS = 250; // Time to detect a click vs. hold in milliseconds
+  const CONTINUOUS_JOG_INTERVAL_MS = 50; // Time between continuous jog commands
+  const CONTINUOUS_JOG_DISTANCE = 0.5; // Small distance for continuous jogging (mm)
 
   // Add log messages to console
   const logToConsole = (type, message) => {
@@ -51,22 +61,36 @@ const ControlPanel = () => {
     };
   }, []);
 
-  // Function to send a movement command to FluidNC
-  const sendMovementCommand = (axis, direction) => {
+  // Cleanup any active jog intervals when component unmounts
+  useEffect(() => {
+    return () => {
+      if (jogIntervalRef.current) {
+        clearInterval(jogIntervalRef.current);
+      }
+    };
+  }, []);
+
+  // Enhanced function to send a combined movement command for multiple axes
+  const sendJogCommand = (axes) => {
     if (!isConnected) {
       logToConsole('error', 'Cannot move: Not connected to machine');
       showToast('Cannot move: Not connected to machine');
       return;
     }
 
-    const distance = direction * stepSize;
-
-    // Create G-code command - FluidNC expects relative mode for incremental movement
-    // The $J= command is FluidNC's jog command that accepts relative coordinates
-    const feedrateInMmPerMin = speed * 60; // Convert from percentage to mm/min
+    // Calculate feedrate in mm/min
+    const feedrateInMmPerMin = speed * 60; 
     
-    // Construct the jog command with the specified axis and distance
-    let jogCommand = `$J=G91 ${axis}${distance} F${feedrateInMmPerMin}`;
+    // Construct the jog command for all specified axes
+    let jogCommand = "$J=G91";
+    
+    // Add each axis to the command
+    Object.entries(axes).forEach(([axis, distance]) => {
+      jogCommand += ` ${axis.toUpperCase()}${distance}`;
+    });
+    
+    // Add feedrate
+    jogCommand += ` F${feedrateInMmPerMin}`;
     
     logToConsole('command', `Sending jog command: ${jogCommand}`);
 
@@ -80,6 +104,57 @@ const ControlPanel = () => {
       .catch(error => {
         logToConsole('error', `Error sending jog command: ${error.message}`);
       });
+  };
+
+  // Function to handle jog button press (start)
+  const handleJogStart = (axesConfig) => {
+    if (!isConnected) return;
+    
+    isPressedRef.current = true;
+    jogStartTimeRef.current = Date.now();
+    
+    // Setup continuous jogging
+    jogIntervalRef.current = setInterval(() => {
+      const timePressed = Date.now() - jogStartTimeRef.current;
+      
+      // Only send continuous jog commands if it's not a quick click
+      if (timePressed > CLICK_THRESHOLD_MS && isPressedRef.current) {
+        // Calculate distance based on feedrate for continuous jogging
+        const scaledJogDistance = CONTINUOUS_JOG_DISTANCE * (speed / 50);
+        
+        // Scale the axes distances
+        const scaledAxesConfig = {};
+        Object.entries(axesConfig).forEach(([axis, dir]) => {
+          scaledAxesConfig[axis] = dir * scaledJogDistance;
+        });
+        
+        sendJogCommand(scaledAxesConfig);
+      }
+    }, CONTINUOUS_JOG_INTERVAL_MS);
+  };
+
+  // Function to handle jog button release (end)
+  const handleJogEnd = (axesConfig) => {
+    if (!isConnected) return;
+    
+    const wasPressedTime = Date.now() - jogStartTimeRef.current;
+    
+    // Clear the continuous jogging interval
+    if (jogIntervalRef.current) {
+      clearInterval(jogIntervalRef.current);
+      jogIntervalRef.current = null;
+    }
+    
+    // If it was a quick click (less than threshold), send a single full-sized jog
+    if (wasPressedTime <= CLICK_THRESHOLD_MS) {
+      const fullSizeAxesConfig = {};
+      Object.entries(axesConfig).forEach(([axis, dir]) => {
+        fullSizeAxesConfig[axis] = dir * stepSize;
+      });
+      sendJogCommand(fullSizeAxesConfig);
+    }
+    
+    isPressedRef.current = false;
   };
 
   // Function to handle tool control
@@ -636,7 +711,11 @@ const ControlPanel = () => {
             <div className="control-grid">
               <button
                 className="control-btn diagonal nw"
-                onClick={() => { sendMovementCommand('X', -1); sendMovementCommand('Y', 1); }}
+                onMouseDown={() => handleJogStart({ x: -1, y: 1 })}
+                onMouseUp={() => handleJogEnd({ x: -1, y: 1 })}
+                onMouseLeave={() => isPressedRef.current && handleJogEnd({ x: -1, y: 1 })}
+                onTouchStart={() => handleJogStart({ x: -1, y: 1 })}
+                onTouchEnd={() => handleJogEnd({ x: -1, y: 1 })}
                 title="X- Y+"
                 disabled={!isConnected}
               >
@@ -648,7 +727,11 @@ const ControlPanel = () => {
 
               <button
                 className="control-btn y-plus"
-                onClick={() => sendMovementCommand('Y', 1)}
+                onMouseDown={() => handleJogStart({ y: 1 })}
+                onMouseUp={() => handleJogEnd({ y: 1 })}
+                onMouseLeave={() => isPressedRef.current && handleJogEnd({ y: 1 })}
+                onTouchStart={() => handleJogStart({ y: 1 })}
+                onTouchEnd={() => handleJogEnd({ y: 1 })}
                 title="Y+"
                 disabled={!isConnected}
               >
@@ -660,7 +743,11 @@ const ControlPanel = () => {
 
               <button
                 className="control-btn diagonal ne"
-                onClick={() => { sendMovementCommand('X', 1); sendMovementCommand('Y', 1); }}
+                onMouseDown={() => handleJogStart({ x: 1, y: 1 })}
+                onMouseUp={() => handleJogEnd({ x: 1, y: 1 })}
+                onMouseLeave={() => isPressedRef.current && handleJogEnd({ x: 1, y: 1 })}
+                onTouchStart={() => handleJogStart({ x: 1, y: 1 })}
+                onTouchEnd={() => handleJogEnd({ x: 1, y: 1 })}
                 title="X+ Y+"
                 disabled={!isConnected}
               >
@@ -672,7 +759,11 @@ const ControlPanel = () => {
 
               <button
                 className="control-btn x-minus"
-                onClick={() => sendMovementCommand('X', -1)}
+                onMouseDown={() => handleJogStart({ x: -1 })}
+                onMouseUp={() => handleJogEnd({ x: -1 })}
+                onMouseLeave={() => isPressedRef.current && handleJogEnd({ x: -1 })}
+                onTouchStart={() => handleJogStart({ x: -1 })}
+                onTouchEnd={() => handleJogEnd({ x: -1 })}
                 title="X-"
                 disabled={!isConnected}
               >
@@ -696,7 +787,11 @@ const ControlPanel = () => {
 
               <button
                 className="control-btn x-plus"
-                onClick={() => sendMovementCommand('X', 1)}
+                onMouseDown={() => handleJogStart({ x: 1 })}
+                onMouseUp={() => handleJogEnd({ x: 1 })}
+                onMouseLeave={() => isPressedRef.current && handleJogEnd({ x: 1 })}
+                onTouchStart={() => handleJogStart({ x: 1 })}
+                onTouchEnd={() => handleJogEnd({ x: 1 })}
                 title="X+"
                 disabled={!isConnected}
               >
@@ -708,7 +803,11 @@ const ControlPanel = () => {
 
               <button
                 className="control-btn diagonal sw"
-                onClick={() => { sendMovementCommand('X', -1); sendMovementCommand('Y', -1); }}
+                onMouseDown={() => handleJogStart({ x: -1, y: -1 })}
+                onMouseUp={() => handleJogEnd({ x: -1, y: -1 })}
+                onMouseLeave={() => isPressedRef.current && handleJogEnd({ x: -1, y: -1 })}
+                onTouchStart={() => handleJogStart({ x: -1, y: -1 })}
+                onTouchEnd={() => handleJogEnd({ x: -1, y: -1 })}
                 title="X- Y-"
                 disabled={!isConnected}
               >
@@ -720,7 +819,11 @@ const ControlPanel = () => {
 
               <button
                 className="control-btn y-minus"
-                onClick={() => sendMovementCommand('Y', -1)}
+                onMouseDown={() => handleJogStart({ y: -1 })}
+                onMouseUp={() => handleJogEnd({ y: -1 })}
+                onMouseLeave={() => isPressedRef.current && handleJogEnd({ y: -1 })}
+                onTouchStart={() => handleJogStart({ y: -1 })}
+                onTouchEnd={() => handleJogEnd({ y: -1 })}
                 title="Y-"
                 disabled={!isConnected}
               >
@@ -732,7 +835,11 @@ const ControlPanel = () => {
 
               <button
                 className="control-btn diagonal se"
-                onClick={() => { sendMovementCommand('X', 1); sendMovementCommand('Y', -1); }}
+                onMouseDown={() => handleJogStart({ x: 1, y: -1 })}
+                onMouseUp={() => handleJogEnd({ x: 1, y: -1 })}
+                onMouseLeave={() => isPressedRef.current && handleJogEnd({ x: 1, y: -1 })}
+                onTouchStart={() => handleJogStart({ x: 1, y: -1 })}
+                onTouchEnd={() => handleJogEnd({ x: 1, y: -1 })}
                 title="X+ Y-"
                 disabled={!isConnected}
               >
@@ -747,7 +854,11 @@ const ControlPanel = () => {
             <div className="a-control">
               <button
                 className="jog-btn a-minus"
-                onClick={() => sendMovementCommand('A', -1)}
+                onMouseDown={() => handleJogStart({ a: -1 })}
+                onMouseUp={() => handleJogEnd({ a: -1 })}
+                onMouseLeave={() => isPressedRef.current && handleJogEnd({ a: -1 })}
+                onTouchStart={() => handleJogStart({ a: -1 })}
+                onTouchEnd={() => handleJogEnd({ a: -1 })}
                 title="A-"
                 disabled={!isConnected}
               >
@@ -767,7 +878,11 @@ const ControlPanel = () => {
               </button>
               <button
                 className="jog-btn a-plus"
-                onClick={() => sendMovementCommand('A', 1)}
+                onMouseDown={() => handleJogStart({ a: 1 })}
+                onMouseUp={() => handleJogEnd({ a: 1 })}
+                onMouseLeave={() => isPressedRef.current && handleJogEnd({ a: 1 })}
+                onTouchStart={() => handleJogStart({ a: 1 })}
+                onTouchEnd={() => handleJogEnd({ a: 1 })}
                 title="A+"
                 disabled={!isConnected}
               >
@@ -780,7 +895,11 @@ const ControlPanel = () => {
           <div className="z-controls">
             <button
               className="control-btn z-plus"
-              onClick={() => sendMovementCommand('Z', 1)}
+              onMouseDown={() => handleJogStart({ z: 1 })}
+              onMouseUp={() => handleJogEnd({ z: 1 })}
+              onMouseLeave={() => isPressedRef.current && handleJogEnd({ z: 1 })}
+              onTouchStart={() => handleJogStart({ z: 1 })}
+              onTouchEnd={() => handleJogEnd({ z: 1 })}
               title="Z+"
               disabled={!isConnected}
             >
@@ -804,7 +923,11 @@ const ControlPanel = () => {
 
             <button
               className="control-btn z-minus"
-              onClick={() => sendMovementCommand('Z', -1)}
+              onMouseDown={() => handleJogStart({ z: -1 })}
+              onMouseUp={() => handleJogEnd({ z: -1 })}
+              onMouseLeave={() => isPressedRef.current && handleJogEnd({ z: -1 })}
+              onTouchStart={() => handleJogStart({ z: -1 })}
+              onTouchEnd={() => handleJogEnd({ z: -1 })}
               title="Z-"
               disabled={!isConnected}
             >

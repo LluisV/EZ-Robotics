@@ -1,11 +1,21 @@
 import * as THREE from 'three';
+import { 
+  VisualizationModes, 
+  createVisualizationMaterials, 
+  generateDynamicMaterials, 
+  getMaterialForSegment 
+} from './utils/VisualizationModes';
+
+// We'll skip trying to import BufferGeometryUtils entirely
+// as it's not part of the main three.js package and causes compilation errors
 
 /**
  * Optimized class for rendering and visualizing toolpaths in a THREE.js scene
+ * Enhanced with multiple visualization modes and direction indicators
  * 
- * Performance improvements:
+ * Performance optimizations:
  * - Uses instancing for similar move types (reduces thousands of draw calls to just a few)
- * - Batches segments by material type (rapid, cut, plunge, lift)
+ * - Batches segments by material type
  * - Implements level-of-detail rendering for large toolpaths
  * - Uses frustum culling to only render visible segments
  * - Uses shader-based line rendering for better performance
@@ -30,6 +40,11 @@ class ToolpathRenderer {
     this.toolpathGroup.name = 'toolpath';
     this.scene.add(this.toolpathGroup);
     
+    // Create a group for direction indicators
+    this.directionGroup = new THREE.Group();
+    this.directionGroup.name = 'direction-indicators';
+    this.scene.add(this.directionGroup);
+    
     // Default transformation values
     this.transformValues = {
       scaleX: 1.0,
@@ -50,42 +65,14 @@ class ToolpathRenderer {
       z: 0
     };
     
-    // Materials for different move types
-    this.materials = {
-      rapid: new THREE.LineDashedMaterial({ 
-        color: 0x3498db, // More vibrant blue
-        linewidth: 1.5,
-        transparent: true,
-        opacity: 0.7,
-        dashSize: 2,
-        gapSize: 2
-      }),
-      cut: new THREE.LineBasicMaterial({ 
-        color: 0xf39c12, // Warmer orange
-        linewidth: 2.5, 
-        opacity: 0.95
-      }),
-      plunge: new THREE.LineBasicMaterial({ 
-        color: 0xe74c3c, // Less harsh red
-        linewidth: 3,
-        opacity: 0.95
-      }),
-      lift: new THREE.LineBasicMaterial({ 
-        color: 0x2ecc71, // More natural green
-        linewidth: 2.5,
-        opacity: 0.95
-      }),
-      path: new THREE.LineBasicMaterial({ 
-        color: 0xecf0f1,
-        linewidth: 1,
-        opacity: 0.4
-      }),
-      highlight: new THREE.LineBasicMaterial({ 
-        color: 0xffd700, // Gold highlight
-        linewidth: 3.5,
-        opacity: 1
-      })
-    }
+    // Create visualization materials for all modes
+    this.allMaterials = createVisualizationMaterials(themeColors);
+    
+    // Set default visualization mode
+    this.visualizationMode = VisualizationModes.MOVE_TYPE;
+    
+    // Current active materials based on visualization mode
+    this.materials = this.allMaterials[this.visualizationMode];
 
     // Optimized data structures for batching
     this.batchedGeometries = {
@@ -114,6 +101,12 @@ class ToolpathRenderer {
     this.toolPositionSphere.visible = false;
     this.scene.add(this.toolPositionSphere);
     
+    // Direction indicators configuration
+    this.showDirectionIndicators = false;
+    this.directionIndicatorDensity = 0.05; // Show arrows on 5% of segments
+    this.directionIndicatorScale = 0.5; // Size of arrows
+    this.arrowMesh = null; // Will store the instanced arrow mesh
+    
     // Performance tracking
     this.lowPerformanceMode = false;
     this.lastHighlightedLineIndex = -1;
@@ -132,6 +125,131 @@ class ToolpathRenderer {
       visibleSegments: 0,
       drawCalls: 0
     };
+    
+    // Create reusable arrow for direction indicators
+    this._createArrowMesh();
+  }
+
+  /**
+   * Create the arrow mesh for direction indicators
+   * Using a simple geometry since BufferGeometryUtils is not available
+   */
+  _createArrowMesh() {
+    try {
+      // Create a simple arrow using a cylinder
+      const arrowShaftLength = 0.15; // Length of the arrow shaft
+      const arrowShaftWidth = 0.015; // Width of the arrow shaft
+      
+      // Create cylinder for arrow shaft
+      const arrowGeometry = new THREE.CylinderGeometry(
+        arrowShaftWidth, arrowShaftWidth, arrowShaftLength, 8
+      );
+      
+      // Create simple cone for arrow head
+      const headGeometry = new THREE.ConeGeometry(0.04, 0.1, 8);
+      
+      // Use just the cylinder geometry because we can't merge them
+      const mergedGeometry = arrowGeometry;
+      
+      // Create the material
+      const arrowMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffd700, // Gold color for visibility
+        transparent: true,
+        opacity: 0.8
+      });
+      
+      // Create the instanced mesh with just one instance initially
+      const instancedArrow = new THREE.InstancedMesh(
+        mergedGeometry,
+        arrowMaterial,
+        1 // Will be updated later
+      );
+      
+      instancedArrow.visible = false;
+      this.arrowMesh = instancedArrow;
+      this.directionGroup.add(instancedArrow);
+    } catch (error) {
+      console.error("Error creating arrow mesh:", error);
+      // Create a fallback simple indicator using a sphere
+      const simpleGeometry = new THREE.SphereGeometry(0.02, 8, 8);
+      const simpleMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffd700,
+        transparent: true,
+        opacity: 0.8
+      });
+      
+      const simpleArrow = new THREE.InstancedMesh(
+        simpleGeometry,
+        simpleMaterial,
+        1
+      );
+      
+      simpleArrow.visible = false;
+      this.arrowMesh = simpleArrow;
+      this.directionGroup.add(simpleArrow);
+    }
+  }
+
+  /**
+   * Update visualization mode
+   * @param {string} mode New visualization mode
+   */
+  setVisualizationMode(mode) {
+    if (!Object.values(VisualizationModes).includes(mode)) {
+      console.warn(`Invalid visualization mode: ${mode}`);
+      return;
+    }
+    
+    this.visualizationMode = mode;
+    
+    // Generate dynamic materials if needed
+    if (!this.allMaterials[mode] || Object.keys(this.allMaterials[mode]).length === 0) {
+      this.allMaterials[mode] = {};
+      generateDynamicMaterials(this.allMaterials[mode], mode, this.currentToolpath);
+    }
+    
+    // Set current materials
+    this.materials = this.allMaterials[mode];
+    
+    // Re-visualize if we have a current toolpath
+    if (this.currentToolpath) {
+      this.visualize(this.currentToolpath);
+    }
+  }
+
+  /**
+   * Toggle direction indicators
+   * @param {boolean} show Whether to show direction indicators
+   * @param {number} density Density of indicators (0-1), default 0.05 (5%)
+   */
+  setDirectionIndicators(show, density = 0.05) {
+    this.showDirectionIndicators = show;
+    this.directionIndicatorDensity = Math.max(0.001, Math.min(1, density));
+    
+    // Update visibility of existing indicators
+    this.directionGroup.visible = show;
+    
+    // Re-visualize if we have a current toolpath
+    if (this.currentToolpath) {
+      this.visualizeDirectionIndicators(this.currentToolpath);
+    }
+  }
+
+  /**
+   * Set direction indicator scale
+   * @param {number} scale Scale factor for direction indicators
+   */
+  setDirectionIndicatorScale(scale) {
+    this.directionIndicatorScale = Math.max(0.1, Math.min(2, scale));
+    
+    // Update scale of existing indicators
+    if (this.arrowMesh) {
+      this.arrowMesh.scale.set(
+        this.directionIndicatorScale,
+        this.directionIndicatorScale,
+        this.directionIndicatorScale
+      );
+    }
   }
 
   /**
@@ -232,6 +350,18 @@ class ToolpathRenderer {
       this.toolpathGroup.remove(object);
     }
     
+    // Clear direction indicators
+    while (this.directionGroup.children.length) {
+      const object = this.directionGroup.children[0];
+      if (object.geometry) {
+        object.geometry.dispose();
+      }
+      if (object.material) {
+        object.material.dispose();
+      }
+      this.directionGroup.remove(object);
+    }
+    
     this.pathPoints = [];
     this.lineIndexMap.clear();
     
@@ -248,6 +378,9 @@ class ToolpathRenderer {
       visibleSegments: 0,
       drawCalls: 0
     };
+    
+    // Recreate the arrow mesh for direction indicators
+    this._createArrowMesh();
   }
 
   /**
@@ -264,6 +397,20 @@ class ToolpathRenderer {
     if (!toolpath || !toolpath.segments || toolpath.segments.length === 0) {
       return;
     }
+    
+    // Ensure materials are available for the current visualization mode
+    if (!this.allMaterials[this.visualizationMode] || 
+        Object.keys(this.allMaterials[this.visualizationMode]).length === 0) {
+      this.allMaterials[this.visualizationMode] = {};
+      generateDynamicMaterials(
+        this.allMaterials[this.visualizationMode], 
+        this.visualizationMode, 
+        toolpath
+      );
+    }
+    
+    // Set current materials
+    this.materials = this.allMaterials[this.visualizationMode];
     
     this.stats.totalSegments = toolpath.segments.length;
     
@@ -294,9 +441,145 @@ class ToolpathRenderer {
       }
       
       const pathGeometry = new THREE.BufferGeometry().setFromPoints(displayPoints);
-      const pathLine = new THREE.Line(pathGeometry, this.materials.path);
+      const pathLine = new THREE.Line(pathGeometry, this.materials.path || new THREE.LineBasicMaterial({
+        color: 0xecf0f1, // Light gray
+        linewidth: 1,
+        opacity: 0.4
+      }));
       pathLine.name = 'path-overview';
       this.toolpathGroup.add(pathLine);
+    }
+    
+    // Add direction indicators if enabled
+    if (this.showDirectionIndicators) {
+      this.visualizeDirectionIndicators(toolpath);
+    }
+  }
+  
+  /**
+   * Create direction indicators for the toolpath
+   * @param {Object} toolpath Parsed toolpath data
+   */
+  visualizeDirectionIndicators(toolpath) {
+    if (!toolpath || !toolpath.segments || toolpath.segments.length === 0) {
+      return;
+    }
+    
+    try {
+      // Only add indicators for cutting moves, not rapid moves
+      const cuttingSegments = toolpath.segments.filter(s => !s.rapid && s.toolOn);
+      
+      // Determine how many indicators to show based on density
+      let arrowCount = Math.max(10, Math.ceil(cuttingSegments.length * this.directionIndicatorDensity));
+      arrowCount = Math.min(arrowCount, 1000); // Limit to 1000 arrows for performance
+      
+      // Create a new instanced mesh with the correct count
+      const arrowGeometry = new THREE.CylinderGeometry(0.015, 0.015, 0.15, 8);
+      
+      const arrowMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffd700, // Gold for visibility
+        transparent: true,
+        opacity: 0.8
+      });
+      
+      // Create the instanced mesh
+      const instancedArrow = new THREE.InstancedMesh(
+        arrowGeometry,
+        arrowMaterial,
+        arrowCount
+      );
+      instancedArrow.name = 'direction-arrows';
+      instancedArrow.frustumCulled = true;
+      
+      // Dispose of previous arrow mesh if it exists
+      if (this.arrowMesh) {
+        this.directionGroup.remove(this.arrowMesh);
+        if (this.arrowMesh.geometry) this.arrowMesh.geometry.dispose();
+        if (this.arrowMesh.material) this.arrowMesh.material.dispose();
+      }
+      
+      // Add to the scene
+      this.directionGroup.add(instancedArrow);
+      this.arrowMesh = instancedArrow;
+      this.directionGroup.visible = this.showDirectionIndicators;
+      
+      // If no cutting segments, just return
+      if (cuttingSegments.length === 0) return;
+      
+      // Set positions and orientations for arrows
+      const step = Math.max(1, Math.floor(cuttingSegments.length / arrowCount));
+      const dummy = new THREE.Object3D();
+      
+      let arrowIndex = 0;
+      for (let i = 0; i < cuttingSegments.length; i += step) {
+        if (arrowIndex >= arrowCount) break;
+        
+        const segment = cuttingSegments[i];
+        
+        // Get start and end points
+        const start = this.applyTransformations(segment.start);
+        const end = this.applyTransformations(segment.end);
+        
+        // Calculate direction vector
+        const direction = new THREE.Vector3(
+          end.x - start.x,
+          end.y - start.y,
+          end.z - start.z
+        );
+        
+        // Skip extremely short segments
+        if (direction.length() < 0.01) continue;
+        
+        direction.normalize();
+        
+        // Calculate position (midpoint of segment)
+        const position = new THREE.Vector3(
+          (start.x + end.x) / 2,
+          (start.y + end.y) / 2,
+          (start.z + end.z) / 2
+        );
+        
+        // Set position
+        dummy.position.copy(position);
+        
+        // Calculate rotation to align with segment direction
+        // Start with default orientation (Y axis up)
+        dummy.rotation.x = 0;
+        dummy.rotation.y = 0;
+        dummy.rotation.z = 0;
+        
+        // First, align to point along the Y axis
+        dummy.lookAt(position.clone().add(direction));
+        
+        // Set the transform for this instance
+        dummy.scale.set(
+          this.directionIndicatorScale,
+          this.directionIndicatorScale,
+          this.directionIndicatorScale
+        );
+        dummy.updateMatrix();
+        instancedArrow.setMatrixAt(arrowIndex, dummy.matrix);
+        
+        arrowIndex++;
+      }
+      
+      instancedArrow.instanceMatrix.needsUpdate = true;
+    } catch (error) {
+      console.error("Error creating direction indicators:", error);
+      
+      // Create a single simple indicator as fallback
+      const simpleGeometry = new THREE.SphereGeometry(0.03, 8, 8);
+      const simpleMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffd700,
+        transparent: true,
+        opacity: 0.8
+      });
+      
+      const simpleMesh = new THREE.Mesh(simpleGeometry, simpleMaterial);
+      simpleMesh.visible = this.showDirectionIndicators;
+      
+      this.directionGroup.add(simpleMesh);
+      this.arrowMesh = simpleMesh;
     }
   }
   
@@ -307,21 +590,14 @@ class ToolpathRenderer {
    */
   visualizeTraditional(toolpath) {
     toolpath.segments.forEach((segment, index) => {
+      const totalSegments = toolpath.segments.length;
+      
       if (segment.type === 'line') {
-        this.addLineSegment(segment);
+        this.addLineSegment(segment, index, totalSegments);
       } else if (segment.type === 'arc') {
-        this.addArcSegment(segment);
+        this.addArcSegment(segment, index, totalSegments);
       }
     });
-    
-    // Add the overall path line if needed
-    if (this.showPathLine && this.pathPoints.length > 1) {
-      const pathGeometry = new THREE.BufferGeometry().setFromPoints(this.pathPoints);
-      const pathLine = new THREE.Line(pathGeometry, this.materials.path);
-      pathLine.name = 'path-overview';
-      this.toolpathGroup.add(pathLine);
-      this.stats.drawCalls++;
-    }
   }
   
   /**
@@ -329,13 +605,9 @@ class ToolpathRenderer {
    * @param {Object} toolpath Parsed toolpath data
    */
   visualizeOptimizedBatched(toolpath) {
-    // Group segments by type for batching
-    const batchedSegments = {
-      rapid: [],
-      cut: [],
-      plunge: [],
-      lift: []
-    };
+    // For modes other than MOVE_TYPE, we need a different batching strategy
+    // Group segments by material key instead of fixed 'rapid', 'cut', etc.
+    const batchedSegments = {};
     
     // Determine if we should apply LOD based on size and performance mode
     const isVeryLarge = toolpath.segments.length > 10000;
@@ -350,20 +622,20 @@ class ToolpathRenderer {
         return;
       }
       
-      // Add to the appropriate batch
+      // Add to the appropriate batch based on visualization mode
       if (segment.type === 'line') {
-        this.processLineForBatching(segment, batchedSegments);
+        this.processLineForBatching(segment, batchedSegments, index, toolpath.segments.length);
       } else if (segment.type === 'arc') {
-        this.processArcForBatching(segment, batchedSegments);
+        this.processArcForBatching(segment, batchedSegments, index, toolpath.segments.length);
       }
     });
     
-    // Create optimized geometry batches for each type
-    for (const type in batchedSegments) {
-      const segments = batchedSegments[type];
+    // Create optimized geometry batches for each material key
+    for (const materialKey in batchedSegments) {
+      const segments = batchedSegments[materialKey];
       if (segments.length === 0) continue;
       
-      this.createBatchedLinesWithDirectMaterial(segments, type);
+      this.createBatchedLinesWithDirectMaterial(segments, materialKey);
     }
   }
   
@@ -371,8 +643,10 @@ class ToolpathRenderer {
    * Process a line segment for batching
    * @param {Object} segment The segment to process
    * @param {Object} batchedSegments The batched segments object
+   * @param {number} index Segment index
+   * @param {number} total Total number of segments
    */
-  processLineForBatching(segment, batchedSegments) {
+  processLineForBatching(segment, batchedSegments, index, total) {
     const { start, end, rapid, toolOn, lineIndex } = segment;
     
     // Apply transformations
@@ -387,27 +661,25 @@ class ToolpathRenderer {
     this.pathPoints.push(new THREE.Vector3(
       transformedEnd.x, transformedEnd.y, transformedEnd.z));
     
-    // Determine segment type
-    let segmentType = 'cut';
-    if (rapid) {
-      segmentType = 'rapid';
-    } else if (toolOn) {
-      if (end.z < start.z) {
-        segmentType = 'plunge';
-      } else if (end.z > start.z) {
-        segmentType = 'lift';
-      }
-    } else {
-      segmentType = 'rapid';
+    // Determine material to use based on visualization mode
+    let material = getMaterialForSegment(segment, this.materials, this.visualizationMode, index, total);
+    
+    // Get a unique key for the material for batching
+    const materialKey = material.uuid;
+    
+    // Initialize batch for this material if it doesn't exist
+    if (!batchedSegments[materialKey]) {
+      batchedSegments[materialKey] = [];
     }
     
     // Add to batch
-    batchedSegments[segmentType].push({
+    batchedSegments[materialKey].push({
       points: [
         new THREE.Vector3(transformedStart.x, transformedStart.y, transformedStart.z),
         new THREE.Vector3(transformedEnd.x, transformedEnd.y, transformedEnd.z)
       ],
-      lineIndex
+      lineIndex,
+      material
     });
   }
   
@@ -415,8 +687,10 @@ class ToolpathRenderer {
    * Process an arc segment for batching
    * @param {Object} segment The segment to process
    * @param {Object} batchedSegments The batched segments object
+   * @param {number} index Segment index
+   * @param {number} total Total number of segments
    */
-  processArcForBatching(segment, batchedSegments) {
+  processArcForBatching(segment, batchedSegments, index, total) {
     const { start, end, center, clockwise, toolOn, lineIndex } = segment;
     
     // Apply transformations
@@ -474,30 +748,35 @@ class ToolpathRenderer {
     // Add to the overall path
     this.pathPoints.push(...points);
     
-    // Determine segment type
-    let segmentType = 'cut';
-    if (!toolOn) {
-      segmentType = 'rapid';
-    } else if (end.z < start.z) {
-      segmentType = 'plunge';
-    } else if (end.z > start.z) {
-      segmentType = 'lift';
+    // Determine material to use based on visualization mode
+    let material = getMaterialForSegment(segment, this.materials, this.visualizationMode, index, total);
+    
+    // Get a unique key for the material for batching
+    const materialKey = material.uuid;
+    
+    // Initialize batch for this material if it doesn't exist
+    if (!batchedSegments[materialKey]) {
+      batchedSegments[materialKey] = [];
     }
     
     // Add to batch
-    batchedSegments[segmentType].push({
+    batchedSegments[materialKey].push({
       points,
-      lineIndex
+      lineIndex,
+      material
     });
   }
   
   /**
    * Create batched lines with direct materials (no custom shaders)
    * @param {Array} segments Array of segments to batch
-   * @param {string} type Type of segments ('rapid', 'cut', etc.)
+   * @param {string} materialKey UUID of the material to use
    */
-  createBatchedLinesWithDirectMaterial(segments, type) {
+  createBatchedLinesWithDirectMaterial(segments, materialKey) {
     if (segments.length === 0) return;
+    
+    // Get the material from the first segment (all segments have the same material)
+    const material = segments[0].material;
     
     // Create arrays to hold all points
     const allPoints = [];
@@ -515,7 +794,7 @@ class ToolpathRenderer {
       
       // Store line index mapping for highlighting
       this.lineIndexMap.set(segment.lineIndex, {
-        type,
+        materialKey,
         startIndex,
         endIndex: allPoints.length - 1
       });
@@ -532,11 +811,14 @@ class ToolpathRenderer {
     // Add line index attribute for highlighting
     geometry.setAttribute('lineIndex', new THREE.Float32BufferAttribute(lineIndices, 1));
     
-    // Create material - clone from our existing materials
-    const material = this.materials[type].clone();
+    // Create line mesh
+    let lineMesh;
     
     // For rapid moves, we need to handle dashed lines specially
-    if (type === 'rapid') {
+    if (material.isDashed || material === this.materials.rapid) {
+      // Create a clone of the material to avoid modifying the original
+      const dashedMaterial = material.clone();
+      
       const positions = geometry.attributes.position.array;
       const lineDistances = new Float32Array(positions.length / 3);
       
@@ -563,14 +845,8 @@ class ToolpathRenderer {
       lineDistances[lineDistances.length - 1] = lineLength;
       
       geometry.setAttribute('lineDistance', new THREE.Float32BufferAttribute(lineDistances, 1));
-    }
-    
-    // Create the line mesh
-    let lineMesh;
-    
-    if (type === 'rapid') {
-      // For rapid moves, use LineDashedMaterial already prepared in materials
-      lineMesh = new THREE.LineSegments(geometry, material);
+      
+      lineMesh = new THREE.LineSegments(geometry, dashedMaterial);
       lineMesh.computeLineDistances();
     } else if (segments[0]?.points?.length > 2) {
       // For arcs with multiple points, use Line
@@ -580,8 +856,8 @@ class ToolpathRenderer {
       lineMesh = new THREE.LineSegments(geometry, material);
     }
     
-    lineMesh.name = `batch-${type}`;
-    lineMesh.userData = { type, isBatched: true };
+    lineMesh.name = `batch-${materialKey}`;
+    lineMesh.userData = { materialKey, isBatched: true };
     
     this.toolpathGroup.add(lineMesh);
     this.stats.drawCalls++;
@@ -590,8 +866,10 @@ class ToolpathRenderer {
   /**
    * Add a line segment (traditional method)
    * @param {Object} segment Line segment data
+   * @param {number} index Segment index
+   * @param {number} total Total number of segments
    */
-  addLineSegment(segment) {
+  addLineSegment(segment, index, total) {
     const { start, end, rapid, toolOn } = segment;
     
     // Apply transformations
@@ -610,45 +888,24 @@ class ToolpathRenderer {
     }
     this.pathPoints.push(points[1]);
     
-    // Determine the material based on the type of move
-    let material;
-    
-    if (rapid) {
-      // Rapid moves
-      material = this.materials.rapid;
-    } else if (toolOn) {
-      // Cutting moves
-      
-      // Check if this is a plunge (Z decreasing)
-      if (end.z < start.z) {
-        material = this.materials.plunge;
-      } 
-      // Check if this is a lift (Z increasing)
-      else if (end.z > start.z) {
-        material = this.materials.lift;
-      } 
-      // Normal cut
-      else {
-        material = this.materials.cut;
-      }
-    } else {
-      // Non-cutting moves
-      material = this.materials.rapid;
-    }
+    // Determine material to use based on visualization mode
+    const material = getMaterialForSegment(segment, this.materials, this.visualizationMode, index, total);
     
     // Create the line
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
     const line = new THREE.Line(geometry, material);
     line.name = `segment-${this.toolpathGroup.children.length}`;
 
-    if (material === this.materials.rapid) {
+    // If it's a dashed material like rapid moves, compute line distances
+    if (material.isDashed || material === this.materials.rapid) {
       line.computeLineDistances();
     }
       
     // Set userData for potential interaction
     line.userData = {
       segment,
-      lineIndex: segment.lineIndex
+      lineIndex: segment.lineIndex,
+      material
     };
     
     this.toolpathGroup.add(line);
@@ -658,8 +915,10 @@ class ToolpathRenderer {
   /**
    * Add an arc segment (traditional method)
    * @param {Object} segment Arc segment data
+   * @param {number} index Segment index
+   * @param {number} total Total number of segments
    */
-  addArcSegment(segment) {
+  addArcSegment(segment, index, total) {
     const { start, end, center, clockwise, toolOn } = segment;
     
     // Apply transformations
@@ -721,28 +980,8 @@ class ToolpathRenderer {
     // Add to the overall path
     this.pathPoints.push(...points);
     
-    // Determine the material based on the type of move
-    let material;
-    
-    if (toolOn) {
-      // If the tool is on, this is a cutting move
-      
-      // Check if this is a plunge (Z decreasing)
-      if (end.z < start.z) {
-        material = this.materials.plunge;
-      } 
-      // Check if this is a lift (Z increasing)
-      else if (end.z > start.z) {
-        material = this.materials.lift;
-      } 
-      // Normal cut
-      else {
-        material = this.materials.cut;
-      }
-    } else {
-      // Non-cutting moves
-      material = this.materials.rapid;
-    }
+    // Determine material to use based on visualization mode
+    const material = getMaterialForSegment(segment, this.materials, this.visualizationMode, index, total);
     
     // Create the line
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
@@ -752,7 +991,8 @@ class ToolpathRenderer {
     // Set userData for potential interaction
     line.userData = {
       segment,
-      lineIndex: segment.lineIndex
+      lineIndex: segment.lineIndex,
+      material
     };
     
     this.toolpathGroup.add(line);
@@ -863,43 +1103,37 @@ class ToolpathRenderer {
       // Reset all materials to original
       batches.forEach(batch => {
         if (batch.userData.isBatched) {
-          const originalType = batch.userData.type;
-          batch.material = this.materials[originalType].clone();
+          const materialKey = batch.userData.materialKey;
+          const batchMaterial = this.allMaterials[this.visualizationMode][materialKey] || 
+                                Array.from(Object.values(this.allMaterials[this.visualizationMode])).find(m => m.uuid === materialKey);
           
-          // For rapid moves, need to re-compute line distances
-          if (originalType === 'rapid') {
-            batch.computeLineDistances();
+          if (batchMaterial) {
+            batch.material = batchMaterial.clone();
+            
+            // For dashed materials like rapid moves, need to re-compute line distances
+            if (batchMaterial.isDashed || batchMaterial === this.materials.rapid) {
+              batch.computeLineDistances();
+            }
           }
         } else if (batch.userData.segment) {
           // Traditional rendering case
           const segment = batch.userData.segment;
+          const material = batch.userData.material;
           
-          // Determine the original material based on the segment type
-          if (segment.rapid) {
-            batch.material = this.materials.rapid;
-          } else if (segment.toolOn) {
-            if (segment.end.z < segment.start.z) {
-              batch.material = this.materials.plunge;
-            } else if (segment.end.z > segment.start.z) {
-              batch.material = this.materials.lift;
-            } else {
-              batch.material = this.materials.cut;
+          if (material) {
+            batch.material = material;
+            // Recompute line distances for dashed materials
+            if (material.isDashed || material === this.materials.rapid) {
+              batch.computeLineDistances();
             }
-          } else {
-            batch.material = this.materials.rapid;
-          }
-          
-          // Recompute line distances for rapid moves
-          if (segment.rapid) {
-            batch.computeLineDistances();
           }
         }
       });
       
       // For batched rendering, we need to duplicate the geometry and highlight just the relevant segments
       if (segmentInfo.startIndex !== undefined) {
-        // Find the batch with the correct type
-        const batch = batches.find(b => b.userData.type === segmentInfo.type);
+        // Find the batch with the correct material key
+        const batch = batches.find(b => b.userData.materialKey === segmentInfo.materialKey);
         
         if (batch) {
           // Get the segment's vertices
@@ -923,7 +1157,11 @@ class ToolpathRenderer {
           
           // Create highlight line
           const highlightGeometry = new THREE.BufferGeometry().setFromPoints(highlightPoints);
-          const highlightLine = new THREE.Line(highlightGeometry, this.materials.highlight);
+          const highlightLine = new THREE.Line(highlightGeometry, this.materials.highlight || new THREE.LineBasicMaterial({ 
+            color: 0xffd700, // Gold
+            linewidth: 3.5,
+            opacity: 1
+          }));
           highlightLine.name = 'highlight-line';
           
           // Remove any existing highlight line
@@ -944,7 +1182,11 @@ class ToolpathRenderer {
         const object = batches.find(b => b.userData.lineIndex === lineIndex);
         
         if (object) {
-          object.material = this.materials.highlight;
+          object.material = this.materials.highlight || new THREE.LineBasicMaterial({ 
+            color: 0xffd700, // Gold
+            linewidth: 3.5,
+            opacity: 1
+          });
           
           // Show the tool position at the end of this segment
           const transformedEnd = this.applyTransformations(segment.end);
@@ -959,25 +1201,20 @@ class ToolpathRenderer {
     this.toolpathGroup.children.forEach(obj => {
       if (obj.userData && obj.userData.segment) {
         const segment = obj.userData.segment;
+        const material = obj.userData.material;
         
-        // Determine the original material based on the segment type
-        if (segment.rapid) {
-          obj.material = this.materials.rapid;
-        } else if (segment.toolOn) {
-          if (segment.end.z < segment.start.z) {
-            obj.material = this.materials.plunge;
-          } else if (segment.end.z > segment.start.z) {
-            obj.material = this.materials.lift;
-          } else {
-            obj.material = this.materials.cut;
-          }
-        } else {
-          obj.material = this.materials.rapid;
+        // Reset to original material
+        if (material) {
+          obj.material = material;
         }
         
         // If this segment matches the lineIndex, highlight it
         if (segment.lineIndex === lineIndex) {
-          obj.material = this.materials.highlight;
+          obj.material = this.materials.highlight || new THREE.LineBasicMaterial({ 
+            color: 0xffd700, // Gold
+            linewidth: 3.5,
+            opacity: 1
+          });
           
           // Show the tool position at the end of this segment
           const transformedEnd = this.applyTransformations(segment.end);
@@ -1072,15 +1309,30 @@ class ToolpathRenderer {
       this.lineGeometry.dispose();
     }
     
+    // Dispose of direction indicators
+    if (this.directionGroup) {
+      while (this.directionGroup.children.length) {
+        const child = this.directionGroup.children[0];
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) child.material.dispose();
+        this.directionGroup.remove(child);
+      }
+      this.scene.remove(this.directionGroup);
+    }
+    
     // Dispose of materials
-    for (const key in this.materials) {
-      if (this.materials[key]) {
-        this.materials[key].dispose();
+    for (const mode in this.allMaterials) {
+      const materialSet = this.allMaterials[mode];
+      for (const key in materialSet) {
+        if (materialSet[key] && materialSet[key].dispose) {
+          materialSet[key].dispose();
+        }
       }
     }
     
-    // Remove the toolpath group from the scene
+    // Remove groups from the scene
     this.scene.remove(this.toolpathGroup);
+    this.scene.remove(this.directionGroup);
   }
 }
 

@@ -9,7 +9,6 @@ import StlManager from './StlManager';
 import { getThemeColors } from './utils/themeColors';
 import MouseIndicator from './MouseIndicator';
 
-
 /**
  * Scene component for the 3D Viewer
  * Handles creation and management of the THREE.js scene
@@ -35,7 +34,14 @@ const Scene = forwardRef(({
     selectedLine,
     transformValues,
     panelDimensions,
-    indicatorSettings
+    indicatorSettings,
+    // New visualization props
+    visualizationMode,
+    showDirectionIndicators,
+    directionIndicatorDensity,
+    directionIndicatorScale, 
+    showPathLine,
+    setToolpathRendererRef
 }, ref) => {
     // Scene scale - conversion factor from mm to scene units
     const sceneScale = 0.1; // 10mm = 1 unit
@@ -193,6 +199,19 @@ const Scene = forwardRef(({
                 sceneScale,
                 themeColors
             );
+            
+            // Apply visualization settings
+            if (toolpathRendererRef.current) {
+                toolpathRendererRef.current.setVisualizationMode(visualizationMode);
+                toolpathRendererRef.current.setDirectionIndicators(showDirectionIndicators, directionIndicatorDensity);
+                toolpathRendererRef.current.setDirectionIndicatorScale(directionIndicatorScale);
+                toolpathRendererRef.current.togglePathLine(showPathLine);
+            }
+            
+            // Pass reference back to parent component
+            if (setToolpathRendererRef) {
+                setToolpathRendererRef(toolpathRendererRef.current);
+            }
         }
 
         // Create STL Manager
@@ -233,7 +252,21 @@ const Scene = forwardRef(({
                 console.log("Component is not unmounting, keeping managers");
             }
         };
-    }, []);
+    }, [
+        createRobotTool,
+        themeColors,
+        containerRef,
+        gridDimensions,
+        sceneScale,
+        setStlFiles,
+        workOffset,
+        visualizationMode,
+        showDirectionIndicators,
+        directionIndicatorDensity,
+        directionIndicatorScale,
+        showPathLine,
+        setToolpathRendererRef
+    ]);
 
     useEffect(() => {
     if (gridManagerRef.current && setGridManager) {
@@ -290,6 +323,13 @@ const Scene = forwardRef(({
         if (!toolpathRendererRef.current || !parsedToolpath) return;
 
         if (showToolpath) {
+            // Apply visualization settings
+            toolpathRendererRef.current.setVisualizationMode(visualizationMode);
+            toolpathRendererRef.current.setDirectionIndicators(showDirectionIndicators, directionIndicatorDensity);
+            toolpathRendererRef.current.setDirectionIndicatorScale(directionIndicatorScale);
+            toolpathRendererRef.current.togglePathLine(showPathLine);
+            
+            // Set other properties
             toolpathRendererRef.current.setTransformValues(transformValues);
             toolpathRendererRef.current.setWorkOffset(workOffset);
             toolpathRendererRef.current.visualize(parsedToolpath);
@@ -300,7 +340,18 @@ const Scene = forwardRef(({
         } else {
             toolpathRendererRef.current.clear();
         }
-    }, [parsedToolpath, showToolpath, transformValues, workOffset, selectedLine]);
+    }, [
+        parsedToolpath, 
+        showToolpath, 
+        transformValues, 
+        workOffset, 
+        selectedLine,
+        visualizationMode,
+        showDirectionIndicators,
+        directionIndicatorDensity,
+        directionIndicatorScale,
+        showPathLine
+    ]);
 
     // Subscribe to position telemetry events
     useEffect(() => {
@@ -501,13 +552,14 @@ const Scene = forwardRef(({
     useImperativeHandle(ref, () => ({
         handleViewChange,
         stlManagerRef: stlManagerRef,
+        toolpathRendererRef: toolpathRendererRef,
         resizeScene: () => {
           // Force a resize when needed
           if (window.dispatchEvent) {
             window.dispatchEvent(new Event('resize'));
           }
         }
-      }), [handleViewChange, stlManagerRef]);
+      }), [handleViewChange, stlManagerRef, toolpathRendererRef]);
 
     // Cleanup on unmount
     useEffect(() => {

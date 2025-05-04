@@ -7,10 +7,11 @@ import StlPanel from './components/StlPanel';
 import Gizmo from './components/Gizmo';
 import MouseCoordinatesPanel from './components/MouseCoordinatesPanel';
 import { processStlFiles } from './utils/fileHandler';
+import { VisualizationModes } from './utils/VisualizationModes';
 
 /**
  * Viewer3D Panel - Main component that integrates all 3D viewer functionality
- * Now with proper mouse coordinate tracking in the workspace
+ * Enhanced with multiple visualization modes and direction indicators
  * 
  * @param {Object} props Component properties
  * @param {boolean} props.showAxes Whether to show axes by default
@@ -28,6 +29,14 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     pulseAnimation: true,
     size: 'medium'
   });
+  
+  // New visualization states
+  const [visualizationMode, setVisualizationMode] = useState(VisualizationModes.MOVE_TYPE);
+  const [showDirectionIndicators, setShowDirectionIndicators] = useState(false);
+  const [directionIndicatorDensity, setDirectionIndicatorDensity] = useState(0.05); // 5%
+  const [directionIndicatorScale, setDirectionIndicatorScale] = useState(0.5); // 50%
+  const [showPathLine, setShowPathLine] = useState(true);
+  
   const [stlFiles, setStlFiles] = useState([]);
   const [panelDimensions, setPanelDimensions] = useState({ width: 0, height: 0 });
   const [robotPosition, setRobotPosition] = useState({ x: 0, y: 0, z: 0, a: 0 });
@@ -130,7 +139,8 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
   // References
   const containerRef = useRef(null);
   const fileInputRef = useRef(null);
-  const sceneRef = useRef(null); // Add this ref for the Scene component
+  const sceneRef = useRef(null);
+  const toolpathRendererRef = useRef(null);
 
   // Get GCode context data
   const { parsedToolpath, selectedLine, transformValues } = useGCode();
@@ -187,6 +197,47 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     setShowMousePosition(!showMousePosition);
   };
 
+  // Apply visualization changes to the ToolpathRenderer
+  const applyVisualizationSettings = useCallback(() => {
+    if (sceneRef.current && sceneRef.current.toolpathRendererRef && sceneRef.current.toolpathRendererRef.current) {
+      const toolpathRenderer = sceneRef.current.toolpathRendererRef.current;
+      
+      // Set visualization mode
+      toolpathRenderer.setVisualizationMode(visualizationMode);
+      
+      // Set direction indicators
+      toolpathRenderer.setDirectionIndicators(showDirectionIndicators, directionIndicatorDensity);
+      toolpathRenderer.setDirectionIndicatorScale(directionIndicatorScale);
+      
+      // Set path line visibility
+      toolpathRenderer.togglePathLine(showPathLine);
+      
+      // Reapply visualization
+      if (parsedToolpath) {
+        toolpathRenderer.visualize(parsedToolpath);
+      }
+    }
+  }, [
+    visualizationMode, 
+    showDirectionIndicators, 
+    directionIndicatorDensity, 
+    directionIndicatorScale, 
+    showPathLine,
+    parsedToolpath
+  ]);
+
+  // Reapply visualization settings when they change
+  useEffect(() => {
+    applyVisualizationSettings();
+  }, [
+    visualizationMode, 
+    showDirectionIndicators, 
+    directionIndicatorDensity, 
+    directionIndicatorScale, 
+    showPathLine,
+    applyVisualizationSettings
+  ]);
+
   // Handle view change from Gizmo
   const handleViewChange = useCallback((view) => {
     // Access the handleViewChange method in the Scene component through ref
@@ -196,6 +247,11 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     } else {
       console.warn("Scene ref or handleViewChange method not available");
     }
+  }, []);
+
+  // Store toolpath renderer reference from Scene
+  const setToolpathRendererRef = useCallback((renderer) => {
+    toolpathRendererRef.current = renderer;
   }, []);
 
   // Common view props
@@ -222,7 +278,14 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     selectedLine,
     transformValues,
     fileInputRef,
-    panelDimensions
+    panelDimensions,
+    // New visualization props
+    visualizationMode,
+    showDirectionIndicators,
+    directionIndicatorDensity,
+    directionIndicatorScale,
+    showPathLine,
+    setToolpathRendererRef // Pass callback to get reference to the toolpath renderer
   };
 
   // Styling for the main container
@@ -254,6 +317,18 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
         indicatorSettings={indicatorSettings}
         setIndicatorSettings={setIndicatorSettings}
         onFileSelect={handleStlFileSelection}
+        // New visualization props
+        visualizationMode={visualizationMode}
+        setVisualizationMode={setVisualizationMode}
+        showDirectionIndicators={showDirectionIndicators}
+        setShowDirectionIndicators={setShowDirectionIndicators}
+        directionIndicatorDensity={directionIndicatorDensity}
+        setDirectionIndicatorDensity={setDirectionIndicatorDensity}
+        directionIndicatorScale={directionIndicatorScale}
+        setDirectionIndicatorScale={setDirectionIndicatorScale}
+        showPathLine={showPathLine}
+        setShowPathLine={setShowPathLine}
+        reapplyVisualization={applyVisualizationSettings}
       />
 
       <PositionDisplay
@@ -274,7 +349,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
           <Scene
             {...viewProps}
             containerRef={containerRef}
-            ref={sceneRef} // Pass the ref to Scene component
+            ref={sceneRef}
           />
 
           {/* Mouse coordinates panel with reactive visibility */}
