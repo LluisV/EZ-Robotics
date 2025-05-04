@@ -1,6 +1,8 @@
 /**
  * Enhanced G-code syntax highlighter with support for GRBL/FluidNC format
  * Handles consecutive coordinate-only moves without affecting cursor position
+ * 
+ * PERFORMANCE OPTIMIZATION: Added low performance mode for faster rendering
  */
 class GCodeHighlighter {
   constructor() {
@@ -51,6 +53,34 @@ class GCodeHighlighter {
       
       // Apply highlighting
       return this.highlightLine(line, lineNum, errors, warnings, highlightedLine, isImpliedMove, activeGMode);
+    });
+    
+    return highlightedLines.join('');
+  }
+  
+  /**
+   * PERFORMANCE OPTIMIZATION: Simplified highlighting for low performance mode
+   * @param {string} code - G-code text to highlight 
+   * @param {number} highlightedLine - Currently highlighted line number
+   * @returns {string} HTML with minimal highlighting
+   */
+  static highlightCodeLowPerf(code, highlightedLine) {
+    if (!code) return '';
+    
+    const lines = code.split('\n');
+    
+    // Only handle basic line highlighting, and use simplified content
+    const highlightedLines = lines.map((line, i) => {
+      const lineNum = i + 1;
+      const isHighlighted = lineNum === highlightedLine;
+      
+      // Very minimal highlighting - just comments and highlighted lines
+      let content = line.replace(/;(.*)$/, '<span class="code-comment">;$1</span>');
+      if (/\(.*?\)/.test(content)) {
+        content = content.replace(/\((.*?)\)/g, '<span class="code-comment">($1)</span>');
+      }
+      
+      return `<div class="code-line${isHighlighted ? ' highlighted-line' : ''}">${content || ' '}</div>`;
     });
     
     return highlightedLines.join('');

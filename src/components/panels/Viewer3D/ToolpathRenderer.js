@@ -2,6 +2,8 @@ import * as THREE from 'three';
 
 /**
  * Class for rendering and visualizing toolpaths in a THREE.js scene
+ * 
+ * PERFORMANCE OPTIMIZATION: Added low performance mode during transfers
  */
 class ToolpathRenderer {
   /**
@@ -93,6 +95,18 @@ class ToolpathRenderer {
     );
     this.toolPositionSphere.visible = false;
     this.scene.add(this.toolPositionSphere);
+    
+    // PERFORMANCE OPTIMIZATION: Track performance mode
+    this.lowPerformanceMode = false;
+    this.lastHighlightedLineIndex = -1;
+  }
+
+  /**
+   * PERFORMANCE OPTIMIZATION: Set low performance mode during transfers
+   * @param {boolean} active Whether to enable low performance mode
+   */
+  setLowPerformanceMode(active) {
+    this.lowPerformanceMode = active;
   }
 
   /**
@@ -198,8 +212,19 @@ class ToolpathRenderer {
       return;
     }
     
-    // Visualize each segment
-    toolpath.segments.forEach(segment => {
+    // PERFORMANCE OPTIMIZATION: Reduce detail level for large toolpaths
+    const segmentCount = toolpath.segments.length;
+    const useSimplifiedRendering = segmentCount > 1000;
+    const sampleRate = useSimplifiedRendering ? 
+      Math.max(1, Math.floor(segmentCount / 1000)) : 1;
+      
+    // Visualize each segment with potential sampling
+    toolpath.segments.forEach((segment, index) => {
+      // Skip some segments for very large toolpaths when in low performance mode
+      if (useSimplifiedRendering && this.lowPerformanceMode && index % sampleRate !== 0) {
+        return;
+      }
+      
       if (segment.type === 'line') {
         this.addLineSegment(segment);
       } else if (segment.type === 'arc') {
@@ -209,7 +234,20 @@ class ToolpathRenderer {
     
     // Add the overall path line if needed
     if (this.showPathLine && this.pathPoints.length > 1) {
-      const pathGeometry = new THREE.BufferGeometry().setFromPoints(this.pathPoints);
+      // PERFORMANCE OPTIMIZATION: Reduce path points for large toolpaths
+      let displayPoints = this.pathPoints;
+      if (displayPoints.length > 5000) {
+        // Simplified decimation - just take every Nth point
+        const skipFactor = Math.ceil(displayPoints.length / 5000);
+        displayPoints = displayPoints.filter((_, i) => i % skipFactor === 0);
+        
+        // Always include the last point
+        if (displayPoints[displayPoints.length - 1] !== this.pathPoints[this.pathPoints.length - 1]) {
+          displayPoints.push(this.pathPoints[this.pathPoints.length - 1]);
+        }
+      }
+      
+      const pathGeometry = new THREE.BufferGeometry().setFromPoints(displayPoints);
       const pathLine = new THREE.Line(pathGeometry, this.materials.path);
       pathLine.name = 'path-overview';
       this.toolpathGroup.add(pathLine);
@@ -305,6 +343,20 @@ class ToolpathRenderer {
     const startAngle = Math.atan2(transformedStart.y - transformedCenter.y, transformedStart.x - transformedCenter.x);
     const endAngle = Math.atan2(transformedEnd.y - transformedCenter.y, transformedEnd.x - transformedCenter.x);
     
+    // PERFORMANCE OPTIMIZATION: Adaptive arc detail based on size and performance mode
+    let arcDetail = 32; // Default high detail
+    
+    if (this.lowPerformanceMode) {
+      // Reduce detail during transfers
+      arcDetail = 12;
+    } else if (radius > 5) {
+      // Larger arcs can use fewer points
+      arcDetail = 24;
+    } else if (radius < 0.5) {
+      // Very small arcs need more points
+      arcDetail = 16;
+    }
+    
     // Create an arc curve
     const curve = new THREE.EllipseCurve(
       transformedCenter.x, transformedCenter.y, // center
@@ -315,7 +367,7 @@ class ToolpathRenderer {
     );
     
     // Get points along the curve
-    const curvePoints = curve.getPoints(32);
+    const curvePoints = curve.getPoints(arcDetail);
     
     // Convert curve points to 3D and interpolate Z
     const points = curvePoints.map((pt, i) => {
@@ -401,6 +453,19 @@ class ToolpathRenderer {
    * @param {number} lineIndex Line index to highlight
    */
   highlightLine(lineIndex) {
+    // PERFORMANCE OPTIMIZATION: Skip minor updates in low performance mode
+    if (this.lowPerformanceMode) {
+      // Only update highlighting for significant changes
+      if (this.lastHighlightedLineIndex !== -1 && 
+          Math.abs(lineIndex - this.lastHighlightedLineIndex) < 10 &&
+          lineIndex !== 1 && lineIndex !== this.currentToolpath?.segments.length) {
+        return; // Skip this update
+      }
+    }
+    
+    // Update last highlighted line
+    this.lastHighlightedLineIndex = lineIndex;
+    
     // Reset all materials
     this.toolpathGroup.children.forEach(obj => {
       if (obj.userData && obj.userData.segment) {

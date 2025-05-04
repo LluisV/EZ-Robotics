@@ -16,6 +16,8 @@ import CodeEditor from './components/CodeEditor';
 /**
  * Enhanced G-Code Editor with GRBL/FluidNC format support
  * Shows G-code exactly as it is without format conversion
+ * 
+ * PERFORMANCE OPTIMIZATION: Reduces UI updates during G-code transmission
  */
 const CodeEditorPanel = () => {
   // Default basic G-code example
@@ -44,6 +46,9 @@ const CodeEditorPanel = () => {
   const [lastProgress, setLastProgress] = useState(0); // Progress tracking for logging
   const [codeFormat, setCodeFormat] = useState('unknown'); // 'grbl' or 'standard' (for display only)
   const [showMetadata, setShowMetadata] = useState(true);
+  
+  // PERFORMANCE OPTIMIZATION: Track performance mode
+  const [lowPerformanceMode, setLowPerformanceMode] = useState(false);
 
   const editorRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -205,38 +210,53 @@ const CodeEditorPanel = () => {
     }
   }, [code]);
 
+  // PERFORMANCE OPTIMIZATION: Debounce line highlight updates
+  const debounce = (fn, delay) => {
+    let timer;
+    return function(...args) {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn.apply(this, args), delay);
+    };
+  };
+
+  // Debounced function for highlighting lines
+  const debouncedHighlightLine = useCallback(
+    debounce((line) => {
+      setHighlightedLine(line);
+      
+      // Show error message for the selected line if it has an error
+      const error = errors.find(err => err.line === line);
+      const warning = warnings.find(warn => warn.line === line);
+
+      if (error) {
+        setStatusMessage(`Error (Line ${line}): ${error.message}`);
+      } else if (warning) {
+        setStatusMessage(`Warning (Line ${line}): ${warning.message}`);
+      } else {
+        setStatusMessage('');
+      }
+    }, 100), // 100ms debounce for highlighting
+    [errors, warnings]
+  );
+
   // Update when selected line changes
   useEffect(() => {
+    return
     if (selectedLine >= 0 && selectedLine !== highlightedLine) {
-      return;
-      setHighlightedLine(selectedLine);
-
-      // Position cursor at the beginning of the line
-      if (editorRef.current) {
-        const lines = code.split('\n');
-        let position = 0;
-
-        for (let i = 0; i < selectedLine - 1; i++) {
-          position += (lines[i] || '').length + 1; // +1 for newline
+      // PERFORMANCE OPTIMIZATION: Use debounced highlighting during transfers
+      if (isTransferring) {
+        // During transfers, only update significant jumps
+        if (Math.abs(selectedLine - highlightedLine) > 10 || 
+            selectedLine === 1 || 
+            selectedLine === totalLines) {
+          debouncedHighlightLine(selectedLine);
         }
-
-        editorRef.current.focus();
-        editorRef.current.setSelectionRange(position, position);
-
-        // Show error message for the selected line if it has an error
-        const error = errors.find(err => err.line === selectedLine);
-        const warning = warnings.find(warn => warn.line === selectedLine);
-
-        if (error) {
-          setStatusMessage(`Error (Line ${selectedLine}): ${error.message}`);
-        } else if (warning) {
-          setStatusMessage(`Warning (Line ${selectedLine}): ${warning.message}`);
-        } else {
-          setStatusMessage('');
-        }
+      } else {
+        // Normal highlighting when not transferring
+        debouncedHighlightLine(selectedLine);
       }
     }
-  }, [selectedLine, highlightedLine, code, errors, warnings]);
+  }, [selectedLine, highlightedLine, isTransferring, totalLines, debouncedHighlightLine]);
 
   // Validate G-code with real-time feedback using the enhanced validator
   const validateCode = (codeToValidate) => {
@@ -488,6 +508,9 @@ const CodeEditorPanel = () => {
       setIsPaused(false);
       setLastProgress(0); // Reset last logged progress
       
+      // PERFORMANCE OPTIMIZATION: Enable low performance mode during transfer
+      setLowPerformanceMode(true);
+      
       // Load the G-code
       const totalLines = gcodeSender.loadGCode(gCodeToSend);
       const totalBytes = new Blob([gCodeToSend]).size;
@@ -495,37 +518,40 @@ const CodeEditorPanel = () => {
       // Log to console panel that we're starting transfer
       logToConsole('system', `Starting transfer: ${fileName} (${totalBytes} bytes, ${totalLines} lines)`);
       
-      // Set up the callbacks for simplified sender
-      gcodeSender.setCallbacks({
-        onProgress: (data) => {
-          // Update progress UI
-          setTransferProgress(data.progress);
+      // PERFORMANCE OPTIMIZATION: Batched state updates for progress changes
+      const batchedProgressUpdate = (data) => {
+        // Only update status every 10 lines in large files
+        const significantChange = 
+          data.total < 100 || // Small file - update every line
+          data.acknowledged % 10 === 0 || // Every 10th line for larger files
+          data.acknowledged === 1 || // First line
+          data.acknowledged === data.total || // Last line
+          Math.floor(data.progress) % 5 === 0; // Every 5% of progress
           
-          // Format progress message with line information
+        if (significantChange) {
+          setTransferProgress(data.progress);
           setStatusMessage(
             `Transferring: ${data.progress.toFixed(1)}% (${data.acknowledged}/${data.total} lines)`
           );
           
-          // Log progress occasionally (every 5%)
-          const currentProgressFloor = Math.floor(data.progress);
-          if (currentProgressFloor % 5 === 0 && 
-              currentProgressFloor !== Math.floor(lastProgress)) {
-            logToConsole('info', 
-              `Transfer progress: ${data.progress.toFixed(1)}% (${data.acknowledged}/${data.total} lines)`
-            );
-            setLastProgress(data.progress);
-          }
-          
-          // Highlight current line in editor
-          if (data.acknowledged > 0 && data.acknowledged <= totalLines) {
+          // Only update selected line for significant changes (e.g., every 10 lines)
+          if (data.acknowledged % 10 === 0 || 
+              data.acknowledged === 1 || 
+              data.acknowledged === data.total) {
             setSelectedLine(data.acknowledged);
           }
-        },
+        }
+      };
+      
+      // Set up the callbacks for simplified sender
+      gcodeSender.setCallbacks({
+        onProgress: batchedProgressUpdate,
         
         onComplete: (data) => {
           // Update UI for completion
           setTransferProgress(100);
           setIsTransferring(false);
+          setLowPerformanceMode(false); // Disable low performance mode when done
           
           const completeMsg = `Transfer completed: ${fileName} (${data.total} lines)`;
           logToConsole('system', completeMsg);
@@ -543,11 +569,14 @@ const CodeEditorPanel = () => {
           
           // Update error message in UI
           setTransferError(error);
+          setLowPerformanceMode(false); // Disable low performance mode on error
         },
         
         onLineSuccess: (lineIndex, lineContent) => {
-          // Log each successful line (more detailed logging for line-by-line mode)
-          logToConsole('debug', `Sent line ${lineIndex+1}: ${lineContent}`);
+          // Only log detailed line info for smaller files
+          if (totalLines < 100) {
+            logToConsole('debug', `Sent line ${lineIndex+1}: ${lineContent}`);
+          }
         },
         
         onLineError: (lineIndex, lineContent, errorMessage) => {
@@ -576,11 +605,13 @@ const CodeEditorPanel = () => {
         
         onStatusUpdate: (status) => {
           // Update machine status display with controller state
-          const statusText = `Machine state: ${status.state} | Position: X${status.position[0].toFixed(3)} Y${status.position[1].toFixed(3)} Z${status.position[2].toFixed(3)} | Feed rate: ${status.feedRate}`;
-          
-          // Update status display in UI
+          // PERFORMANCE OPTIMIZATION: Use custom event with minimal props to reduce overhead
           document.dispatchEvent(new CustomEvent('machineStatus', { 
-            detail: status 
+            detail: {
+              state: status.state,
+              position: status.position,
+              feedRate: status.feedRate
+            }
           }));
         }
       });
@@ -600,6 +631,7 @@ const CodeEditorPanel = () => {
       logToConsole('error', errorMsg);
       setTransferError(`Error: ${error.message}`);
       setIsTransferring(false);
+      setLowPerformanceMode(false);
       
       // Make sure to stop the sender
       gcodeSender.stop();
@@ -649,6 +681,7 @@ const CodeEditorPanel = () => {
         setIsTransferring(false);
         setTransferProgress(0);
         setStatusMessage('Transfer stopped - machine operation cancelled');
+        setLowPerformanceMode(false); // Disable low performance mode when stopped
         
         // Log to console panel
         logToConsole('error', 'Transfer stopped by user');
@@ -781,6 +814,7 @@ const CodeEditorPanel = () => {
           transferError={transferError}
           retryTransfer={retryTransfer}
           fileName={fileName}
+          lowPerformanceMode={lowPerformanceMode}
         />
       )}
 
@@ -809,6 +843,7 @@ const CodeEditorPanel = () => {
         setStatusMessage={setStatusMessage}
         validateCode={validateCode}
         editorRef={editorRef}
+        lowPerformanceMode={lowPerformanceMode}
       />
 
       {/* Status bar (footer) */}

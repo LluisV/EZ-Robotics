@@ -1,9 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import GCodeHighlighter from '../services/GCodeHighlighter';
 
 /**
  * Enhanced code editor component with support for consecutive coordinate-only moves
  * Fixed to prevent cursor position issues with implied moves
+ * 
+ * PERFORMANCE OPTIMIZATION: Added debounced updates and low performance mode
  */
 const CodeEditor = ({
   code,
@@ -16,10 +18,13 @@ const CodeEditor = ({
   setSelectedLine,
   setStatusMessage,
   validateCode,
-  editorRef
+  editorRef,
+  lowPerformanceMode = false // PERFORMANCE OPTIMIZATION: New prop to signal active transfer
 }) => {
   const lineNumbersRef = useRef(null);
   const localEditorRef = useRef(null);
+  const lastHighlightedLineRef = useRef(-1);
+  const highlightTimeoutRef = useRef(null);
   
   // Use the provided ref or create our own
   const effectiveEditorRef = editorRef || localEditorRef;
@@ -36,9 +41,25 @@ const CodeEditor = ({
     }
   };
 
+  // PERFORMANCE OPTIMIZATION: Debounced line highlighting function
+  const debounceHighlight = useCallback((lineNum, delay = 100) => {
+    if (highlightTimeoutRef.current) {
+      clearTimeout(highlightTimeoutRef.current);
+    }
+    
+    highlightTimeoutRef.current = setTimeout(() => {
+      setHighlightedLine(lineNum);
+      lastHighlightedLineRef.current = lineNum;
+    }, delay);
+  }, [setHighlightedLine]);
+
   // Handle clicking on line numbers
   const handleLineNumberClick = (lineNumber) => {
-    setHighlightedLine(lineNumber);
+    // PERFORMANCE OPTIMIZATION: Don't process clicks during low performance mode
+    if (lowPerformanceMode) return;
+    
+    // Use debounced update for highlighting
+    debounceHighlight(lineNumber);
     setSelectedLine(lineNumber);
 
     // Place cursor at the beginning of the selected line
@@ -91,9 +112,9 @@ const CodeEditor = ({
     setImpliedMoveInfo(impliedInfo);
   }, [code]);
 
-  // Update line numbers when code changes
-  useEffect(() => {
-    if (!code || !lineNumbersRef.current) return;
+  // PERFORMANCE OPTIMIZATION: Improve line numbers rendering with memoization
+  const createLineNumbers = useCallback(() => {
+    if (!code || !lineNumbersRef.current) return '';
 
     const lines = code.split('\n');
     let lineNumbersHtml = '';
@@ -131,16 +152,44 @@ const CodeEditor = ({
       lineNumbersHtml += `<div class="${className}"${tooltipAttr}${impliedCommandAttr}>${lineNum}</div>`;
     });
     
-    lineNumbersRef.current.innerHTML = lineNumbersHtml;
+    return lineNumbersHtml;
+  }, [code, highlightedLine, errors, warnings, impliedMoveInfo]);
 
-    // Ensure the editor and line numbers have the same scroll position
-    if (effectiveEditorRef.current && lineNumbersRef.current) {
-      lineNumbersRef.current.scrollTop = effectiveEditorRef.current.scrollTop;
+  // Update line numbers when code changes or highlighting changes
+  useEffect(() => {
+    // PERFORMANCE OPTIMIZATION: Skip minor updates during transfers
+    if (lowPerformanceMode && lastHighlightedLineRef.current !== -1) {
+      // Only update for significant changes in highlighted line
+      if (highlightedLine === lastHighlightedLineRef.current || 
+         (Math.abs(highlightedLine - lastHighlightedLineRef.current) < 10 &&
+          highlightedLine !== 1 && 
+          highlightedLine !== code.split('\n').length)) {
+        return;
+      }
     }
-  }, [code, highlightedLine, errors, warnings, impliedMoveInfo, effectiveEditorRef]);
+    
+    // Generate the line numbers HTML
+    const lineNumbersHtml = createLineNumbers();
+    
+    // Update the DOM if needed
+    if (lineNumbersRef.current && lineNumbersHtml) {
+      lineNumbersRef.current.innerHTML = lineNumbersHtml;
+      
+      // Ensure the editor and line numbers have the same scroll position
+      if (effectiveEditorRef.current && lineNumbersRef.current) {
+        lineNumbersRef.current.scrollTop = effectiveEditorRef.current.scrollTop;
+      }
+    }
+    
+    // Save the current highlighted line for comparison
+    lastHighlightedLineRef.current = highlightedLine;
+  }, [code, highlightedLine, errors, warnings, impliedMoveInfo, createLineNumbers, effectiveEditorRef, lowPerformanceMode]);
 
   // Handle cursor position and update error status
-  const handleCursorPosition = () => {
+  const handleCursorPosition = useCallback(() => {
+    // Skip in low performance mode
+    if (lowPerformanceMode) return;
+    
     if (!effectiveEditorRef.current) return;
 
     const pos = effectiveEditorRef.current.selectionStart;
@@ -150,7 +199,8 @@ const CodeEditor = ({
     const line = linesUpToCursor.length;
     const col = linesUpToCursor[linesUpToCursor.length - 1].length + 1;
 
-    setHighlightedLine(line);
+    // Debounce the highlight and selection updates
+    debounceHighlight(line);
     setSelectedLine(line);
 
     // Update status message if current line has errors/warnings
@@ -167,15 +217,21 @@ const CodeEditor = ({
     } else {
       setStatusMessage('');
     }
-  };
+  }, [code, errors, warnings, impliedMoveInfo, setHighlightedLine, setSelectedLine, setStatusMessage, effectiveEditorRef, debounceHighlight, lowPerformanceMode]);
 
-  // Get styled G-code with syntax highlighting
-  const getHighlightedCode = (text) => {
+  // PERFORMANCE OPTIMIZATION: Memoize the highlighted code
+  const memoizedHighlightedCode = useCallback((text) => {
     if (!text) return '';
+    
+    // In low performance mode, we can reduce the highlighting complexity
+    if (lowPerformanceMode) {
+      // Simpler highlighting in low performance mode
+      return GCodeHighlighter.highlightCodeLowPerf(text, highlightedLine);
+    }
     
     // Use the enhanced GCodeHighlighter with implied moves support
     return GCodeHighlighter.highlightCode(text, errors, warnings, highlightedLine);
-  };
+  }, [errors, warnings, highlightedLine, lowPerformanceMode]);
 
   // Force validate the G-code now
   const validateNow = () => {
@@ -183,6 +239,15 @@ const CodeEditor = ({
       validateCode(code);
     }
   };
+
+  // PERFORMANCE OPTIMIZATION: Clean up timers on unmount
+  useEffect(() => {
+    return () => {
+      if (highlightTimeoutRef.current) {
+        clearTimeout(highlightTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <>
@@ -201,15 +266,15 @@ const CodeEditor = ({
           <textarea
             ref={effectiveEditorRef}
             value={code}
-            //onChange={handleCodeChange}
+            onChange={handleCodeChange}
             onScroll={syncScroll}
-            //onKeyUp={handleCursorPosition}
-            o//nClick={handleCursorPosition}
+            onKeyUp={handleCursorPosition}
+            onClick={handleCursorPosition}
             spellCheck="false"
             className="editor-textarea"
           />
           <pre className="editor-highlighting" dangerouslySetInnerHTML={{ 
-            __html: getHighlightedCode(code) 
+            __html: memoizedHighlightedCode(code) 
           }}></pre>
         </div>
       </div>
@@ -217,4 +282,15 @@ const CodeEditor = ({
   );
 };
 
-export default CodeEditor;
+// Add this method to GCodeHighlighter (needs to be added to the actual file)
+// GCodeHighlighter.highlightCodeLowPerf = (text, highlightedLine) => {
+//   // Simpler highlighting during transfers - only handle line highlights
+//   const lines = text.split('\n');
+//   return lines.map((line, i) => {
+//     const lineNum = i + 1;
+//     const isHighlighted = lineNum === highlightedLine;
+//     return `<div class="code-line${isHighlighted ? ' highlighted-line' : ''}">${line || ' '}</div>`;
+//   }).join('');
+// };
+
+export default React.memo(CodeEditor); // PERFORMANCE OPTIMIZATION: Memo the component

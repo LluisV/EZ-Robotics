@@ -3,6 +3,8 @@
  * 
  * Implements a safe line-by-line approach where each line must be
  * acknowledged before the next one is sent.
+ * 
+ * PERFORMANCE OPTIMIZED: Added throttling for UI updates to prevent UI lag
  */
 class GCodeSender {
   constructor() {
@@ -42,6 +44,18 @@ class GCodeSender {
     
     // Debug logging
     this.debug = false; // Set to false to disable debug logging
+    
+    // PERFORMANCE OPTIMIZATION: Add throttling for UI updates
+    this.UI_UPDATE_INTERVAL = 250; // Only update UI every 250ms
+    this.lastProgressUpdate = 0;
+    
+    // Track progress separately from UI updates
+    this.currentProgress = {
+      sent: 0,
+      acknowledged: 0,
+      total: 0,
+      progress: 0
+    };
   }
   
   /**
@@ -118,6 +132,7 @@ class GCodeSender {
     this.isChecking = checkMode;
     this.currentLineIndex = 0;
     this.currentRetries = 0;
+    this.lastProgressUpdate = 0;
     
     // Clear any existing timeout
     if (this.responseTimeout) {
@@ -165,6 +180,31 @@ class GCodeSender {
   }
   
   /**
+   * PERFORMANCE OPTIMIZATION: Throttled progress update
+   * Only sends UI updates at a controlled rate to prevent lag
+   */
+  updateProgress() {
+    // Update internal progress state
+    this.currentProgress = {
+      sent: this.currentLineIndex,
+      acknowledged: this.currentLineIndex,
+      total: this.lines.length,
+      progress: Math.min((this.currentLineIndex / this.lines.length) * 100, 100)
+    };
+    
+    // Only notify UI at throttled intervals
+    const now = Date.now();
+    if ((now - this.lastProgressUpdate) >= this.UI_UPDATE_INTERVAL) {
+      this.lastProgressUpdate = now;
+      
+      // Only call the callback if enough time has passed
+      if (this.callbacks.onProgress) {
+        this.callbacks.onProgress(this.currentProgress);
+      }
+    }
+  }
+  
+  /**
    * Send the next line of GCode
    */
   async sendNextLine() {
@@ -190,20 +230,8 @@ class GCodeSender {
       // Set a timeout for response
       this.setResponseTimeout();
       
-      // Notify line sending
-      if (this.callbacks.onProgress) {
-        const progress = Math.min(
-          (this.currentLineIndex / this.lines.length) * 100,
-          100
-        );
-        
-        this.callbacks.onProgress({
-          sent: this.currentLineIndex,
-          acknowledged: this.currentLineIndex,
-          total: this.lines.length,
-          progress: progress
-        });
-      }
+      // PERFORMANCE OPTIMIZATION: Use throttled progress updates
+      this.updateProgress();
     } catch (error) {
       console.error(`Error sending line: ${error.message}`);
       
@@ -320,20 +348,8 @@ class GCodeSender {
       // Move to next line
       this.currentLineIndex++;
       
-      // Update progress
-      if (this.callbacks.onProgress) {
-        const progress = Math.min(
-          (this.currentLineIndex / this.lines.length) * 100,
-          100
-        );
-        
-        this.callbacks.onProgress({
-          sent: this.currentLineIndex,
-          acknowledged: this.currentLineIndex,
-          total: this.lines.length,
-          progress: progress
-        });
-      }
+      // PERFORMANCE OPTIMIZATION: Use throttled progress updates
+      this.updateProgress();
       
       // Check if we're done
       if (this.currentLineIndex >= this.lines.length) {
