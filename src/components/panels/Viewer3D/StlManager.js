@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
 
 /**
- * Class to manage STL files in the 3D scene
+ * Enhanced class to manage STL files in the 3D scene
+ * Improved with better error handling and debugging
  */
 class StlManager {
   /**
@@ -17,6 +18,8 @@ class StlManager {
     this.themeColors = themeColors;
     this.setStlFiles = setStlFiles;
     this.stlObjects = {};
+    
+    console.log("StlManager initialized");
   }
 
   /**
@@ -27,8 +30,12 @@ class StlManager {
    * @returns {string} The ID of the loaded file
    */
   loadStlModel(fileName, fileContent) {
-    if (!this.scene) return null;
+    if (!this.scene) {
+      console.error("Scene is not available for STL loading");
+      return null;
+    }
 
+    console.log(`Attempting to load STL file: ${fileName}`);
     const loader = new STLLoader();
 
     try {
@@ -39,6 +46,8 @@ class StlManager {
       geometry.computeBoundingBox();
       const originalBoundingBox = geometry.boundingBox.clone();
       const size = originalBoundingBox.getSize(new THREE.Vector3());
+
+      console.log(`STL dimensions: ${size.x.toFixed(2)} x ${size.y.toFixed(2)} x ${size.z.toFixed(2)}`);
 
       // Center the geometry at origin by calculating and applying center offset
       const center = new THREE.Vector3();
@@ -62,6 +71,7 @@ class StlManager {
       if (maxDim > 5) { // if larger than 5 units
         autoScale = 5 / maxDim;
         mesh.scale.set(autoScale, autoScale, autoScale);
+        console.log(`Auto-scaling STL to ${autoScale.toFixed(2)}`);
       }
 
       // Generate a unique ID for this STL file
@@ -86,7 +96,7 @@ class StlManager {
         visible: true,
         position: [0, 0, 0], // Centered at origin
         rotation: [0, 0, 0], // Euler angles in degrees
-        dimensions: size.toArray(),
+        dimensions: [size.x, size.y, size.z],
         scale: autoScale,
         autoScale: autoScale, // Store the auto scale
         manualScale: false, // Flag for whether scale was manually adjusted
@@ -115,7 +125,11 @@ class StlManager {
    * @returns {boolean} The new visibility state
    */
   toggleStlVisibility(fileId) {
-    if (!this.stlObjects[fileId]) return false;
+    console.log(`Toggling visibility for STL ${fileId}`);
+    if (!this.stlObjects[fileId]) {
+      console.warn(`STL object with ID ${fileId} not found`);
+      return false;
+    }
 
     // Toggle visibility
     const mesh = this.stlObjects[fileId];
@@ -138,7 +152,11 @@ class StlManager {
    * @returns {boolean} Whether the file was removed
    */
   removeStlFile(fileId) {
-    if (!this.stlObjects[fileId] || !this.scene) return false;
+    console.log(`Removing STL file with ID: ${fileId}`);
+    if (!this.stlObjects[fileId] || !this.scene) {
+      console.warn(`STL object with ID ${fileId} not found or scene is unavailable`);
+      return false;
+    }
 
     // Remove from scene
     const mesh = this.stlObjects[fileId];
@@ -154,6 +172,7 @@ class StlManager {
     // Update state
     this.setStlFiles(prevFiles => prevFiles.filter(file => file.id !== fileId));
 
+    console.log(`STL file ${fileId} successfully removed`);
     return true;
   }
 
@@ -166,12 +185,18 @@ class StlManager {
    * @returns {boolean} Whether the update was successful
    */
   updateStlPosition(fileId, axis, value) {
-    if (!this.stlObjects[fileId]) return false;
+    if (!this.stlObjects[fileId]) {
+      console.warn(`Cannot update position: STL object with ID ${fileId} not found`);
+      return false;
+    }
 
     const mesh = this.stlObjects[fileId];
     const floatValue = parseFloat(value);
 
-    if (isNaN(floatValue)) return false;
+    if (isNaN(floatValue)) {
+      console.warn(`Invalid position value for ${axis} axis: ${value}`);
+      return false;
+    }
 
     // Update the corresponding axis
     switch (axis) {
@@ -185,6 +210,7 @@ class StlManager {
         mesh.position.z = floatValue;
         break;
       default:
+        console.warn(`Invalid axis specified: ${axis}`);
         return false;
     }
 
@@ -211,12 +237,18 @@ class StlManager {
    * @returns {boolean} Whether the update was successful
    */
   updateStlRotation(fileId, axis, value) {
-    if (!this.stlObjects[fileId]) return false;
+    if (!this.stlObjects[fileId]) {
+      console.warn(`Cannot update rotation: STL object with ID ${fileId} not found`);
+      return false;
+    }
 
     const mesh = this.stlObjects[fileId];
     const floatValue = parseFloat(value);
 
-    if (isNaN(floatValue)) return false;
+    if (isNaN(floatValue)) {
+      console.warn(`Invalid rotation value for ${axis} axis: ${value}`);
+      return false;
+    }
 
     // Convert degrees to radians for the corresponding axis
     const angleRad = THREE.MathUtils.degToRad(floatValue);
@@ -233,6 +265,7 @@ class StlManager {
         mesh.rotation.z = angleRad;
         break;
       default:
+        console.warn(`Invalid axis specified: ${axis}`);
         return false;
     }
 
@@ -258,15 +291,22 @@ class StlManager {
    * @returns {boolean} Whether the update was successful
    */
   updateStlScale(fileId, newScale) {
-    if (!this.stlObjects[fileId]) return false;
+    if (!this.stlObjects[fileId]) {
+      console.warn(`Cannot update scale: STL object with ID ${fileId} not found`);
+      return false;
+    }
 
     const mesh = this.stlObjects[fileId];
     const floatValue = parseFloat(newScale);
 
-    if (isNaN(floatValue) || floatValue <= 0) return false;
+    if (isNaN(floatValue) || floatValue <= 0) {
+      console.warn(`Invalid scale value: ${newScale}`);
+      return false;
+    }
 
     // Update mesh scale
     mesh.scale.set(floatValue, floatValue, floatValue);
+    console.log(`Updated scale of ${fileId} to ${floatValue}`);
 
     // Update state
     this.setStlFiles(prevFiles => prevFiles.map(file => {
@@ -290,25 +330,31 @@ class StlManager {
    * @returns {boolean} Whether the reset was successful
    */
   resetStlScale(fileId) {
-    if (!this.stlObjects[fileId]) return false;
+    if (!this.stlObjects[fileId]) {
+      console.warn(`Cannot reset scale: STL object with ID ${fileId} not found`);
+      return false;
+    }
 
-    // Find the file info
+    // Update state and then update the mesh scale
     this.setStlFiles(prevFiles => {
       const file = prevFiles.find(f => f.id === fileId);
       if (!file) return prevFiles;
 
       // Get the mesh
       const mesh = this.stlObjects[fileId];
+      if (!mesh) return prevFiles;
 
       // Reset to auto scale
-      mesh.scale.set(file.autoScale, file.autoScale, file.autoScale);
+      const autoScale = file.autoScale || 1.0;
+      mesh.scale.set(autoScale, autoScale, autoScale);
+      console.log(`Reset scale of ${fileId} to auto scale ${autoScale}`);
 
       // Update the file info
       return prevFiles.map(f => {
         if (f.id === fileId) {
           return {
             ...f,
-            scale: f.autoScale,
+            scale: autoScale,
             manualScale: false
           };
         }
@@ -326,9 +372,13 @@ class StlManager {
    * @returns {boolean} Whether the centering was successful
    */
   centerGeometryAtOrigin(fileId) {
-    if (!this.stlObjects[fileId]) return false;
+    if (!this.stlObjects[fileId]) {
+      console.warn(`Cannot center geometry: STL object with ID ${fileId} not found`);
+      return false;
+    }
 
     const mesh = this.stlObjects[fileId];
+    console.log(`Centering STL ${fileId} at origin`);
 
     // Store current rotation
     const currentRotation = new THREE.Euler().copy(mesh.rotation);
@@ -385,9 +435,54 @@ class StlManager {
   }
 
   /**
+   * Check if an STL object with the given ID exists
+   * 
+   * @param {string} fileId The ID to check
+   * @returns {boolean} Whether the object exists
+   */
+  hasStlObject(fileId) {
+    return fileId in this.stlObjects;
+  }
+
+  /**
+   * Refresh all STL objects based on current React state
+   * Useful when restoring from saved state
+   * 
+   * @param {Array} stlFiles Array of STL file objects from React state
+   */
+  refreshFromState(stlFiles) {
+    if (!Array.isArray(stlFiles)) return;
+
+    // Update existing objects with state values
+    stlFiles.forEach(file => {
+      if (this.hasStlObject(file.id)) {
+        const mesh = this.stlObjects[file.id];
+        
+        // Update visibility
+        mesh.visible = file.visible;
+        
+        // Update position
+        mesh.position.set(file.position[0], file.position[1], file.position[2]);
+        
+        // Update rotation (convert degrees to radians)
+        mesh.rotation.set(
+          THREE.MathUtils.degToRad(file.rotation[0]),
+          THREE.MathUtils.degToRad(file.rotation[1]),
+          THREE.MathUtils.degToRad(file.rotation[2])
+        );
+        
+        // Update scale
+        mesh.scale.set(file.scale, file.scale, file.scale);
+      }
+    });
+  }
+
+  /**
    * Clean up resources
    */
   dispose() {
+    console.log("Disposing StlManager and all STL objects");
+    
     // Remove all STL objects
     Object.keys(this.stlObjects).forEach(fileId => {
       this.removeStlFile(fileId);

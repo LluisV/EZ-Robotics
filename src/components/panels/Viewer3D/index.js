@@ -367,6 +367,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
           <StlPanel
             stlFiles={stlFiles}
             setStlFiles={setStlFiles}
+            sceneRef={sceneRef} // Pass the sceneRef to StlPanel to access StlManager
           />
         )}
       </div>
