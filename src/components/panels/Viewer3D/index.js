@@ -24,10 +24,10 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
   const [showWorkAxes, setShowWorkAxes] = useState(true);
   const [showToolpath, setShowToolpath] = useState(true);
   const [showMousePosition, setShowMousePosition] = useState(true);
+  
+  // Simplified indicator settings - only showProjectionLines
   const [indicatorSettings, setIndicatorSettings] = useState({
-    showProjectionLines: true,
-    pulseAnimation: true,
-    size: 'medium'
+    showProjectionLines: true
   });
   
   // New visualization states
@@ -197,6 +197,14 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     setShowMousePosition(!showMousePosition);
   };
 
+  // Handle indicator settings changes - simplified to just projection lines
+  const handleIndicatorSettingsChange = useCallback((newSettings) => {
+    setIndicatorSettings(prevSettings => ({
+      ...prevSettings,
+      ...newSettings
+    }));
+  }, []);
+
   // Apply visualization changes to the ToolpathRenderer
   const applyVisualizationSettings = useCallback(() => {
     if (sceneRef.current && sceneRef.current.toolpathRendererRef && sceneRef.current.toolpathRendererRef.current) {
@@ -315,7 +323,7 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
         gridDimensions={gridDimensions}
         setGridDimensions={handleGridDimensionsChange}
         indicatorSettings={indicatorSettings}
-        setIndicatorSettings={setIndicatorSettings}
+        setIndicatorSettings={handleIndicatorSettingsChange}
         onFileSelect={handleStlFileSelection}
         // New visualization props
         visualizationMode={visualizationMode}

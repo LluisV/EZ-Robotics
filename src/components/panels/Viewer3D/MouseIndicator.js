@@ -2,6 +2,7 @@ import * as THREE from 'three';
 
 /**
  * Class to create and manage a crosshair mouse indicator in a THREE.js scene
+ * Simplified version without animation and size options
  */
 export class MouseIndicator {
   /**
@@ -30,25 +31,12 @@ export class MouseIndicator {
     this.projectionGroup.name = 'mouse-indicator-projections';
     this.projectionGroup.visible = false;
     this.scene.add(this.projectionGroup);
+
+    // Track projection lines visibility
+    this.showProjectionLines = true;
     
-    // Animation properties
-    this.isAnimating = false;
-    this.appearStartTime = 0;
-    this.appearDuration = 150; // ms
+    // Last position tracking
     this.lastPosition = new THREE.Vector3();
-    
-    // Pulse animation properties
-    this.pulseEnabled = true;
-    this.pulseTime = 0;
-    this.pulseDuration = 2000; // ms
-    
-    // Size settings
-    this.sizeFactors = {
-      small: 0.7,
-      medium: 1.0,
-      large: 1.5
-    };
-    this.currentSize = 'medium';
     
     // Create the indicator elements
     this.createCrosshair();
@@ -325,13 +313,6 @@ export class MouseIndicator {
       
       // Update projection lines
       this.updateProjectionLines(newPos);
-      
-      // Start appear animation if needed
-      if (!this.indicatorGroup.visible) {
-        this.indicatorGroup.visible = true;
-        this.projectionGroup.visible = true;
-        this.beginAppearAnimation();
-      }
     }
     
     // Always ensure it's visible
@@ -405,75 +386,7 @@ export class MouseIndicator {
   }
   
   /**
-   * Update the indicator's opacity and animations
-   * @param {number} deltaTime Time elapsed since last frame in milliseconds
-   */
-  update(deltaTime) {
-    // Handle appear animation
-    if (this.isAnimating) {
-      const elapsed = performance.now() - this.appearStartTime;
-      
-      if (elapsed < this.appearDuration) {
-        // Calculate opacity based on elapsed time
-        const opacity = Math.min(elapsed / this.appearDuration, 1.0);
-        
-        // Update materials opacity
-        this.updateOpacity(opacity);
-      } else {
-        // Animation completed
-        this.updateOpacity(1.0);
-        this.isAnimating = false;
-      }
-    }
-    
-    // Handle pulse animation if enabled
-    if (this.pulseEnabled && this.indicatorGroup.visible) {
-      this.pulseTime = (this.pulseTime + deltaTime) % this.pulseDuration;
-      
-      // Calculate pulse factor (0.0 to 1.0 and back)
-      const pulseFactor = Math.sin((this.pulseTime / this.pulseDuration) * Math.PI * 2) * 0.5 + 0.5;
-      
-      // Update circle radius for pulse effect
-      const baseRadius = 0.08;
-      const pulseRadius = baseRadius * (1 + pulseFactor * 0.2);
-      
-      // Create new circle geometry with pulse radius
-      this.updateCircleRadius(pulseRadius);
-      
-      // Pulse opacity slightly
-      if (this.circle.material) {
-        const baseOpacity = 0.4;
-        this.circle.material.opacity = baseOpacity * (0.7 + pulseFactor * 0.3);
-      }
-    }
-  }
-  
-  /**
-   * Update the circle's radius
-   * @param {number} radius New radius for the circle
-   */
-  updateCircleRadius(radius) {
-    const segments = 32;
-    const points = [];
-    
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      points.push(
-        new THREE.Vector3(
-          Math.cos(theta) * radius,
-          Math.sin(theta) * radius,
-          0
-        )
-      );
-    }
-    
-    // Update geometry
-    this.circle.geometry.dispose();
-    this.circle.geometry = new THREE.BufferGeometry().setFromPoints(points);
-  }
-  
-  /**
-   * Update the opacity of all indicator elements
+   * Update the indicator's opacity
    * @param {number} opacity Opacity value from 0.0 to 1.0
    */
   updateOpacity(opacity) {
@@ -495,20 +408,12 @@ export class MouseIndicator {
   }
   
   /**
-   * Begin appear animation when indicator becomes visible
-   */
-  beginAppearAnimation() {
-    this.isAnimating = true;
-    this.appearStartTime = performance.now();
-    this.updateOpacity(0); // Start fully transparent
-  }
-  
-  /**
    * Show the indicator
    */
   show() {
     this.indicatorGroup.visible = true;
-    this.projectionGroup.visible = true;
+    // Only show projection lines if they're enabled
+    this.projectionGroup.visible = this.showProjectionLines;
   }
   
   /**
@@ -520,75 +425,20 @@ export class MouseIndicator {
   }
   
   /**
-   * Toggle pulse animation
-   * @param {boolean} enabled Whether pulse animation should be enabled
-   */
-  setPulse(enabled) {
-    this.pulseEnabled = enabled;
-  }
-  
-  /**
    * Set projection lines visibility
    * @param {boolean} visible Whether projection lines should be visible
    */
   setProjectionLinesVisible(visible) {
-    this.projectionGroup.visible = visible;
+    this.showProjectionLines = visible;
+    this.projectionGroup.visible = visible && this.indicatorGroup.visible;
   }
   
   /**
-   * Set the size of the indicator
-   * @param {string} size Size setting ('small', 'medium', or 'large')
+   * Update the scene (called on every animation frame)
+   * No animation in this simplified version
    */
-  setSize(size) {
-    if (!this.sizeFactors[size]) return;
-    
-    if (size === this.currentSize) return;
-    this.currentSize = size;
-    
-    // Get the size factor
-    const factor = this.sizeFactors[size];
-    
-    // Scale the indicator group
-    this.indicatorGroup.scale.set(factor, factor, factor);
-    
-    // Regenerate the circle with new size
-    const baseRadius = 0.08;
-    this.updateCircleRadius(baseRadius * factor);
-    
-    // Update the axis lines lengths
-    this.updateAxisLinesLength(0.15 * factor);
-    
-    // Dots don't need scaling as they're already at a good size
-  }
-  
-  /**
-   * Update axis lines length
-   * @param {number} length New length for axis lines
-   */
-  updateAxisLinesLength(length) {
-    // X axis line
-    const xLineGeometry = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(-length, 0, 0)
-    ]);
-    this.xLine.geometry.dispose();
-    this.xLine.geometry = xLineGeometry;
-    
-    // Y axis line
-    const yLineGeometry = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(0, length, 0)
-    ]);
-    this.yLine.geometry.dispose();
-    this.yLine.geometry = yLineGeometry;
-    
-    // Z axis line
-    const zLineGeometry = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(0, 0, length)
-    ]);
-    this.zLine.geometry.dispose();
-    this.zLine.geometry = zLineGeometry;
+  update(deltaTime) {
+    // No animations in simplified version
   }
   
   /**

@@ -4,6 +4,7 @@ import * as THREE from 'three';
 /**
  * Hook to handle mouse tracking and intersection detection in the 3D scene
  * Provides accurate workspace coordinates through raycasting
+ * Simplified version with only projection lines setting
  * 
  * @param {Object} props Configuration options
  * @param {React.RefObject} props.containerRef Reference to container element
@@ -40,6 +41,9 @@ const useMouseTracking = ({
   const [isMouseOverScene, setIsMouseOverScene] = useState(false);
   const [isMouseOverWorkspace, setIsMouseOverWorkspace] = useState(false);
   const debugMode = false; // Set to true for troubleshooting
+  
+  // Keep track of previous settings to detect changes
+  const prevSettings = useRef(null);
 
   // Create our own raycaster and mouse position vector if not provided
   const internalRaycasterRef = useRef(new THREE.Raycaster());
@@ -64,6 +68,31 @@ const useMouseTracking = ({
     
     setStlObjects(objects);
   }, [sceneRef, stlFiles]);
+
+  // Update MouseIndicator projection lines setting when it changes
+  useEffect(() => {
+    if (!mouseIndicatorRef?.current || !indicatorSettings) return;
+
+    // Skip if settings haven't changed
+    if (
+      prevSettings.current &&
+      prevSettings.current.showProjectionLines === indicatorSettings.showProjectionLines
+    ) {
+      return;
+    }
+
+    // Update the projection lines setting
+    if (typeof mouseIndicatorRef.current.setProjectionLinesVisible === 'function') {
+      mouseIndicatorRef.current.setProjectionLinesVisible(indicatorSettings.showProjectionLines);
+    }
+    
+    // Store current settings for comparison
+    prevSettings.current = { ...indicatorSettings };
+    
+    if (debugMode) {
+      console.log("Applied indicator settings:", indicatorSettings);
+    }
+  }, [mouseIndicatorRef, indicatorSettings]);
 
   // Handle mousemove event for position tracking
   const handleMouseMove = useCallback((event) => {

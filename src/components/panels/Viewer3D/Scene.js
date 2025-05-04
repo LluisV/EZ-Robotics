@@ -94,6 +94,16 @@ const Scene = forwardRef(({
         indicatorSettings
     });
 
+    // Update MouseIndicator settings when they change
+    useEffect(() => {
+        if (mouseIndicatorRef.current && indicatorSettings) {
+            // Apply projection lines visibility setting
+            if (indicatorSettings.showProjectionLines !== undefined) {
+                mouseIndicatorRef.current.setProjectionLinesVisible(indicatorSettings.showProjectionLines);
+            }
+        }
+    }, [indicatorSettings]);
+
     // Create robot position indicator
     const createRobotTool = useCallback(() => {
         if (!sceneRef.current) return;
@@ -448,6 +458,17 @@ const Scene = forwardRef(({
         console.log("Updated MouseIndicator with new grid dimensions:", gridDimensions);
         }
     }, [gridDimensions, mouseIndicatorRef]);
+
+    // Effect to handle visibility changes for mouse indicator
+    useEffect(() => {
+        if (mouseIndicatorRef?.current) {
+            if (showMousePosition) {
+                mouseIndicatorRef.current.show();
+            } else {
+                mouseIndicatorRef.current.hide();
+            }
+        }
+    }, [showMousePosition]);
 
     // Effect to ensure grid dimensions updates are processed
     useEffect(() => {
