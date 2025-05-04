@@ -586,7 +586,7 @@ class ToolpathRenderer {
         dummy.lookAt(position.clone().add(direction));
 
         // Adjust rotation to ensure arrows are oriented along the path
-        dummy.rotateX(Math.PI / 2); // Adjust for cone orientation
+        dummy.rotateX(Math.PI); // Adjust for cone orientation
 
         // Set the scale of the arrow
         dummy.scale.set(
