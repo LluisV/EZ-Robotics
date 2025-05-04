@@ -102,7 +102,7 @@ const VisualizationSettings = ({
         {/* Global toolpath appearance controls */}
         <div className="vis-appearance-controls">
           <div className="vis-slider-container">
-            <div className="vis-slider-label">Line Width:</div>
+            <div className="vis-slider-label">Width:</div>
             <div className="vis-slider-control">
               <input
                 type="range"
