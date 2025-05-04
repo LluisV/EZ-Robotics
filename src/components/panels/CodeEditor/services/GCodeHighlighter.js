@@ -1,8 +1,9 @@
 /**
- * Enhanced G-code syntax highlighter with support for GRBL/FluidNC format
+ * Enhanced G-code syntax highlighter with GRBL/FluidNC format support
  * Handles consecutive coordinate-only moves without affecting cursor position
  * 
  * PERFORMANCE OPTIMIZATION: Added low performance mode for faster rendering
+ * PERFORMANCE OPTIMIZATION: Removed background highlight from line content
  */
 class GCodeHighlighter {
   constructor() {
@@ -19,7 +20,6 @@ class GCodeHighlighter {
    * @returns {string} HTML with syntax highlighting
    */
   static highlightCode(code, errors, warnings, highlightedLine) {
-    return;
     if (!code) return '';
     
     const lines = code.split('\n');
@@ -52,7 +52,7 @@ class GCodeHighlighter {
       const isImpliedMove = hasCoordinates && gCommands.length === 0 && activeGMode;
       
       // Apply highlighting
-      return this.highlightLine(line, lineNum, errors, warnings, highlightedLine, isImpliedMove, activeGMode);
+      return this.highlightLine(line, lineNum, errors, warnings, isImpliedMove, activeGMode);
     });
     
     return highlightedLines.join('');
@@ -61,26 +61,25 @@ class GCodeHighlighter {
   /**
    * PERFORMANCE OPTIMIZATION: Simplified highlighting for low performance mode
    * @param {string} code - G-code text to highlight 
-   * @param {number} highlightedLine - Currently highlighted line number
+   * @param {number} highlightedLine - Currently highlighted line number (not used)
    * @returns {string} HTML with minimal highlighting
    */
-  static highlightCodeLowPerf(code, highlightedLine) {
-    if (!code) return '';
+  static highlightCodeLowPerf(text, highlightedLine) {
+    if (!text) return '';
     
-    const lines = code.split('\n');
+    const lines = text.split('\n');
     
-    // Only handle basic line highlighting, and use simplified content
+    // Only handle basic syntax highlighting, don't highlight line backgrounds
     const highlightedLines = lines.map((line, i) => {
       const lineNum = i + 1;
-      const isHighlighted = lineNum === highlightedLine;
       
-      // Very minimal highlighting - just comments and highlighted lines
+      // Very minimal highlighting - just comments
       let content = line.replace(/;(.*)$/, '<span class="code-comment">;$1</span>');
       if (/\(.*?\)/.test(content)) {
         content = content.replace(/\((.*?)\)/g, '<span class="code-comment">($1)</span>');
       }
       
-      return `<div class="code-line${isHighlighted ? ' highlighted-line' : ''}">${content || ' '}</div>`;
+      return `<div class="code-line">${content || ' '}</div>`;
     });
     
     return highlightedLines.join('');
@@ -92,13 +91,11 @@ class GCodeHighlighter {
    * @param {number} lineNum - Line number
    * @param {Array} errors - Array of error objects
    * @param {Array} warnings - Array of warning objects
-   * @param {number} highlightedLine - Currently highlighted line number
    * @param {boolean} isImpliedMove - Whether this line is a coordinate-only implied move
    * @param {string} activeGMode - The active G mode (G0, G1, etc.)
    * @returns {string} HTML with syntax highlighting
    */
-  static highlightLine(line, lineNum, errors, warnings, highlightedLine, isImpliedMove = false, activeGMode = null) {
-    return;
+  static highlightLine(line, lineNum, errors, warnings, isImpliedMove = false, activeGMode = null) {
     // Check if this line has errors or warnings
     const hasError = errors.some(err => err.line === lineNum);
     const hasWarning = warnings.some(warn => warn.line === lineNum);
@@ -108,9 +105,8 @@ class GCodeHighlighter {
     const warningMsg = warnings.find(warn => warn.line === lineNum)?.message || '';
     const tooltipMsg = errorMsg || warningMsg;
     
-    // Set line class based on state
+    // Set line class based on state - REMOVED highlighted-line class
     let lineClass = "code-line";
-    if (lineNum === highlightedLine) lineClass += ' highlighted-line';
     if (hasError) lineClass += ' error-line';
     if (hasWarning) lineClass += ' warning-line';
     if (isImpliedMove) lineClass += ' implied-move';

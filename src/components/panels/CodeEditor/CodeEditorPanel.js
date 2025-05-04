@@ -534,7 +534,7 @@ const CodeEditorPanel = () => {
             `Transferring: ${data.progress.toFixed(1)}% (${data.acknowledged}/${data.total} lines)`
           );
           
-          // Only update selected line for significant changes (e.g., every 10 lines)
+          // Only update selected line for significant changes
           if (data.acknowledged % 10 === 0 || 
               data.acknowledged === 1 || 
               data.acknowledged === data.total) {

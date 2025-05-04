@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import GCodeHighlighter from '../services/GCodeHighlighter';
 
 /**
@@ -6,6 +6,7 @@ import GCodeHighlighter from '../services/GCodeHighlighter';
  * Fixed to prevent cursor position issues with implied moves
  * 
  * PERFORMANCE OPTIMIZATION: Added debounced updates and low performance mode
+ * PERFORMANCE OPTIMIZATION: Separated line number highlighting from code rendering
  */
 const CodeEditor = ({
   code,
@@ -25,6 +26,7 @@ const CodeEditor = ({
   const localEditorRef = useRef(null);
   const lastHighlightedLineRef = useRef(-1);
   const highlightTimeoutRef = useRef(null);
+  const totalLines = useMemo(() => code ? code.split('\n').length : 0, [code]);
   
   // Use the provided ref or create our own
   const effectiveEditorRef = editorRef || localEditorRef;
@@ -155,7 +157,7 @@ const CodeEditor = ({
     return lineNumbersHtml;
   }, [code, highlightedLine, errors, warnings, impliedMoveInfo]);
 
-  // Update line numbers when code changes or highlighting changes
+  // Update line numbers when highlighting changes
   useEffect(() => {
     // PERFORMANCE OPTIMIZATION: Skip minor updates during transfers
     if (lowPerformanceMode && lastHighlightedLineRef.current !== -1) {
@@ -163,7 +165,7 @@ const CodeEditor = ({
       if (highlightedLine === lastHighlightedLineRef.current || 
          (Math.abs(highlightedLine - lastHighlightedLineRef.current) < 10 &&
           highlightedLine !== 1 && 
-          highlightedLine !== code.split('\n').length)) {
+          highlightedLine !== totalLines)) {
         return;
       }
     }
@@ -183,7 +185,7 @@ const CodeEditor = ({
     
     // Save the current highlighted line for comparison
     lastHighlightedLineRef.current = highlightedLine;
-  }, [code, highlightedLine, errors, warnings, impliedMoveInfo, createLineNumbers, effectiveEditorRef, lowPerformanceMode]);
+  }, [highlightedLine, createLineNumbers, effectiveEditorRef, lowPerformanceMode, totalLines]);
 
   // Handle cursor position and update error status
   const handleCursorPosition = useCallback(() => {
@@ -219,19 +221,18 @@ const CodeEditor = ({
     }
   }, [code, errors, warnings, impliedMoveInfo, setHighlightedLine, setSelectedLine, setStatusMessage, effectiveEditorRef, debounceHighlight, lowPerformanceMode]);
 
-  // PERFORMANCE OPTIMIZATION: Memoize the highlighted code
-  const memoizedHighlightedCode = useCallback((text) => {
-    if (!text) return '';
+  // PERFORMANCE OPTIMIZATION: Memoize the highlighted code - ONLY updates when code changes
+  const highlightedCode = useMemo(() => {
+    if (!code) return '';
     
-    // In low performance mode, we can reduce the highlighting complexity
+    // In low performance mode, we use simpler highlighting
     if (lowPerformanceMode) {
-      // Simpler highlighting in low performance mode
-      return GCodeHighlighter.highlightCodeLowPerf(text, highlightedLine);
+      return GCodeHighlighter.highlightCodeLowPerf(code);
     }
     
     // Use the enhanced GCodeHighlighter with implied moves support
-    return GCodeHighlighter.highlightCode(text, errors, warnings, highlightedLine);
-  }, [errors, warnings, highlightedLine, lowPerformanceMode]);
+    return GCodeHighlighter.highlightCode(code, errors, warnings);
+  }, [code, errors, warnings, lowPerformanceMode]);
 
   // Force validate the G-code now
   const validateNow = () => {
@@ -274,23 +275,12 @@ const CodeEditor = ({
             className="editor-textarea"
           />
           <pre className="editor-highlighting" dangerouslySetInnerHTML={{ 
-            __html: memoizedHighlightedCode(code) 
+            __html: highlightedCode 
           }}></pre>
         </div>
       </div>
     </>
   );
 };
-
-// Add this method to GCodeHighlighter (needs to be added to the actual file)
-// GCodeHighlighter.highlightCodeLowPerf = (text, highlightedLine) => {
-//   // Simpler highlighting during transfers - only handle line highlights
-//   const lines = text.split('\n');
-//   return lines.map((line, i) => {
-//     const lineNum = i + 1;
-//     const isHighlighted = lineNum === highlightedLine;
-//     return `<div class="code-line${isHighlighted ? ' highlighted-line' : ''}">${line || ' '}</div>`;
-//   }).join('');
-// };
 
 export default React.memo(CodeEditor); // PERFORMANCE OPTIMIZATION: Memo the component
