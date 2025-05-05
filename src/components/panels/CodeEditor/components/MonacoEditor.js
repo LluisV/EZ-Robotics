@@ -1,9 +1,10 @@
+// src/components/panels/CodeEditor/components/MonacoEditor.js
 import React, { useRef, useEffect } from 'react';
 import { initializeMonaco, disposeMonacoEditor } from '../../../../utils/setupMonaco';
 
 /**
  * Monaco Editor component for G-code
- * Enhanced with proper worker configuration and memory management
+ * Enhanced with proper error handling and resource management
  */
 const MonacoEditor = ({
   code,
@@ -26,76 +27,110 @@ const MonacoEditor = ({
   useEffect(() => {
     if (!containerRef.current) return;
     
-    // Initialize Monaco with proper configuration
-    const monaco = initializeMonaco();
-    monacoRef.current = monaco;
+    let isMounted = true;
     
-    // Create editor with enhanced error handling
-    try {
-      const editorInstance = monaco.editor.create(containerRef.current, {
-        value: code || '',
-        language: 'gcode',
-        theme: 'gcode-theme',
-        automaticLayout: true,
-        folding: true,
-        lineNumbers: 'on',
-        scrollBeyondLastLine: false,
-        minimap: { 
-          enabled: true,
-          maxColumn: 80,
-          showSlider: "always"
-        },
-        // Performance options
-        wordWrap: 'on',
-        wrappingStrategy: 'advanced',
-        renderWhitespace: 'none',
-        renderControlCharacters: false,
-        renderIndentGuides: false,
-        renderValidationDecorations: 'on',
-        ...options
-      });
+    // Delay editor creation slightly to avoid React rendering conflicts
+    const initTimeout = setTimeout(() => {
+      if (!isMounted || !containerRef.current) return;
       
-      editorRef.current = editorInstance;
-      
-      // Add additional functionality to the editor instance
-      enhanceEditorInstance(editorInstance, monaco);
-      
-      // Call the onEditorDidMount callback if provided
-      if (onEditorDidMount) {
-        onEditorDidMount(editorInstance, monaco);
-      }
-      
-      // Register change handler
-      const changeDisposable = editorInstance.onDidChangeModelContent(() => {
-        if (onChange) {
-          onChange(editorInstance.getValue());
+      try {
+        // Initialize Monaco with proper configuration
+        const monaco = initializeMonaco();
+        monacoRef.current = monaco;
+        
+        // Create editor with enhanced error handling
+        const editorInstance = monaco.editor.create(containerRef.current, {
+          value: code || '',
+          language: 'gcode',
+          theme: 'gcode-theme',
+          automaticLayout: true,
+          folding: true,
+          lineNumbers: 'on',
+          scrollBeyondLastLine: false,
+          minimap: { 
+            enabled: true,
+            maxColumn: 80,
+            showSlider: "always"
+          },
+          // Performance options
+          wordWrap: 'on',
+          wrappingStrategy: 'advanced',
+          renderWhitespace: 'none',
+          renderControlCharacters: false,
+          renderIndentGuides: false,
+          renderValidationDecorations: 'on',
+          ...options
+        });
+        
+        editorRef.current = editorInstance;
+        
+        // Add additional functionality to the editor instance
+        enhanceEditorInstance(editorInstance, monaco);
+        
+        // Call the onEditorDidMount callback if provided
+        if (onEditorDidMount && isMounted) {
+          onEditorDidMount(editorInstance, monaco);
         }
-      });
+        
+        // Register change handler
+        const changeDisposable = editorInstance.onDidChangeModelContent(() => {
+          if (onChange && isMounted) {
+            onChange(editorInstance.getValue());
+          }
+        });
+        
+        // Store the disposable on the instance for cleanup
+        editorInstance._changeDisposable = changeDisposable;
+      } catch (err) {
+        console.warn("Error creating Monaco editor:", err);
+      }
+    }, 50); // Small delay to avoid React rendering conflicts
+    
+    // Cleanup on unmount - CRITICAL for preventing memory leaks
+    return () => {
+      isMounted = false;
+      clearTimeout(initTimeout);
       
-      // Cleanup on unmount - CRITICAL for preventing memory leaks
-      return () => {
-        // First dispose of our custom subscriptions
-        if (changeDisposable) {
+      if (editorRef.current) {
+        // Make sure to dispose of any stored disposables first
+        if (editorRef.current._changeDisposable) {
           try {
-            changeDisposable.dispose();
+            editorRef.current._changeDisposable.dispose();
           } catch (err) {
-            console.warn("Error disposing editor subscription:", err);
+            // Silently ignore disposal errors
+          }
+        }
+        
+        if (editorRef.current._cursorDisposable) {
+          try {
+            editorRef.current._cursorDisposable.dispose();
+          } catch (err) {
+            // Silently ignore disposal errors
           }
         }
         
         // Then dispose of the editor cleanly
         disposeMonacoEditor(editorRef.current);
         editorRef.current = null;
-      };
-    } catch (err) {
-      console.error("Error creating Monaco editor:", err);
-      return () => {};
-    }
+      }
+    };
   }, []);
   
   // Add custom methods to the editor instance
   const enhanceEditorInstance = (editor, monaco) => {
     if (!editor || !monaco) return;
+    
+    // Method to set editor value safely
+    editor.setValue = function(value) {
+      try {
+        const model = this.getModel();
+        if (model) {
+          model.setValue(value || '');
+        }
+      } catch (err) {
+        console.warn("Error setting editor value:", err);
+      }
+    };
     
     // Method to set diagnostics (errors/warnings)
     editor.setDiagnostics = (errors = [], warnings = []) => {
@@ -125,6 +160,17 @@ const MonacoEditor = ({
         monaco.editor.setModelMarkers(model, 'gcode-validation', [...errorMarkers, ...warningMarkers]);
       } catch (err) {
         console.warn("Error setting diagnostics:", err);
+      }
+    };
+    
+    // Method to reveal a line in the editor safely
+    editor.revealLineInCenter = function(lineNumber) {
+      try {
+        if (this.getModel() && lineNumber > 0) {
+          this.revealLineInCenterIfOutsideViewport(lineNumber);
+        }
+      } catch (err) {
+        console.warn("Error revealing line:", err);
       }
     };
     
@@ -179,18 +225,11 @@ const MonacoEditor = ({
     };
   };
   
-  // Update when selected line changes
+  // Update when selected line changes - wrapped in try/catch for safety
   useEffect(() => {
     if (selectedLine > 0 && editorRef.current) {
       try {
-        const visibleRanges = editorRef.current.getVisibleRanges();
-        const isLineVisible = visibleRanges.some(range => 
-          range.startLineNumber <= selectedLine && selectedLine <= range.endLineNumber
-        );
-        
-        if (!isLineVisible) {
-          editorRef.current.revealLineInCenter(selectedLine);
-        }
+        editorRef.current.revealLineInCenter(selectedLine);
       } catch (err) {
         console.warn("Error revealing selected line:", err);
       }

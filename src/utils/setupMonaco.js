@@ -1,9 +1,5 @@
-/**
- * Monaco editor environment configuration
- * Sets up worker paths and helps with correct initialization
- */
-
-// Import monaco editor
+// src/utils/setupMonaco.js
+// Import Monaco editor
 import * as monaco from 'monaco-editor';
 
 /**
@@ -204,39 +200,105 @@ export function registerGCodeLanguage() {
 }
 
 /**
- * Helper function to dispose of Monaco resources safely
+ * Silent error handler for Monaco Editor cancellation errors
+ * Prevents the React error overlay from showing these common errors
+ */
+export function setupMonacoErrorHandler() {
+  // Store the original console.error
+  const originalConsoleError = console.error;
+  
+  // Override console.error to filter out Monaco cancellation errors
+  console.error = function(...args) {
+    // Check if this is a Monaco cancellation error
+    if (
+      args[0] instanceof Error && 
+      args[0].name === 'Canceled' &&
+      args[0].message === 'Canceled'
+    ) {
+      // Ignore the Monaco cancellation error
+      return;
+    }
+    
+    // For non-Monaco errors or different Monaco errors, use the original console.error
+    originalConsoleError.apply(console, args);
+  };
+  
+  // Also intercept unhandled promise rejections from Monaco
+  window.addEventListener('unhandledrejection', event => {
+    if (
+      event.reason && 
+      event.reason.name === 'Canceled' && 
+      event.reason.message === 'Canceled'
+    ) {
+      // Prevent the error from propagating
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  });
+}
+
+/**
+ * Improved Monaco editor disposal function
+ * This helps prevent the "Canceled" errors by properly cleaning up resources
  * @param {Object} editor - Monaco editor instance
  */
 export function disposeMonacoEditor(editor) {
-  if (editor) {
+  if (!editor) return;
+  
+  try {
+    // Ensure any delayed operations are canceled first
+    if (editor._standaloneKeybindingService) {
+      try {
+        editor._standaloneKeybindingService.dispose();
+      } catch (e) {
+        // Silently handle disposal errors
+      }
+    }
+    
+    // Remove all event listeners and models first
     try {
-      // Cancel any pending operations
-      if (editor._lastOperation && typeof editor._lastOperation.cancel === 'function') {
-        editor._lastOperation.cancel();
-      }
-      
-      // Get the model associated with the editor
-      const model = editor.getModel();
-      
-      // Remove any markers from the model to avoid delayed updates
-      if (model && monaco.editor) {
-        monaco.editor.setModelMarkers(model, 'gcode-validation', []);
-      }
-      
-      // Dispose the model first
-      if (model) {
-        try {
-          model.dispose();
-        } catch (err) {
-          console.warn("Error disposing model:", err);
+      const domNode = editor.getDomNode();
+      if (domNode) {
+        // Clone the node and replace it to remove all event listeners
+        const parent = domNode.parentNode;
+        if (parent) {
+          const clone = domNode.cloneNode(true);
+          parent.replaceChild(clone, domNode);
         }
       }
-      
-      // Then dispose the editor
-      editor.dispose();
-    } catch (err) {
-      console.warn("Error disposing Monaco editor:", err);
+    } catch (e) {
+      // Silently handle DOM errors
     }
+    
+    // Get the model associated with the editor
+    const model = editor.getModel();
+    
+    // Remove any markers from the model
+    if (model && monaco.editor) {
+      try {
+        monaco.editor.setModelMarkers(model, 'gcode-validation', []);
+      } catch (e) {
+        // Silently handle marker errors
+      }
+    }
+    
+    // Dispose the model first
+    if (model) {
+      try {
+        model.dispose();
+      } catch (e) {
+        // Silently handle model disposal errors
+      }
+    }
+    
+    // Then dispose the editor with error handling
+    try {
+      editor.dispose();
+    } catch (e) {
+      // Silently handle editor disposal errors
+    }
+  } catch (err) {
+    // Catch any remaining errors to avoid crashing the app
   }
 }
 
@@ -244,6 +306,10 @@ export function disposeMonacoEditor(editor) {
  * Initialize Monaco with all required configuration
  */
 export function initializeMonaco() {
+  // Set up the error handler first
+  setupMonacoErrorHandler();
+  
+  // Then proceed with normal initialization
   setupMonacoEnvironment();
   registerGCodeLanguage();
   
@@ -257,5 +323,6 @@ export default {
   initializeMonaco,
   setupMonacoEnvironment,
   registerGCodeLanguage,
-  disposeMonacoEditor
+  disposeMonacoEditor,
+  setupMonacoErrorHandler
 };
