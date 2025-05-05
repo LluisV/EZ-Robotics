@@ -1,4 +1,4 @@
-/* Enhanced G-Code Editor styles */
+/* Enhanced G-Code Editor styles with Monaco Editor support */
 .gcode-editor-panel {
   --editor-bg: var(--dv-activegroup-hiddenpanel-tab-background-color, #1c1c2c);
   --editor-fg: var(--dv-activegroup-visiblepanel-tab-color, #e0e0e0);
@@ -75,17 +75,24 @@
 }
 
 .toolbar-btn {
-  width: 50px;
-  height: 50px;
-  padding: 10px;
+  width: 34px;
+  height: 34px;
+  padding: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
+  background-color: transparent;
+  border: none;
+  color: var(--editor-fg);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  position: relative;
 }
 
 .toolbar-btn svg {
-  width: 34px;
-  height: 34px;
+  width: 20px;
+  height: 20px;
 }
 
 .toolbar-btn:hover {
@@ -213,284 +220,49 @@
   font-family: inherit;
 }
 
-.apply-btn {
-  grid-column: 1 / -1;
-  background-color: var(--editor-btn-primary);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 6px 12px;
-  cursor: pointer;
-  font-family: inherit;
-  margin-top: 5px;
-}
-
-.apply-btn:hover {
-  filter: brightness(1.1);
-}
-
-/* Editor container */
-.editor-container {
-  display: flex;
-  flex: 1;
-  overflow-y: auto;  /* Make the container scrollable vertically */
-  overflow-x: hidden;
+/* MONACO EDITOR CONTAINER - NEW */
+.monaco-editor-container {
+  flex-grow: 1;
+  min-height: 200px;
   position: relative;
+  overflow: hidden;
+  border-bottom: var(--editor-border);
 }
 
-.line-numbers {
-  width: 54px;
-  background-color: var(--editor-line-numbers-bg);
-  color: var(--editor-line-numbers-fg);
-  padding: 8px 0;
-  text-align: right;
-  user-select: none;
-  overflow: hidden;  /* Remove scrolling from line numbers */
-  font-variant-numeric: tabular-nums;
-  border-right: var(--editor-border);
-  box-sizing: border-box;
-  font-size: 14px;
-  position: sticky;  /* Keep line numbers visible while scrolling */
-  left: 0;
-  z-index: 2;
-  height: fit-content;  /* Allow it to grow with content */
-  min-height: 100%;
-}
-
-.line-number {
-  padding: 0 8px;
-  height: 20px;
-  line-height: 20px;
-  cursor: pointer;
-  transition: all 0.1s ease;
-}
-
-.line-number:hover {
-  color: var(--editor-fg);
-  background-color: var(--editor-btn-hover);
-}
-
-.line-number.active {
-  color: var(--editor-fg);
-  background-color: var(--editor-line-highlight);
-  border-right: 2px solid var(--editor-btn-active);
-}
-
-.line-number.error {
-  color: var(--error-color);
-  position: relative;
-}
-
-.line-number.error::before {
-  content: "⚠";
-  position: absolute;
-  left: 4px;
-  font-size: 10px;
-}
-
-.line-number.warning {
-  color: var(--warning-color);
-  position: relative;
-}
-
-.line-number.warning::before {
-  content: "!";
-  position: absolute;
-  left: 6px;
-  font-size: 10px;
-  font-weight: bold;
-}
-
-.editor-container::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.editor-container::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.editor-container::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
-}
-
-.editor-container::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(255, 255, 255, 0.2);
-}
-
-.editor-wrapper {
-  flex: 1;
-  position: relative;
-  overflow-x: auto;    /* Keep horizontal scrolling for long lines */
-  overflow-y: hidden;  /* Remove vertical scrolling from editor wrapper */
-  height: fit-content;  /* Allow it to grow with content */
-  min-height: 100%;
-}
-
-.transform-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  border-radius: 6px;
-  background-color: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.preview-btn {
-  background-color: rgba(255, 255, 255, 0.08);
-  color: var(--editor-fg);
-}
-
-.preview-btn:hover {
-  background-color: rgba(255, 255, 255, 0.12);
-}
-
-.apply-btn {
-  background-color: var(--editor-btn-primary);
-  color: white;
-}
-
-.apply-btn:hover {
-  filter: brightness(1.1);
-}
-
-.reset-btn {
-  background-color: rgba(255, 100, 100, 0.1);
-  color: rgba(255, 100, 100, 0.8);
-}
-
-.reset-btn:hover {
-  background-color: rgba(255, 100, 100, 0.2);
-}
-
-/* Responsive adjustments */
-@media (max-width: 1200px) {
-  .transform-controls {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 768px) {
-  .transform-controls {
-    grid-template-columns: 1fr;
-  }
-}
-
-.transform-actions {
-  grid-column: 1 / -1;
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.transform-actions button {
-  padding: 6px 14px;
-  border-radius: 4px;
-  font-size: 13px;
-  font-weight: 500;
-  border: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.transform-section h4 {
-  margin: 0 0 8px 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--dv-paneview-active-outline-color, var(--accent-blue));
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  padding-bottom: 4px;
-}
-
-.line-numbers::-webkit-scrollbar {
-  display: none;
-}
-
-.editor-textarea,
-.editor-highlighting {
-  margin: 0;
-  border: 0;
-  padding: 8px;
-  font-family: inherit;
-  font-size: inherit;
-  line-height: 20px;
-  tab-size: 4;
-  white-space: pre;
-  word-wrap: normal;
-  background: transparent;
-  position: relative;  /* Change from absolute to relative */
+.monaco-editor-wrapper {
+  width: 100%;
   height: 100%;
+  overflow: hidden;
+}
+
+/* Ensure the Monaco editor is properly sized */
+.monaco-editor {
   width: 100%;
-  box-sizing: border-box;
+  height: 100%;
 }
 
-
-.editor-textarea {
-  position: absolute;  /* Keep this absolute */
-  top: 0;
-  left: 0;
-  resize: none;
-  color: transparent;
-  caret-color: var(--editor-fg);
-  z-index: 2;
-  overflow: hidden;  /* Hide scrollbars on the textarea itself */
+/* Customize Monaco editor */
+.monaco-editor .margin,
+.monaco-editor .minimap {
+  background-color: var(--editor-bg) !important;
 }
 
-.editor-textarea:focus {
-  outline: none;
+.monaco-editor .editor-scrollable {
+  background-color: var(--editor-bg) !important;
 }
 
-.editor-highlighting {
-  pointer-events: none;
-  color: var(--editor-fg);
-  z-index: 1;
+/* Custom execution line highlighting */
+.executing-line {
+  background-color: rgba(76, 175, 80, 0.1) !important;
+  border-left: 3px solid var(--execution-color, #4CAF50) !important;
 }
 
-.code-line {
-  min-height: 20px;
-  line-height: 20px;
-  width: fit-content;
-  min-width: 100%;
-}
-
-.highlighted-line {
-  background-color: var(--editor-line-highlight);
-  display: block;
-  width: 100%;
-}
-
-.error-line {
-  text-decoration: wavy underline var(--error-color);
-  text-decoration-skip-ink: none;
-}
-
-.warning-line {
-  text-decoration: wavy underline var(--warning-color);
-  text-decoration-skip-ink: none;
-}
-
-/* Syntax highlighting */
-.code-comment {
-  color: var(--syntax-comment);
-  font-style: italic;
-}
-
-.code-command {
-  color: var(--syntax-command);
-  font-weight: bold;
-}
-
-.code-param {
-  color: var(--syntax-param);
-}
-
-.code-value {
-  color: var(--syntax-value);
+.executing-line-glyph {
+  background-color: var(--execution-color, #4CAF50) !important;
+  border-radius: 50%;
+  width: 8px !important;
+  height: 8px !important;
+  margin-left: 4px;
 }
 
 /* Editor footer */
@@ -571,418 +343,22 @@
   gap: 4px;
 }
 
-/* Custom scrollbars */
-.editor-wrapper::-webkit-scrollbar,
-.line-numbers::-webkit-scrollbar,
-.transform-panel::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.editor-wrapper::-webkit-scrollbar-track,
-.line-numbers::-webkit-scrollbar-track,
-.transform-panel::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.editor-wrapper::-webkit-scrollbar-thumb,
-.line-numbers::-webkit-scrollbar-thumb,
-.transform-panel::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
-}
-
-.editor-wrapper::-webkit-scrollbar-thumb:hover,
-.line-numbers::-webkit-scrollbar-thumb:hover,
-.transform-panel::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(255, 255, 255, 0.2);
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-  .transform-controls {
-    grid-template-columns: 1fr;
-  }
-  
-  .toolbar-btn {
-    width: 32px;
-    height: 32px;
-  }
-  
-  .toolbar-btn svg {
-    width: 16px;
-    height: 16px;
-  }
-}
-
-/* Tooltip styling */
-[data-tooltip] {
-  position: relative;
-}
-
-[data-tooltip]:hover::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  bottom: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: rgba(0, 0, 0, 0.8);
-  color: white;
-  font-size: 12px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  white-space: nowrap;
-  z-index: 100;
-  pointer-events: none;
-}
-
+/* Transfer progress container */
 .transfer-progress-container {
   padding: 8px 10px;
-  background-color: var(--editor-bg);
-  border-bottom: var(--editor-border);
-  margin-bottom: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  background-color: rgba(33, 150, 243, 0.05);
+  border-radius: 6px;
+  border: 1px solid rgba(33, 150, 243, 0.2);
+  margin: 8px;
 }
 
-.progress-bar {
+.transfer-status {
+  display: flex;
+  align-items: center;
   width: 100%;
-  height: 8px;
-  background-color: var(--editor-line-numbers-bg);
-  border-radius: 4px;
-  overflow: hidden;
-  position: relative;
-}
-
-.progress-fill {
-  height: 100%;
-  background-color: var(--editor-btn-primary);
-  transition: width 0.3s ease;
-  border-radius: 4px;
-}
-
-.progress-text {
-  font-size: 11px;
-  color: var(--editor-fg);
-  text-align: right;
-  opacity: 0.8;
-  font-variant-numeric: tabular-nums;
-}
-
-.transfer-error {
-  display: flex;
   justify-content: space-between;
-  align-items: center;
-  padding: 5px 8px;
-  background-color: rgba(var(--error-color-rgb, 255, 82, 82), 0.1);
-  border-radius: 4px;
-  margin-top: 4px;
-  border-left: 2px solid var(--error-color);
 }
 
-.error-message {
-  color: var(--error-color);
-  font-size: 12px;
-}
-
-.retry-btn {
-  background-color: var(--editor-btn-primary);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 3px 8px;
-  font-size: 11px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  font-family: inherit;
-}
-
-.retry-btn:hover {
-  filter: brightness(1.1);
-}
-
-.retry-btn:active {
-  transform: translateY(1px);
-}
-
-/* Add status indicator for transfer */
-.transfer-status {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--editor-fg);
-}
-
-.status-indicator {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background-color: var(--editor-btn-primary);
-  animation: pulse 1.5s infinite;
-}
-
-@keyframes pulse {
-  0% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.4;
-  }
-  100% {
-    opacity: 1;
-  }
-}
-
-/* Enhanced toolbar styles - more IDE-like */
-.toolbar-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  background-color: transparent;
-  border: none;
-  color: var(--editor-fg);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.12s ease;
-  position: relative;
-  margin: 0 1px;
-}
-
-.toolbar-btn:hover {
-  background-color: rgba(255, 255, 255, 0.08);
-}
-
-.toolbar-btn:active {
-  background-color: rgba(255, 255, 255, 0.15);
-  transform: translateY(1px);
-}
-
-.toolbar-btn.active {
-  background-color: rgba(var(--editor-btn-active-rgb, 65, 105, 225), 0.15);
-  box-shadow: inset 0 -2px 0 var(--editor-btn-active, royalblue);
-}
-
-.toolbar-btn svg {
-  width: 26px;
-  height: 26px;
-}
-
-/* Remove tooltip */
-[data-tooltip]:hover::after {
-  display: none;
-}
-
-/* Action button styles with theme colors */
-.action-btn {
-  position: relative;
-}
-
-.action-btn:after {
-  content: '';
-  position: absolute;
-  bottom: -2px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 0;
-  height: 2px;
-  transition: width 0.2s ease;
-}
-
-.action-btn:hover:after {
-  width: 80%;
-}
-
-.action-btn:hover svg {
-  filter: brightness(1.2);
-}
-
-/* Button states */
-.toolbar-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.toolbar-section {
-  display: flex;
-  align-items: center;
-  margin: 0 2px;
-  padding: 0 2px;
-}
-
-:root {
-  /* Use theme variables with fallbacks */
-  --play-color: var(--editor-btn-primary, #4CAF50);
-  --pause-color: var(--warning-color, #FF9800);
-  --resume-color: var(--editor-btn-primary, #2196F3);
-  --stop-color: var(--error-color, #F44336);
-  
-  /* Convert main colors to RGB for transparency operations */
-  --editor-btn-active-rgb: 65, 105, 225;
-}
-
-/* Enhanced transform panel styles - IDE-like */
-.transform-panel {
-  border-bottom: var(--editor-border);
-  background-color: var(--editor-bg);
-  padding: 12px;
-  max-height: 400px;
-  overflow-y: auto;
-}
-
-.transform-controls {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-}
-
-.transform-section {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px;
-  border-radius: 4px;
-  background-color: rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.transform-section h4 {
-  margin: 0 0 6px 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--dv-paneview-active-outline-color, var(--accent-blue));
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  padding-bottom: 4px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-}
-
-/* Make transform panels stack vertically on smaller screens */
-@media (max-width: 1200px) {
-  .transform-controls {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 768px) {
-  .transform-controls {
-    grid-template-columns: 1fr;
-  }
-}
-
-.transform-actions {
-  grid-column: 1 / -1;
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.transform-btn {
-  padding: 5px 10px;
-  border-radius: 3px;
-  font-size: 12px;
-  font-weight: 500;
-  border: none;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  min-width: 70px;
-  max-width: 90px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-.transform-btn:active {
-  transform: translateY(1px);
-  box-shadow: 0 0 1px rgba(0, 0, 0, 0.2);
-}
-
-.preview-btn {
-  background-color: var(--editor-bg);
-  color: var(--editor-fg);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.preview-btn:hover {
-  background-color: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-.apply-btn {
-  background-color: var(--editor-btn-primary);
-  color: white;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-}
-
-.apply-btn:hover {
-  filter: brightness(1.1);
-}
-
-.reset-btn {
-  background-color: transparent;
-  color: var(--error-color, #F44336);
-  border: 1px solid rgba(var(--error-color-rgb, 244, 67, 54), 0.3);
-}
-
-.reset-btn:hover {
-  background-color: rgba(var(--error-color-rgb, 244, 67, 54), 0.05);
-  border-color: rgba(var(--error-color-rgb, 244, 67, 54), 0.5);
-}
-
-/* Responsive adjustments */
-@media (max-width: 1200px) {
-  .transform-controls {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 768px) {
-  .transform-controls {
-    grid-template-columns: 1fr;
-  }
-}
-
-.transfer-container {
-  position: relative;
-}
-
-/* Fix for transfer controls positioning and styling */
-
-.transfer-container {
-  position: relative;
-  width: 100%;
-}
-
-.transfer-progress-container {
-  padding: 8px 10px;
-  background-color: var(--editor-bg);
-  border-bottom: var(--editor-border);
-  margin-bottom: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.transfer-status {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  justify-content: space-between; /* This ensures the status text and controls stay apart */
-}
-
-.transfer-controls {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto; /* This pushes the controls to the right */
-  flex-shrink: 0; /* Prevent controls from shrinking */
-}
-
-/* Status indicator with text that can shrink */
 .status-indicator-wrapper {
   display: flex;
   align-items: center;
@@ -998,7 +374,54 @@
   text-overflow: ellipsis;
 }
 
-/* Button styles for transfer controls */
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--transfer-color, #2196F3);
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Progress bars */
+.progress-bar {
+  width: 100%;
+  height: 6px;
+  background-color: rgba(33, 150, 243, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+  margin-top: 6px;
+}
+
+.progress-fill {
+  height: 100%;
+  background-color: var(--transfer-color, #2196F3);
+  transition: width 0.3s ease;
+  border-radius: 4px;
+  opacity: 0.8;
+}
+
+/* Transfer controls */
+.transfer-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 .transfer-controls .toolbar-btn {
   display: flex;
   align-items: center;
@@ -1017,50 +440,6 @@
   border-color: rgba(255, 255, 255, 0.2);
 }
 
-.transfer-controls .pause-btn:hover {
-  color: var(--pause-color);
-  border-color: var(--pause-color);
-}
-
-.transfer-controls .resume-btn:hover {
-  color: var(--resume-color);
-  border-color: var(--resume-color);
-}
-
-.transfer-controls .stop-btn:hover {
-  color: var(--stop-color);
-  border-color: var(--stop-color);
-}
-
-/* Progress bar styling improvements */
-.progress-bar {
-  width: 100%;
-  height: 8px;
-  background-color: rgba(0, 0, 0, 0.2);
-  border-radius: 4px;
-  overflow: hidden;
-  position: relative;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-.progress-fill {
-  height: 100%;
-  background-color: var(--editor-btn-primary);
-  transition: width 0.3s ease;
-  border-radius: 4px;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.1);
-}
-
-.progress-text {
-  font-size: 11px;
-  color: var(--editor-fg);
-  text-align: right;
-  opacity: 0.8;
-  font-variant-numeric: tabular-nums;
-  padding-right: 2px;
-}
-
-/* Error message styling */
 .transfer-error {
   display: flex;
   justify-content: space-between;
@@ -1097,79 +476,55 @@
   filter: brightness(1.1);
 }
 
-/* Add these styles to the existing code-editor.css file */
-
-/* GRBL-specific syntax highlighting */
-.code-grbl-command {
-  color: var(--syntax-grbl-command, #E06C75);
-  font-weight: bold;
+/* Execution container styles */
+.execution-container {
+  margin: 8px;
 }
 
-.code-grbl-realtime {
-  color: var(--syntax-grbl-realtime, #E5C07B);
-  font-weight: bold;
+.execution-progress-container {
+  padding: 8px 10px;
+  background-color: rgba(76, 175, 80, 0.05);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  border: 1px solid rgba(76, 175, 80, 0.2);
 }
 
-/* Right-click context menu */
-.editor-context-menu {
-  display: none;
-  position: absolute;
-  background-color: var(--editor-bg);
-  border: 1px solid var(--editor-border-color, rgba(255, 255, 255, 0.1));
-  border-radius: 4px;
-  padding: 0;
-  min-width: 150px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
-  z-index: 1000;
-}
-
-.editor-context-menu.show {
-  display: block;
-}
-
-.editor-context-menu ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.editor-context-menu li {
-  padding: 8px 12px;
-  cursor: pointer;
-  color: var(--editor-fg);
-  font-size: 13px;
-}
-
-.editor-context-menu li:hover {
-  background-color: var(--editor-btn-hover, rgba(255, 255, 255, 0.08));
-}
-
-/* Common GRBL parameters */
-.editor-status-bar .grbl-state {
+.execution-status {
   display: flex;
   align-items: center;
-  padding: 0 8px;
-  background-color: rgba(65, 105, 225, 0.15);
-  color: var(--editor-fg);
-  border-radius: 3px;
-  font-size: 11px;
-  margin-left: 8px;
+  margin-bottom: 6px;
 }
 
-.editor-status-bar .grbl-state.idle {
-  background-color: rgba(76, 175, 80, 0.15);
+.status-indicator.execution-indicator {
+  background-color: var(--execution-color, #4CAF50);
+  animation: execution-pulse 1.5s infinite;
 }
 
-.editor-status-bar .grbl-state.run {
-  background-color: rgba(33, 150, 243, 0.15);
+@keyframes execution-pulse {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
-.editor-status-bar .grbl-state.hold {
-  background-color: rgba(255, 152, 0, 0.15);
+.execution-bar {
+  background-color: rgba(76, 175, 80, 0.1);
+  height: 6px;
 }
 
-.editor-status-bar .grbl-state.alarm {
-  background-color: rgba(244, 67, 54, 0.15);
+.execution-fill {
+  background-color: var(--execution-color, #4CAF50);
+  height: 100%;
+  transition: width 0.3s ease;
+  opacity: 0.8;
 }
 
 /* GRBL specific metadata panel */
@@ -1225,136 +580,6 @@
   border: 1px solid rgba(33, 150, 243, 0.3);
 }
 
-.code-implied {
-  opacity: 0.5;
-  font-style: italic;
-  color: var(--syntax-implied, #767676);
-  font-size: 0.9em;
-  padding-right: 4px;
-}
-
-/* Add a subtle background to lines with implied moves */
-.implied-move {
-  background-color: rgba(var(--implied-move-bg-rgb, 80, 80, 255), 0.03);
-}
-
-/* Enhanced parameter highlighting */
-.code-param {
-  color: var(--syntax-param, #9CDCFE);
-  font-weight: normal;
-}
-
-.code-value {
-  color: var(--syntax-value, #B5CEA8);
-  font-weight: normal;
-}
-
-/* Override for dark themes */
-.theme-dark .code-implied,
-.theme-dracula .code-implied,
-.theme-abyss .code-implied {
-  color: #606060;
-}
-
-/* Override for light themes */
-.theme-light .code-implied,
-.theme-light-spaced .code-implied {
-  color: #A0A0A0;
-}
-
-/* Add these styles to your code-editor.css file */
-
-/* Style for implied G-code moves - just color the background differently */
-.implied-move {
-  background-color: rgba(65, 105, 225, 0.08); /* Subtle blue background */
-}
-
-/* Remove the code-implied class that was adding visible text */
-.code-implied {
-  display: none; /* Hide this completely since it causes cursor issues */
-}
-
-/* Optional: Add a tooltip to show which G command is implied */
-.line-number.implied-hint::before {
-  content: attr(data-implied-command); /* Will show exactly "G1", "G2", etc. with no dots */
-  position: absolute;
-  left: 4px;
-  top: 1px;
-  font-size: 8px;
-  opacity: 0.8;
-  color: rgba(65, 105, 225, 0.9);
-  font-weight: bold;
-}
-
-/* Execution tracking styles */
-.execution-tracker {
-  margin-top: 6px;
-}
-
-.execution-status {
-  display: flex;
-  align-items: center;
-  margin-bottom: 4px;
-}
-
-.status-indicator.execution-indicator {
-  background-color: var(--execution-color, #4CAF50);
-  animation: execution-pulse 1.5s infinite;
-}
-
-@keyframes execution-pulse {
-  0% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.6;
-    transform: scale(0.8);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.execution-bar {
-  background-color: rgba(76, 175, 80, 0.1);
-}
-
-.execution-fill {
-  background-color: var(--execution-color, #4CAF50);
-  opacity: 0.7;
-}
-
-/* Different colors for different states */
-.execution-indicator.idle {
-  background-color: var(--idle-color, #4CAF50);
-}
-
-.execution-indicator.running {
-  background-color: var(--running-color, #2196F3);
-}
-
-.execution-indicator.holding {
-  background-color: var(--holding-color, #FF9800);
-}
-
-.execution-indicator.alarm {
-  background-color: var(--alarm-color, #F44336);
-}
-
-/* Executed line highlight in editor */
-.executing-line {
-  background-color: rgba(76, 175, 80, 0.15) !important;
-  border-left: 3px solid rgba(76, 175, 80, 0.5) !important;
-}
-
-/* Add a small gap between transfer progress and execution progress */
-.execution-tracker {
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
-  padding-top: 6px;
-}
-
 /* Define CSS variables for color themes */
 :root {
   /* Execution colors */
@@ -1363,221 +588,150 @@
   --running-color: #2196F3;
   --holding-color: #FF9800;
   --alarm-color: #F44336;
-}
-
-/* Enhanced status text */
-.execution-status .status-text {
-  font-size: 0.85em;
-  opacity: 0.85;
-}
-
-/* Styles for executed line highlighting */
-
-/* Line number indication for executed line */
-.line-number.executed {
-  color: var(--execution-color, #4CAF50) !important;
-  background-color: rgba(76, 175, 80, 0.1);
-  border-right: 3px solid var(--execution-color, #4CAF50) !important;
-  font-weight: bold;
-}
-
-/* Special content highlighting for executed line */
-.executing-line {
-  background-color: rgba(76, 175, 80, 0.05);
-  border-left: 3px solid var(--execution-color, #4CAF50);
-  position: relative;
-}
-
-/* Add a subtle animation for the currently executing line */
-@keyframes executing-pulse {
-  0% {
-    border-left-color: rgba(76, 175, 80, 0.7);
-  }
-  50% {
-    border-left-color: rgba(76, 175, 80, 0.3);
-  }
-  100% {
-    border-left-color: rgba(76, 175, 80, 0.7);
-  }
-}
-
-.executing-line {
-  animation: executing-pulse 2s infinite;
-}
-
-/* Make sure execution highlighting takes precedence over regular highlighting */
-.code-line.executing-line.error-line {
-  border-left: 3px solid var(--execution-color, #4CAF50) !important;
-}
-
-.code-line.executing-line.warning-line {
-  border-left: 3px solid var(--execution-color, #4CAF50) !important;
-}
-
-/* Status indicator for execution */
-.status-indicator.execution-indicator {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-right: 6px;
-  background-color: var(--execution-color, #4CAF50);
-}
-
-/* Add an execution state animation */
-.status-indicator.execution-indicator.executing {
-  animation: status-pulse 1.5s infinite;
-}
-
-@keyframes status-pulse {
-  0% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.2);
-    opacity: 0.7;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-/* Execution container styles - completely separated from transfer progress */
-.execution-container {
-  margin-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  padding-top: 8px;
-}
-
-.execution-progress-container {
-  padding: 8px 10px;
-  background-color: rgba(76, 175, 80, 0.05);
-  border-radius: 6px;
-  margin-bottom: 8px;
-  border: 1px solid rgba(76, 175, 80, 0.2);
-}
-
-.execution-status {
-  display: flex;
-  align-items: center;
-  margin-bottom: 6px;
-}
-
-.status-indicator.execution-indicator {
-  background-color: var(--execution-color, #4CAF50);
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-right: 6px;
-  animation: execution-pulse 1.5s infinite;
-}
-
-@keyframes execution-pulse {
-  0% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.6;
-    transform: scale(0.8);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.execution-bar {
-  background-color: rgba(76, 175, 80, 0.1);
-  height: 6px;
-}
-
-.execution-fill {
-  background-color: var(--execution-color, #4CAF50);
-  height: 100%;
-  transition: width 0.3s ease;
-  opacity: 0.8;
-}
-
-/* Line number indication for executed line */
-.line-number.executed {
-  color: var(--execution-color, #4CAF50) !important;
-  background-color: rgba(76, 175, 80, 0.1);
-  border-right: 3px solid var(--execution-color, #4CAF50) !important;
-  font-weight: bold;
-}
-
-/* Special content highlighting for executed line */
-.executing-line {
-  background-color: rgba(76, 175, 80, 0.05);
-  border-left: 3px solid var(--execution-color, #4CAF50);
-  position: relative;
-}
-
-/* Add a subtle animation for the currently executing line */
-@keyframes executing-pulse {
-  0% {
-    border-left-color: rgba(76, 175, 80, 0.7);
-  }
-  50% {
-    border-left-color: rgba(76, 175, 80, 0.3);
-  }
-  100% {
-    border-left-color: rgba(76, 175, 80, 0.7);
-  }
-}
-
-.executing-line {
-  animation: executing-pulse 2s infinite;
-}
-
-/* Make sure execution highlighting takes precedence over regular highlighting */
-.code-line.executing-line.error-line {
-  border-left: 3px solid var(--execution-color, #4CAF50) !important;
-}
-
-.code-line.executing-line.warning-line {
-  border-left: 3px solid var(--execution-color, #4CAF50) !important;
-}
-
-/* Define CSS variables for color themes */
-:root {
-  /* Execution colors */
-  --execution-color: #4CAF50;
-  --idle-color: #4CAF50;
-  --running-color: #2196F3;
-  --holding-color: #FF9800;
-  --alarm-color: #F44336;
-}
-
-/* Enhanced status text */
-.execution-status .status-text {
-  font-size: 0.9em;
-}
-
-/* Give transfer progress container a distinct background */
-.transfer-progress-container {
-  background-color: rgba(33, 150, 243, 0.05);
-  border-radius: 6px;
-  border: 1px solid rgba(33, 150, 243, 0.2);
-}
-
-/* Different color for transfer progress bar */
-.progress-bar {
-  background-color: rgba(33, 150, 243, 0.1);
-  height: 6px;
-}
-
-.progress-fill {
-  background-color: var(--transfer-color, #2196F3);
-  height: 100%;
-  transition: width 0.3s ease;
-  opacity: 0.8;
-}
-
-:root {
   --transfer-color: #2196F3;
+  
+  /* Action button colors */
+  --play-color: var(--editor-btn-primary, #4CAF50);
+  --pause-color: var(--warning-color, #FF9800);
+  --resume-color: var(--editor-btn-primary, #2196F3);
+  --stop-color: var(--error-color, #F44336);
+  
+  /* Convert main colors to RGB for transparency operations */
+  --editor-btn-active-rgb: 65, 105, 225;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+  .transform-controls {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .transform-controls {
+    grid-template-columns: 1fr;
+  }
+  
+  .toolbar-btn {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .toolbar-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+/* Transform section styles */
+.transform-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 4px;
+  background-color: rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.transform-section h4 {
+  margin: 0 0 6px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 4px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.transform-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.transform-btn {
+  padding: 5px 10px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-width: 70px;
+  max-width: 90px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.preview-btn {
+  background-color: var(--editor-bg);
+  color: var(--editor-fg);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.preview-btn:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.apply-btn {
+  background-color: var(--editor-btn-primary);
+  color: white;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.apply-btn:hover {
+  filter: brightness(1.1);
+}
+
+.reset-btn {
+  background-color: transparent;
+  color: var(--error-color, #F44336);
+  border: 1px solid rgba(244, 67, 54, 0.3);
+}
+
+.reset-btn:hover {
+  background-color: rgba(244, 67, 54, 0.05);
+  border-color: rgba(244, 67, 54, 0.5);
+}
+
+/* Loading indicator for large file operations */
+.editor-loading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.editor-loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  border-top-color: var(--editor-btn-primary);
+  animation: spin 1s linear infinite;
+}
+
+.editor-loading-message {
+  color: white;
+  font-size: 14px;
+}
+
+@keyframes spin {
+  100% {
+    transform: rotate(360deg);
+  }
 }

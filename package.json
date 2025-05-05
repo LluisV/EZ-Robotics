@@ -9,6 +9,8 @@
     "@testing-library/user-event": "^13.5.0",
     "dockview": "^4.2.1",
     "dockview-core": "^4.2.1",
+    "monaco-editor": "^0.52.2",
+    "monaco-editor-webpack-plugin": "^7.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-scripts": "^5.0.1",

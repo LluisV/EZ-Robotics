@@ -1,24 +1,23 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import '../../../styles/code-editor.css'; // Use the existing CSS file
+import '../../../styles/code-editor.css';
 import { useGCode } from '../../../contexts/GCodeContext';
-import EnhancedGCodeSender from '../../../utils/GCodeSender';  
+import EnhancedGCodeSender from '../../../utils/GCodeSender';
 import gCodeSerialHelper from '../../../utils/GCodeSerialHelper';
 import GCodeValidator from './services/GCodeValidator';
 import GrblMetadata from './components/GrblMetadata';
+import { disposeMonacoEditor } from '../../../utils/setupMonaco';
 
 // Import UI components
 import EditorHeader from './components/EditorHeader';
 import EditorFooter from './components/EditorFooter';
 import TransformPanel from './components/TransformPanel';
-import TransferProgress from './components/TransferProgress';  // ONLY for transfer progress
-import ExecutionTracker from './components/ExecutionTracker';  // NEW: Separate component for execution tracking
-import CodeEditor from './components/CodeEditor';
+import TransferProgress from './components/TransferProgress';
+import ExecutionTracker from './components/ExecutionTracker';
+import MonacoEditor from './components/MonacoEditor'; // Monaco-based editor
 
 /**
  * Enhanced G-Code Editor with GRBL/FluidNC format support and execution tracking
- * Shows G-code exactly as it is without format conversion
- * 
- * PERFORMANCE OPTIMIZATION: Reduces UI updates during G-code transmission
+ * PERFORMANCE OPTIMIZATION: Uses Monaco Editor for efficient rendering of large files
  */
 const CodeEditorPanel = () => {
   // Default basic G-code example
@@ -32,34 +31,31 @@ const CodeEditorPanel = () => {
   const [fileName, setFileName] = useState('untitled.gcode');
   const [currentLine, setCurrentLine] = useState(1);
   const [currentColumn, setCurrentColumn] = useState(1);
-  const [highlightedLine, setHighlightedLine] = useState(1);
   const [totalLines, setTotalLines] = useState(0);
   const [fileSize, setFileSize] = useState('0 B');
   const [modified, setModified] = useState(false);
   const [errors, setErrors] = useState([]);
   const [warnings, setWarnings] = useState([]);
-  const [transformMode, setTransformMode] = useState(null); // 'scale', 'move', 'rotate'
+  const [transformMode, setTransformMode] = useState(null);
   const [statusMessage, setStatusMessage] = useState('');
   const [isPaused, setIsPaused] = useState(false);
   const [isTransferring, setIsTransferring] = useState(false);
   const [transferProgress, setTransferProgress] = useState(0);
   const [transferError, setTransferError] = useState(null);
-  const [lastProgress, setLastProgress] = useState(0); // Progress tracking for logging
-  const [codeFormat, setCodeFormat] = useState('unknown'); // 'grbl' or 'standard' (for display only)
+  const [lastProgress, setLastProgress] = useState(0);
+  const [codeFormat, setCodeFormat] = useState('unknown');
   const [showMetadata, setShowMetadata] = useState(true);
   
-  // Execution tracking state - now completely separate from transfer
+  // Execution tracking state
   const [isExecuting, setIsExecuting] = useState(false);
   const [executedLine, setExecutedLine] = useState(0);
   const [executionProgress, setExecutionProgress] = useState(0);
-  
-  // PERFORMANCE OPTIMIZATION: Track performance mode
-  const [lowPerformanceMode, setLowPerformanceMode] = useState(false);
 
-  const editorRef = useRef(null);
   const fileInputRef = useRef(null);
+  const monacoRef = useRef(null);
+  const editorInstanceRef = useRef(null);
   const validationTimeoutRef = useRef(null);
-  const gcodeSender = useRef(new EnhancedGCodeSender());  // Updated to use enhanced sender
+  const gcodeSender = useRef(new EnhancedGCodeSender());
   const gCodeValidator = useRef(new GCodeValidator());
 
   // Initialize the editor with the current gcode from context
@@ -71,18 +67,39 @@ const CodeEditorPanel = () => {
     }
   }, [code, gcode, setGCode]);
 
+  // Initialize services and cleanup properly on unmount
   useEffect(() => {
     if (window.serialService) {
       gCodeSerialHelper.initialize(window.serialService);
     }
     
-    // Clean up when the component unmounts
+    // Return cleanup function
     return () => {
+      // Cleanup serial communication
       gCodeSerialHelper.cleanup();
       
-      // Also stop any ongoing transfer
+      // Stop any ongoing transfer
       if (gcodeSender.current) {
         gcodeSender.current.stop();
+      }
+      
+      // Properly dispose of Monaco editor to prevent memory leaks
+      if (editorInstanceRef.current) {
+        disposeMonacoEditor(editorInstanceRef.current);
+        editorInstanceRef.current = null;
+      }
+      
+      // Reset state variables that might cause re-renders
+      setIsTransferring(false);
+      setIsExecuting(false);
+      setTransferProgress(0);
+      setExecutionProgress(0);
+      setExecutedLine(0);
+      setTransferError(null);
+      
+      // Dispose of validator resources
+      if (gCodeValidator.current) {
+        gCodeValidator.current.dispose && gCodeValidator.current.dispose();
       }
     };
   }, []);
@@ -90,8 +107,8 @@ const CodeEditorPanel = () => {
   // Handle code changes with auto-validation
   const handleCodeChange = (newCode) => {
     setCode(newCode);
-    setOriginalCode(newCode);  // Update the original code
-    setGCode(newCode);         // Update the global context immediately
+    setOriginalCode(newCode);
+    setGCode(newCode);
     setModified(true);
 
     // Debounced validation
@@ -101,23 +118,73 @@ const CodeEditorPanel = () => {
 
     validationTimeoutRef.current = setTimeout(() => {
       validateCode(newCode);
-    }, 500); // 500ms debounce to avoid excessive validation
+      updateFileStats(newCode);
+      detectCodeFormat(newCode);
+    }, 500);
   };
+
+  // Update line numbers and stats
+  const updateFileStats = useCallback((content) => {
+    if (!content) return;
+
+    const lines = content.split('\n');
+    setTotalLines(lines.length);
+
+    // Calculate approximate file size
+    const sizeInBytes = new Blob([content]).size;
+    if (sizeInBytes < 1024) {
+      setFileSize(`${sizeInBytes} B`);
+    } else if (sizeInBytes < 1024 * 1024) {
+      setFileSize(`${(sizeInBytes / 1024).toFixed(1)} KB`);
+    } else {
+      setFileSize(`${(sizeInBytes / (1024 * 1024)).toFixed(1)} MB`);
+    }
+  }, []);
+
+  // Detect the G-code format
+  const detectCodeFormat = useCallback((content) => {
+    if (!content) return;
+    
+    // For performance, only check the first 50 lines
+    const sampleLines = content.split('\n').slice(0, 50);
+    
+    const grblStyleLines = sampleLines.filter(line => {
+      return /G[0-9][0-9]*[XYZ][0-9]/.test(line) || /\$[A-Z0-9]/.test(line);
+    }).length;
+    
+    const standardStyleLines = sampleLines.filter(line => {
+      return /G[0-9][0-9]*\s+[XYZ]/.test(line);
+    }).length;
+    
+    if (grblStyleLines > standardStyleLines) {
+      setCodeFormat('grbl');
+    } else if (standardStyleLines > grblStyleLines) {
+      setCodeFormat('standard');
+    } else {
+      const hasGrblCommands = sampleLines.some(line => line.startsWith('$'));
+      setCodeFormat(hasGrblCommands ? 'grbl' : 'standard');
+    }
+  }, []);
 
   // Calculate boundary dimensions of the G-code for transformations
   const calculateBoundaries = useCallback((codeToAnalyze) => {
     if (!codeToAnalyze) return { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0, centerX: 0, centerY: 0 };
 
+    // For large files, only analyze a subset of lines for performance
     const lines = codeToAnalyze.split('\n');
+    const maxLinesToAnalyze = Math.min(lines.length, 5000);
+    const step = Math.max(1, Math.floor(lines.length / maxLinesToAnalyze));
+    
     let minX = Infinity, maxX = -Infinity;
     let minY = Infinity, maxY = -Infinity;
     let minZ = Infinity, maxZ = -Infinity;
     let hasCoordinates = false;
 
-    lines.forEach(line => {
+    for (let i = 0; i < lines.length; i += step) {
+      const line = lines[i];
       // Skip comments and non-movement commands
-      if (line.trim().startsWith(';') || !line.trim()) return;
-      if (!/G[0-1]/.test(line)) return;
+      if (line.trim().startsWith(';') || !line.trim()) continue;
+      if (!/G[0-1]/.test(line)) continue;
 
       // Extract X, Y, Z coordinates
       const xMatch = line.match(/X(-?\d+\.?\d*)/);
@@ -144,7 +211,7 @@ const CodeEditorPanel = () => {
         maxZ = Math.max(maxZ, z);
         hasCoordinates = true;
       }
-    });
+    }
 
     // If no coordinates found, return default values
     if (!hasCoordinates) {
@@ -170,120 +237,37 @@ const CodeEditorPanel = () => {
     }
   }, [code, calculateBoundaries, setTransformValues]);
 
-  // Detect the G-code format (for display purposes only, no conversion)
-  useEffect(() => {
-    if (!code) return;
-    
-    // Simple detection logic
-    const sampleLines = code.split('\n').slice(0, 20);
-    const grblStyleLines = sampleLines.filter(line => {
-      // GRBL often has no spaces between commands (G0X10Y10)
-      return /G[0-9][0-9]*[XYZ][0-9]/.test(line) || /\$[A-Z0-9]/.test(line);
-    }).length;
-    
-    const standardStyleLines = sampleLines.filter(line => {
-      // Standard G-code often has spaces between commands (G0 X10 Y10)
-      return /G[0-9][0-9]*\s+[XYZ]/.test(line);
-    }).length;
-    
-    // Set the format based on the prevalence of each style (for display only)
-    if (grblStyleLines > standardStyleLines) {
-      setCodeFormat('grbl');
-    } else if (standardStyleLines > grblStyleLines) {
-      setCodeFormat('standard');
-    } else {
-      // If equal, check for GRBL-specific commands
-      const hasGrblCommands = sampleLines.some(line => line.startsWith('$'));
-      setCodeFormat(hasGrblCommands ? 'grbl' : 'standard');
-    }
-  }, [code]);
-
-  // Update line numbers and stats
-  useEffect(() => {
-    if (!code) return;
-
-    const lines = code.split('\n');
-    setTotalLines(lines.length);
-
-    // Calculate approximate file size
-    const sizeInBytes = new Blob([code]).size;
-    if (sizeInBytes < 1024) {
-      setFileSize(`${sizeInBytes} B`);
-    } else if (sizeInBytes < 1024 * 1024) {
-      setFileSize(`${(sizeInBytes / 1024).toFixed(1)} KB`);
-    } else {
-      setFileSize(`${(sizeInBytes / (1024 * 1024)).toFixed(1)} MB`);
-    }
-  }, [code]);
-
-  // PERFORMANCE OPTIMIZATION: Debounce line highlight updates
-  const debounce = (fn, delay) => {
-    let timer;
-    return function(...args) {
-      clearTimeout(timer);
-      timer = setTimeout(() => fn.apply(this, args), delay);
-    };
-  };
-
-  // Debounced function for highlighting lines
-  const debouncedHighlightLine = useCallback(
-    debounce((line) => {
-      setHighlightedLine(line);
-      
-      // Show error message for the selected line if it has an error
-      const error = errors.find(err => err.line === line);
-      const warning = warnings.find(warn => warn.line === line);
-
-      if (error) {
-        setStatusMessage(`Error (Line ${line}): ${error.message}`);
-      } else if (warning) {
-        setStatusMessage(`Warning (Line ${line}): ${warning.message}`);
-      } else {
-        setStatusMessage('');
-      }
-    }, 100), // 100ms debounce for highlighting
-    [errors, warnings]
-  );
-
   // Update when selected line changes
   useEffect(() => {
-    if (selectedLine >= 0 && selectedLine !== highlightedLine) {
-      // PERFORMANCE OPTIMIZATION: Use debounced highlighting during transfers
-      if (isTransferring) {
-        // During transfers, only update significant jumps
-        if (Math.abs(selectedLine - highlightedLine) > 10 || 
-            selectedLine === 1 || 
-            selectedLine === totalLines) {
-          debouncedHighlightLine(selectedLine);
-        }
-      } else {
-        // Normal highlighting when not transferring
-        debouncedHighlightLine(selectedLine);
-      }
+    if (selectedLine >= 0 && editorInstanceRef.current) {
+      // Monaco handles line highlighting more efficiently
+      editorInstanceRef.current.revealLineInCenter(selectedLine);
     }
-  }, [selectedLine, highlightedLine, isTransferring, totalLines, debouncedHighlightLine]);
+  }, [selectedLine]);
 
-  // NEW: Update when executed line changes
+  // Update when executed line changes
   useEffect(() => {
-    if (executedLine > 0) {
-      // Update selected line to match executed line
-      // We use a different class for executed lines than for selected lines
+    if (executedLine > 0 && editorInstanceRef.current) {
       setSelectedLine(executedLine);
+      editorInstanceRef.current.decorateExecutedLine(executedLine);
     }
   }, [executedLine, setSelectedLine]);
 
-  // Validate G-code with real-time feedback using the enhanced validator
+  // Validate G-code with real-time feedback using the validator
   const validateCode = (codeToValidate) => {
-    if (!codeToValidate) {
+    if (!codeToValidate || !editorInstanceRef.current) {
       setErrors([]);
       setWarnings([]);
       return;
     }
     
-    // Use the enhanced validator
+    // Use the worker-based validator for large files
     const validationResult = gCodeValidator.current.validate(codeToValidate);
     setErrors(validationResult.errors);
     setWarnings(validationResult.warnings);
+    
+    // Apply diagnostics to Monaco editor
+    editorInstanceRef.current.setDiagnostics(validationResult.errors, validationResult.warnings);
     
     // Update status message if current line has errors/warnings
     const currentError = validationResult.errors.find(err => err.line === currentLine);
@@ -298,8 +282,10 @@ const CodeEditorPanel = () => {
     }
   };
 
-  // Format G-code to make it more readable without changing the format style
+  // Format G-code to make it more readable
   const formatCode = () => {
+    if (!editorInstanceRef.current) return;
+    
     const lines = code.split('\n');
     const formattedLines = lines.map(line => {
       // Skip empty lines or pure comments
@@ -320,9 +306,6 @@ const CodeEditorPanel = () => {
       
       // Clean up whitespace, but preserve the existing format
       commandPart = commandPart.trim();
-      
-      // Preserve the existing format - don't add or remove spaces
-      // Just clean up excessive whitespace
       commandPart = commandPart.replace(/\s+/g, ' ');
 
       // Reconstruct the line with comment
@@ -330,8 +313,9 @@ const CodeEditorPanel = () => {
     });
 
     const formattedCode = formattedLines.join('\n');
+    editorInstanceRef.current.setValue(formattedCode);
     setCode(formattedCode);
-    setGCode(formattedCode); // Update context immediately
+    setGCode(formattedCode);
     setModified(true);
   };
 
@@ -363,38 +347,83 @@ const CodeEditorPanel = () => {
 
     setFileName(file.name);
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target.result;
-      setCode(content);
-      setOriginalCode(content);  // Store the original code
-      setGCode(content);         // Update the global context immediately
-      setModified(false);
-      validateCode(content);
+    // For large files, use a chunk-based approach
+    if (file.size > 10 * 1024 * 1024) { // 10MB
+      // Show loading message
+      setStatusMessage('Loading large file...');
+      
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target.result;
+        if (editorInstanceRef.current) {
+          editorInstanceRef.current.setValue(content);
+        }
+        setCode(content);
+        setOriginalCode(content);
+        setGCode(content);
+        setModified(false);
+        updateFileStats(content);
+        detectCodeFormat(content);
+        
+        // Delayed validation for large files
+        setTimeout(() => {
+          validateCode(content);
+          
+          // Calculate boundaries in background
+          setTimeout(() => {
+            const boundaries = calculateBoundaries(content);
+            setTransformValues(prev => ({
+              ...prev,
+              centerX: boundaries.centerX,
+              centerY: boundaries.centerY,
+              scaleX: 1.0,
+              scaleY: 1.0,
+              scaleZ: 1.0,
+              moveX: 0,
+              moveY: 0,
+              moveZ: 0,
+              rotateAngle: 0
+            }));
+            
+            setStatusMessage('');
+          }, 100);
+        }, 500);
+      };
+      
+      reader.readAsText(file);
+    } else {
+      // Standard approach for smaller files
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target.result;
+        if (editorInstanceRef.current) {
+          editorInstanceRef.current.setValue(content);
+        }
+        setCode(content);
+        setOriginalCode(content);
+        setGCode(content);
+        setModified(false);
+        validateCode(content);
+        updateFileStats(content);
+        detectCodeFormat(content);
 
-      // Calculate G-code boundaries for transformations
-      const boundaries = calculateBoundaries(content);
-      setTransformValues(prev => ({
-        ...prev,
-        centerX: boundaries.centerX,
-        centerY: boundaries.centerY
-      }));
-
-      // Reset transformations
-      setTransformValues(prev => ({
-        ...prev,
-        scaleX: 1.0,
-        scaleY: 1.0,
-        scaleZ: 1.0,
-        moveX: 0,
-        moveY: 0,
-        moveZ: 0,
-        rotateAngle: 0,
-        centerX: boundaries.centerX,  // Keep the same center
-        centerY: boundaries.centerY
-      }));
-    };
-    reader.readAsText(file);
+        // Calculate G-code boundaries for transformations
+        const boundaries = calculateBoundaries(content);
+        setTransformValues(prev => ({
+          ...prev,
+          centerX: boundaries.centerX,
+          centerY: boundaries.centerY,
+          scaleX: 1.0,
+          scaleY: 1.0,
+          scaleZ: 1.0,
+          moveX: 0,
+          moveY: 0,
+          moveZ: 0,
+          rotateAngle: 0
+        }));
+      };
+      reader.readAsText(file);
+    }
 
     // Reset the file input to allow selecting the same file again
     e.target.value = null;
@@ -404,7 +433,32 @@ const CodeEditorPanel = () => {
   const generateTransformedGCode = () => {
     if (!originalCode) return '';
 
-    const lines = originalCode.split('\n');
+    // For large files, use a web worker or chunk-based approach
+    if (originalCode.length > 1000000) { // ~1MB
+      setStatusMessage('Processing large file transformation...');
+      
+      // Process in chunks to avoid freezing the UI
+      setTimeout(() => {
+        const transformedCode = transformGCode(originalCode);
+        if (editorInstanceRef.current) {
+          editorInstanceRef.current.setValue(transformedCode);
+        }
+        setCode(transformedCode);
+        setGCode(transformedCode);
+        setModified(true);
+        setStatusMessage('');
+      }, 100);
+      
+      return '';
+    }
+    
+    // For smaller files, transform synchronously
+    return transformGCode(originalCode);
+  };
+  
+  // Helper function to transform G-code (extracted for potential worker use)
+  const transformGCode = (sourceCode) => {
+    const lines = sourceCode.split('\n');
     const transformedLines = lines.map(line => {
       // Skip comments and non-movement commands
       if (line.trim().startsWith(';') || !line.trim()) return line;
@@ -524,10 +578,7 @@ const CodeEditorPanel = () => {
       setExecutedLine(0);
       setTransferError(null);
       setIsPaused(false);
-      setLastProgress(0); // Reset last logged progress
-      
-      // PERFORMANCE OPTIMIZATION: Enable low performance mode during transfer
-      setLowPerformanceMode(true);
+      setLastProgress(0);
       
       // Load the G-code
       const totalLines = gcodeSender.current.loadGCode(gCodeToSend);
@@ -557,7 +608,7 @@ const CodeEditorPanel = () => {
           }
         },
         
-        // Execution progress callback (now fully separate from transfer progress)
+        // Execution progress callback
         onExecutionProgress: (data) => {
           // Update execution progress
           setExecutionProgress(data.progress);
@@ -569,7 +620,6 @@ const CodeEditorPanel = () => {
           // Update UI for completion
           setTransferProgress(100);
           setIsTransferring(false);
-          setLowPerformanceMode(false); // Disable low performance mode when done
           
           const completeMsg = `Transfer completed: ${fileName} (${data.total} lines)`;
           logToConsole('system', completeMsg);
@@ -581,7 +631,6 @@ const CodeEditorPanel = () => {
           // Update UI for execution completion
           setExecutionProgress(100);
           setIsExecuting(false);
-          setLowPerformanceMode(false);
           
           const completeMsg = `Execution completed: ${fileName}`;
           logToConsole('system', completeMsg);
@@ -591,6 +640,9 @@ const CodeEditorPanel = () => {
           setTimeout(() => {
             setSelectedLine(-1);
             setExecutedLine(0);
+            if (editorInstanceRef.current) {
+              editorInstanceRef.current.clearExecutionDecorations();
+            }
           }, 2000);
         },
         
@@ -601,7 +653,6 @@ const CodeEditorPanel = () => {
           
           // Update error message in UI
           setTransferError(error);
-          setLowPerformanceMode(false); // Disable low performance mode on error
         },
         
         // Line success callback
@@ -666,8 +717,6 @@ const CodeEditorPanel = () => {
         throw new Error("Failed to start G-code transfer");
       }
       
-      // The transfer is now running asynchronously line-by-line
-      
     } catch (error) {
       const errorMsg = `Error sending G-code to machine: ${error.message}`;
       console.error(errorMsg);
@@ -675,7 +724,6 @@ const CodeEditorPanel = () => {
       setTransferError(`Error: ${error.message}`);
       setIsTransferring(false);
       setIsExecuting(false);
-      setLowPerformanceMode(false);
       
       // Make sure to stop the sender
       gcodeSender.current.stop();
@@ -728,7 +776,6 @@ const CodeEditorPanel = () => {
         setExecutionProgress(0);
         setExecutedLine(0);
         setStatusMessage('Transfer stopped - machine operation cancelled');
-        setLowPerformanceMode(false); // Disable low performance mode when stopped
         
         // Log to console panel
         logToConsole('error', 'Transfer stopped by user');
@@ -749,9 +796,12 @@ const CodeEditorPanel = () => {
   // Preview transformation
   const previewTransformation = () => {
     const transformedCode = generateTransformedGCode();
-    setCode(transformedCode);
-    setGCode(transformedCode); // Update context immediately
-    setModified(true);
+    if (transformedCode && editorInstanceRef.current) {
+      editorInstanceRef.current.setValue(transformedCode);
+      setCode(transformedCode);
+      setGCode(transformedCode);
+      setModified(true);
+    }
   };
 
   // Reset transformations
@@ -764,13 +814,16 @@ const CodeEditorPanel = () => {
       moveY: 0,
       moveZ: 0,
       rotateAngle: 0,
-      centerX: transformValues.centerX,  // Keep the same center
+      centerX: transformValues.centerX,
       centerY: transformValues.centerY
     });
 
     // Restore original code
+    if (editorInstanceRef.current) {
+      editorInstanceRef.current.setValue(originalCode);
+    }
     setCode(originalCode);
-    setGCode(originalCode); // Update context immediately
+    setGCode(originalCode);
     setModified(false);
   };
 
@@ -784,34 +837,115 @@ const CodeEditorPanel = () => {
 
     // Update the context with new transform values
     setTransformValues(newValues);
-
-    // Generate preview code without updating the editor
-    // This allows the toolpath to update immediately
-    const previewCode = generateTransformedGCode();
-    setGCode(previewCode);
   };
 
   // Save the code with transformations applied
   const saveWithTransformations = () => {
     const transformedCode = generateTransformedGCode();
-    setCode(transformedCode);
-    setOriginalCode(transformedCode);  // This becomes the new original code
-    setGCode(transformedCode);        // Update context immediately
+    if (transformedCode && editorInstanceRef.current) {
+      editorInstanceRef.current.setValue(transformedCode);
+      setCode(transformedCode);
+      setOriginalCode(transformedCode);
+      setGCode(transformedCode);
 
-    // Reset transformations since they're now part of the code
-    setTransformValues({
-      scaleX: 1.0,
-      scaleY: 1.0,
-      scaleZ: 1.0,
-      moveX: 0,
-      moveY: 0,
-      moveZ: 0,
-      rotateAngle: 0,
-      centerX: transformValues.centerX,
-      centerY: transformValues.centerY
-    });
+      // Reset transformations since they're now part of the code
+      setTransformValues({
+        scaleX: 1.0,
+        scaleY: 1.0,
+        scaleZ: 1.0,
+        moveX: 0,
+        moveY: 0,
+        moveZ: 0,
+        rotateAngle: 0,
+        centerX: transformValues.centerX,
+        centerY: transformValues.centerY
+      });
 
-    setModified(true);
+      setModified(true);
+    }
+  };
+
+  // Handle cursor position change in Monaco editor
+  const handleCursorPositionChange = (line, column) => {
+    setCurrentLine(line);
+    setCurrentColumn(column);
+    
+    // Check for errors/warnings at current position
+    const lineError = errors.find(err => err.line === line);
+    const lineWarning = warnings.find(warn => warn.line === line);
+    
+    if (lineError) {
+      setStatusMessage(`Error (Line ${line}): ${lineError.message}`);
+    } else if (lineWarning) {
+      setStatusMessage(`Warning (Line ${line}): ${lineWarning.message}`);
+    } else {
+      setStatusMessage('');
+    }
+  };
+
+  // Handle editor mount with better error handling
+  const handleEditorDidMount = (editor, monaco) => {
+    if (!editor || !monaco) {
+      console.warn("Editor or Monaco instance is null in handleEditorDidMount");
+      return;
+    }
+    
+    try {
+      // Store references
+      editorInstanceRef.current = editor;
+      monacoRef.current = monaco;
+      
+      // Initialize editor with current code (if provided)
+      if (code) {
+        editor.setValue(code);
+        updateFileStats(code);
+        
+        // Use setTimeout to avoid blocking the UI
+        setTimeout(() => {
+          validateCode(code);
+          detectCodeFormat(code);
+        }, 50);
+      }
+      
+      // Add cursor position change listener with error handling
+      const cursorDisposable = editor.onDidChangeCursorPosition(e => {
+        try {
+          handleCursorPositionChange(e.position.lineNumber, e.position.column);
+        } catch (err) {
+          console.warn("Error handling cursor position change:", err);
+        }
+      });
+      
+      // Store the disposable to clean it up later
+      editor._cursorDisposable = cursorDisposable;
+      
+      // Content change is handled in the component itself
+      
+      // Set initial cursor position
+      editor.setPosition({ lineNumber: 1, column: 1 });
+      
+      console.log("Monaco editor initialized successfully");
+    } catch (err) {
+      console.error("Error in handleEditorDidMount:", err);
+    }
+  };
+
+  // Get editor options
+  const getEditorOptions = () => {
+    return {
+      selectOnLineNumbers: true,
+      roundedSelection: false,
+      cursorStyle: 'line',
+      automaticLayout: true,
+      folding: true,
+      renderLineHighlight: 'all',
+      scrollBeyondLastLine: false,
+      minimap: {
+        enabled: true,
+        maxColumn: 80
+      },
+      lineNumbers: true
+    };
   };
 
   return (
@@ -849,7 +983,7 @@ const CodeEditorPanel = () => {
         <GrblMetadata code={code} format={codeFormat} />
       )}
 
-      {/* File transfer progress UI - ONLY shows file transfer info */}
+      {/* File transfer progress UI */}
       {isTransferring && (
         <TransferProgress
           statusMessage={statusMessage}
@@ -861,11 +995,10 @@ const CodeEditorPanel = () => {
           transferError={transferError}
           retryTransfer={retryTransfer}
           fileName={fileName}
-          lowPerformanceMode={lowPerformanceMode}
         />
       )}
 
-      {/* Execution tracking UI - COMPLETELY SEPARATE from transfer progress */}
+      {/* Execution tracking UI */}
       {isExecuting && (
         <ExecutionTracker
           isExecuting={isExecuting}
@@ -887,22 +1020,19 @@ const CodeEditorPanel = () => {
         />
       )}
 
-      {/* Code Editor */}
-      <CodeEditor
-        code={code}
-        setCode={handleCodeChange}
-        errors={errors}
-        warnings={warnings}
-        highlightedLine={highlightedLine}
-        setHighlightedLine={setHighlightedLine}
-        selectedLine={selectedLine}
-        setSelectedLine={setSelectedLine}
-        executedLine={executedLine} // Pass the executed line for special highlighting
-        setStatusMessage={setStatusMessage}
-        validateCode={validateCode}
-        editorRef={editorRef}
-        lowPerformanceMode={lowPerformanceMode}
-      />
+      {/* Monaco-Based Code Editor */}
+      <div className="monaco-editor-container">
+        <MonacoEditor
+          code={code}
+          onEditorDidMount={handleEditorDidMount}
+          options={getEditorOptions()}
+          onChange={handleCodeChange}
+          selectedLine={selectedLine}
+          executedLine={executedLine}
+          errors={errors}
+          warnings={warnings}
+        />
+      </div>
 
       {/* Status bar (footer) */}
       <EditorFooter
