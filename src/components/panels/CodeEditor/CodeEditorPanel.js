@@ -57,6 +57,8 @@ const CodeEditorPanel = () => {
   const validationTimeoutRef = useRef(null);
   const gcodeSender = useRef(new EnhancedGCodeSender());
   const gCodeValidator = useRef(new GCodeValidator());
+  const resizeObserverRef = useRef(null);
+  const resizeTimeoutRef = useRef(null);
 
   // Initialize the editor with the current gcode from context
   useEffect(() => {
@@ -83,6 +85,18 @@ const CodeEditorPanel = () => {
         gcodeSender.current.stop();
       }
       
+      // Cleanup resize observer
+      if (resizeObserverRef.current) {
+        resizeObserverRef.current.disconnect();
+        resizeObserverRef.current = null;
+      }
+      
+      // Clear any pending timeouts
+      if (resizeTimeoutRef.current) {
+        clearTimeout(resizeTimeoutRef.current);
+        resizeTimeoutRef.current = null;
+      }
+      
       // Properly dispose of Monaco editor to prevent memory leaks
       if (editorInstanceRef.current) {
         disposeMonacoEditor(editorInstanceRef.current);
@@ -102,6 +116,44 @@ const CodeEditorPanel = () => {
         gCodeValidator.current.dispose && gCodeValidator.current.dispose();
       }
     };
+  }, []);
+
+  // Set up a custom resize handler for the Monaco editor
+  const setupEditorResizeHandling = useCallback(() => {
+    // First clean up any existing observer
+    if (resizeObserverRef.current) {
+      resizeObserverRef.current.disconnect();
+      resizeObserverRef.current = null;
+    }
+    
+    if (!editorInstanceRef.current) return;
+    
+    // Find the container element
+    const editorContainer = document.querySelector('.monaco-editor-container');
+    if (!editorContainer) return;
+    
+    // Create a new ResizeObserver with throttling to avoid loop errors
+    resizeObserverRef.current = new ResizeObserver((entries) => {
+      // Clear any pending timeout to implement throttling
+      if (resizeTimeoutRef.current) {
+        clearTimeout(resizeTimeoutRef.current);
+      }
+      
+      // Set a new timeout to delay the resize handling
+      resizeTimeoutRef.current = setTimeout(() => {
+        if (!editorInstanceRef.current) return;
+        
+        // Call layout() to resize the editor
+        try {
+          editorInstanceRef.current.layout();
+        } catch (err) {
+          console.warn("Error resizing editor:", err);
+        }
+      }, 100); // 100ms throttle
+    });
+    
+    // Start observing the container
+    resizeObserverRef.current.observe(editorContainer);
   }, []);
 
   // Handle code changes with auto-validation
@@ -924,6 +976,9 @@ const CodeEditorPanel = () => {
       // Set initial cursor position
       editor.setPosition({ lineNumber: 1, column: 1 });
       
+      // Set up custom resize handling
+      setupEditorResizeHandling();
+      
       console.log("Monaco editor initialized successfully");
     } catch (err) {
       console.error("Error in handleEditorDidMount:", err);
@@ -936,7 +991,7 @@ const CodeEditorPanel = () => {
       selectOnLineNumbers: true,
       roundedSelection: false,
       cursorStyle: 'line',
-      automaticLayout: true,
+      automaticLayout: false, // Set to false to avoid ResizeObserver errors
       folding: true,
       renderLineHighlight: 'all',
       scrollBeyondLastLine: false,
