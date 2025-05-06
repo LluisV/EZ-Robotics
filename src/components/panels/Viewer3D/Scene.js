@@ -178,7 +178,6 @@ const Scene = forwardRef(({
 
     // Initialize managers for grid, toolpath, and STL
     useEffect(() => {
-        console.log("Initializing scene managers");
         if (!sceneRef.current) {
             console.warn("sceneRef is null when trying to initialize managers");
             return;
@@ -186,7 +185,6 @@ const Scene = forwardRef(({
 
         // Don't initialize if we already have instances
         if (gridManagerRef.current && toolpathRendererRef.current && stlManagerRef.current) {
-            console.log("Managers already exist, skipping initialization");
             return;
         }
 
