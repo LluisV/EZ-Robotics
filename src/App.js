@@ -46,6 +46,8 @@ function App() {
   const [currentTheme, setCurrentTheme] = useState('dracula');
   const [dockviewApi, setDockviewApi] = useState(null);
 
+  const MINIMUM_WIDTH = 380; // Minimum width in pixels
+
   // Define available themes
   const availableThemes = [
     { id: 'dark', name: 'Dark', theme: themeDark },
@@ -168,10 +170,46 @@ function App() {
       const { api } = event;
       setDockviewApi(api);
       
+      // Add a listener for when panels are added to set constraints immediately
+      api.onDidAddPanel(panel => {
+        console.log(`Panel added: ${panel.id}, setting minimum width to ${MINIMUM_WIDTH}px`);
+        if (panel.api && panel.api.setConstraints) {
+          panel.api.setConstraints({
+            minimumWidth: MINIMUM_WIDTH,
+            minimumHeight: 100
+          });
+        }
+      });
+      
+      // Add a listener for groups as well
+      api.onDidAddGroup(group => {
+        console.log(`Group added: ${group.id}, setting minimum width to ${MINIMUM_WIDTH}px`);
+        if (group.api && group.api.setConstraints) {
+          group.api.setConstraints({
+            minimumWidth: MINIMUM_WIDTH,
+            minimumHeight: 100
+          });
+        }
+      });
+      
       // Initialize the docking manager which will load the default layout
       dockingManager.initialize(api);
       
       console.log('Docking manager initialized');
+      
+      // Add direct CSS override for additional enforcement
+      // This is a backup method that forces minimum width via CSS
+      const style = document.createElement('style');
+      style.textContent = `
+        .dv-panel {
+          min-width: ${MINIMUM_WIDTH}px !important;
+        }
+        .dock-container .dockview-group {
+          min-width: ${MINIMUM_WIDTH}px !important;
+        }
+      `;
+      document.head.appendChild(style);
+      
     } catch (err) {
       console.error('Error in onReady:', err);
       setError(err.message);
