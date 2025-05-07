@@ -251,11 +251,9 @@
 /* Customize Monaco editor */
 .monaco-editor .margin,
 .monaco-editor .minimap {
-  background-color: var(--editor-bg) !important;
 }
 
 .monaco-editor .editor-scrollable {
-  background-color: var(--editor-bg) !important;
 }
 
 /* Custom execution line highlighting */
