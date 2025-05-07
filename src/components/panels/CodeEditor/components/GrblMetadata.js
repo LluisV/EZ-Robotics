@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
  * Enhanced component to display GRBL/FluidNC G-code metadata information
  * With better detection of consecutive coordinate-only moves
  */
-const GrblMetadata = ({ code, format }) => {
+const GrblMetadata = ({ code, format, fileName, modified }) => {
   const [metadata, setMetadata] = useState({
     format: format || 'unknown',
     stats: {
@@ -171,36 +171,69 @@ const GrblMetadata = ({ code, format }) => {
   
   return (
     <div className="grbl-metadata">
-      <div className="grbl-metadata-item">
-        <span className="grbl-metadata-label">Format:</span>
-        <span className="grbl-metadata-value">
-          {metadata.format === 'grbl' ? 'GRBL/FluidNC' : 'Standard G-code'}
-          <span className={`file-format-badge ${metadata.format}`}>
-            {metadata.format === 'grbl' ? 'GRBL' : 'STD'}
+      <div className="metadata-content">
+        {/* File name as the first item */}
+        <div className="grbl-metadata-item">
+          <div className="file-name">
+            <span className="file-icon">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+              </svg>
+            </span>
+            <span className="name">{fileName}</span>
+            {modified && <span className="modified-indicator">●</span>}
+          </div>
+        </div>
+        
+        {/* Format item */}
+        <div className="grbl-metadata-item">
+          <span className="grbl-metadata-label">Format:</span>
+          <span className="grbl-metadata-value">
+            {metadata.format === 'grbl' ? 'GRBL/FluidNC' : 'Standard G-code'}
+            {metadata.format === 'grbl' && (
+              <span className="file-format-badge grbl">GRBL</span>
+            )}
           </span>
-        </span>
-      </div>
-      
-      <div className="grbl-metadata-item">
-        <span className="grbl-metadata-label">Lines:</span>
-        <span className="grbl-metadata-value">
-          {metadata.stats.nonEmptyLines} ({metadata.stats.commentLines} comments)
-        </span>
-      </div>
-      
-      <div className="grbl-metadata-item">
-        <span className="grbl-metadata-label">Moves:</span>
-        <span className="grbl-metadata-value">
-          {metadata.stats.explicitMoves + metadata.stats.impliedMoves} total
-          {metadata.stats.impliedMoves > 0 && (
-            <span className="implied-count"> ({metadata.stats.impliedMoves} implied)</span>
-          )}
-        </span>
-      </div>
-      
-      <div className="grbl-metadata-item">
-        <span className="grbl-metadata-label">Dimensions:</span>
-        <span className="grbl-metadata-value">{formatDimensions()}</span>
+        </div>
+        
+        {/* Lines item */}
+        <div className="grbl-metadata-item">
+          <span className="grbl-metadata-label">Lines:</span>
+          <span className="grbl-metadata-value">
+            {metadata.stats.nonEmptyLines}
+            <span style={{ opacity: 0.7, marginLeft: '3px', fontSize: '10px' }}>
+              ({metadata.stats.commentLines} comments)
+            </span>
+          </span>
+        </div>
+        
+        {/* Moves item */}
+        <div className="grbl-metadata-item">
+          <span className="grbl-metadata-label">Moves:</span>
+          <span className="grbl-metadata-value">
+            {metadata.stats.explicitMoves + metadata.stats.impliedMoves}
+            {metadata.stats.impliedMoves > 0 && (
+              <span className="implied-count" style={{ fontSize: '10px' }}>
+                ({metadata.stats.impliedMoves} implied)
+              </span>
+            )}
+          </span>
+        </div>
+        
+        {/* Dimensions item */}
+        <div className="grbl-metadata-item">
+          <span className="grbl-metadata-label">Dimensions:</span>
+          <span className="grbl-metadata-value bounds-value">
+            {formatDimensions()}
+            <span className="dimensions-badge">
+              {!isFinite(metadata.stats.bounds.max.x - metadata.stats.bounds.min.x) ? 
+                "No bounds" : 
+                `X:${metadata.stats.bounds.min.x.toFixed(1)}~${metadata.stats.bounds.max.x.toFixed(1)}`
+              }
+            </span>
+          </span>
+        </div>
       </div>
     </div>
   );

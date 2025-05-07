@@ -1035,8 +1035,13 @@ const CodeEditorPanel = () => {
       
       {/* G-code Metadata Panel */}
       {showMetadata && (
-        <GrblMetadata code={code} format={codeFormat} />
-      )}
+  <GrblMetadata 
+    code={code} 
+    format={codeFormat} 
+    fileName={fileName}
+    modified={modified}
+  />
+)}
 
       {/* File transfer progress UI */}
       {isTransferring && (

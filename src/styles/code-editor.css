@@ -1368,3 +1368,222 @@
     padding: 1px 4px;
   }
 }
+
+/* Add these new styles to src/styles/code-editor.css */
+
+/* Metadata toggle button styling */
+.metadata-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: var(--dv-inactivegroup-hiddenpanel-tab-color, var(--text-secondary));
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-left: auto;
+  margin-right: 5px;
+  padding: 0;
+}
+
+.metadata-toggle-btn:hover {
+  background-color: var(--dv-tabs-hover-background-color, rgba(255, 255, 255, 0.1));
+  color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
+}
+
+.metadata-toggle-btn svg {
+  width: 20px;
+  height: 20px;
+  transition: transform 0.2s ease;
+}
+
+/* Fully adaptive multi-row metadata styling */
+.grbl-metadata {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, rgba(30, 30, 30, 0.4));
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  min-height: 36px;
+  /* Removed max-height to allow unlimited rows */
+  overflow: hidden;
+  border-bottom: 1px solid var(--dv-separator-border, rgba(255, 255, 255, 0.05));
+  transition: all 0.2s ease;
+}
+
+.grbl-metadata .file-name {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
+  margin-right: 14px;
+  white-space: nowrap;
+}
+
+.metadata-content {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  min-height: 36px;
+  padding: 4px 8px;
+  overflow: visible;
+}
+
+.grbl-metadata-item {
+  display: flex;
+  align-items: center;
+  margin: 2px 4px 2px 0;
+  padding: 0 10px;
+  height: 28px;
+  border-right: 1px solid var(--dv-separator-border, rgba(255, 255, 255, 0.05));
+  white-space: nowrap;
+  min-width: fit-content;
+}
+
+/* File item should always be visible and never truncated */
+.grbl-metadata-item:first-child {
+  padding-left: 0;
+  min-width: 120px;
+  order: -1; /* Always first */
+}
+
+/* Format item */
+.grbl-metadata-item:nth-child(2) {
+  min-width: 100px;
+  order: 0;
+}
+
+/* Lines item */
+.grbl-metadata-item:nth-child(3) {
+  min-width: 80px;
+  order: 1;
+}
+
+/* Moves item */
+.grbl-metadata-item:nth-child(4) {
+  min-width: 80px;
+  order: 2;
+}
+
+/* Dimensions item */
+.grbl-metadata-item:nth-child(5) {
+  min-width: 120px;
+  order: 3;
+}
+
+.grbl-metadata-item:last-of-type {
+  border-right: none;
+}
+
+/* Last item in each row should not have a right border */
+.grbl-metadata-item:last-child {
+  border-right: none;
+}
+
+.grbl-metadata-label {
+  color: var(--dv-tab-inactive-foreground-color, #8a8a8a);
+  font-size: 11px;
+  margin-right: 5px;
+  white-space: nowrap;
+}
+
+.grbl-metadata-value {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.file-icon {
+  display: flex;
+  margin-right: 6px;
+  color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  flex-shrink: 0;
+}
+
+.modified-indicator {
+  font-size: 12px;
+  color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  margin: 0 5px;
+  flex-shrink: 0;
+}
+
+.file-format-badge {
+  font-size: 9px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  margin-left: 6px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
+}
+
+.dimensions-badge {
+  background-color: rgba(0, 119, 204, 0.1);
+  color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  margin-left: 6px;
+  flex-shrink: 0;
+}
+
+.bounds-value {
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
+}
+
+/* Special treatment for the filename to ensure it's visible */
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+}
+
+/* Small width handling - prioritize file name */
+@media (max-width: 600px) {
+  .grbl-metadata-item:first-child {
+    max-width: none;
+    min-width: 120px;
+    flex-basis: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--dv-separator-border, rgba(255, 255, 255, 0.05));
+    margin-bottom: 4px;
+  }
+  
+  .name {
+    max-width: 250px;
+  }
+  
+  .grbl-metadata-item:nth-child(n+2) {
+    min-width: 70px;
+  }
+  
+  .metadata-content {
+    padding-top: 0;
+    padding-bottom: 4px;
+  }
+}
+
+/* Extremely narrow screens - stack items vertically */
+@media (max-width: 400px) {
+  .grbl-metadata-item {
+    flex-basis: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--dv-separator-border, rgba(255, 255, 255, 0.05));
+  }
+  
+  .grbl-metadata-item:last-child {
+    border-bottom: none;
+  }
+}
+
