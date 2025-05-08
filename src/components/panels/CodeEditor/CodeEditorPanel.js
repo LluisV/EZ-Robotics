@@ -44,6 +44,12 @@ const CodeEditorPanel = () => {
   const [lastProgress, setLastProgress] = useState(0);
   const [codeFormat, setCodeFormat] = useState('unknown');
   const [showMetadata, setShowMetadata] = useState(true);
+  
+  // Add theme state for Monaco editor
+  const [editorTheme, setEditorTheme] = useState(() => {
+    // Get initial theme from localStorage or use default
+    return localStorage.getItem('preferredTheme') || 'dracula';
+  });
 
   // Execution tracking state
   const [isExecuting, setIsExecuting] = useState(false);
@@ -67,6 +73,44 @@ const CodeEditorPanel = () => {
       setGCode(code);
     }
   }, [code, gcode, setGCode]);
+  
+  // Add effect to listen for theme changes
+  useEffect(() => {
+    // Function to handle theme changes from the theme context
+    const handleThemeChange = () => {
+      const theme = localStorage.getItem('preferredTheme');
+      if (theme) {
+        setEditorTheme(theme);
+      }
+    };
+
+    // Setup a mutation observer to watch for theme class changes on the document element
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (
+          mutation.type === 'attributes' &&
+          mutation.attributeName === 'class'
+        ) {
+          const className = document.documentElement.className;
+          const themeMatch = className.match(/theme-([a-z-]+)/);
+          if (themeMatch && themeMatch[1]) {
+            setEditorTheme(themeMatch[1]);
+          }
+        }
+      });
+    });
+
+    // Start observing document element for class changes
+    observer.observe(document.documentElement, { attributes: true });
+
+    // Also listen for storage events (for multi-tab synchronization)
+    window.addEventListener('storage', handleThemeChange);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('storage', handleThemeChange);
+    };
+  }, []);
 
   // Initialize services and cleanup properly on unmount
   useEffect(() => {
@@ -782,134 +826,134 @@ const CodeEditorPanel = () => {
   };
 
   /**
- * Pause the current operation (handles both transfer and execution)
- */
-const pauseTransfer = () => {
-  // If still transferring, use the gcodeSender's pause method
-  if (isTransferring && gcodeSender.current && gcodeSender.current.pause) {
-    const success = gcodeSender.current.pause();
-    if (success) {
-      setIsPaused(true);
-      setStatusMessage('Transfer paused - machine feed hold active');
-      
-      // Log to console panel
-      logToConsole('warning', 'Transfer paused by user');
-    }
-  } 
-  // If execution phase (after transfer is complete), use serialService's feedHold
-  else if (isExecuting && window.serialService) {
-    try {
-      // Use the feedHold method from SerialCommunicationService
-      window.serialService.feedHold().then(success => {
-        if (success) {
-          setIsPaused(true);
-          setStatusMessage('Execution paused - machine feed hold active');
-          
-          // Log to console panel
-          logToConsole('warning', 'Execution paused by user');
-        } else {
-          logToConsole('error', 'Failed to pause execution');
-        }
-      });
-    } catch (error) {
-      console.error("Error sending feed hold command:", error);
-      logToConsole('error', `Failed to pause execution: ${error.message}`);
-    }
-  }
-};
-
-/**
- * Resume the current operation (handles both transfer and execution)
- */
-const resumeTransfer = () => {
-  // If still transferring, use the gcodeSender's resume method
-  if (isTransferring && gcodeSender.current && gcodeSender.current.resume) {
-    const success = gcodeSender.current.resume();
-    if (success) {
-      setIsPaused(false);
-      setStatusMessage('Transfer resumed - continuing from paused position');
-      
-      // Log to console panel
-      logToConsole('info', 'Transfer resumed by user');
-    }
-  } 
-  // If execution phase (after transfer is complete), use serialService's resumeFromHold
-  else if (isExecuting && window.serialService) {
-    try {
-      // Use the resumeFromHold method from SerialCommunicationService
-      window.serialService.resumeFromHold().then(success => {
-        if (success) {
-          setIsPaused(false);
-          setStatusMessage('Execution resumed - machine continuing from paused position');
-          
-          // Log to console panel
-          logToConsole('info', 'Execution resumed by user');
-        } else {
-          logToConsole('error', 'Failed to resume execution');
-        }
-      });
-    } catch (error) {
-      console.error("Error sending resume command:", error);
-      logToConsole('error', `Failed to resume execution: ${error.message}`);
-    }
-  }
-};
-
-/**
- * Stop/cancel the current operation (handles both transfer and execution)
- */
-const stopTransfer = () => {
-  if (gcodeSender.current && gcodeSender.current.stop) {
-    const success = gcodeSender.current.stop();
-    if (success) {
-      setIsPaused(false);
-      setIsTransferring(false);
-      setIsExecuting(false);
-      setTransferProgress(0);
-      setExecutionProgress(0);
-      setExecutedLine(0);
-      setStatusMessage('Operation stopped - machine operation cancelled');
-      
-      // Log to console panel
-      logToConsole('error', 'Operation stopped by user');
-      
-      // Also send a soft reset command to ensure the machine stops
-      if (window.serialService) {
-        try {
-          // Send GRBL soft reset command (Ctrl+X)
-          window.serialService.send('\x18');
-          logToConsole('system', 'Soft reset sent to machine');
-        } catch (error) {
-          console.error("Error sending soft reset command:", error);
-        }
+   * Pause the current operation (handles both transfer and execution)
+   */
+  const pauseTransfer = () => {
+    // If still transferring, use the gcodeSender's pause method
+    if (isTransferring && gcodeSender.current && gcodeSender.current.pause) {
+      const success = gcodeSender.current.pause();
+      if (success) {
+        setIsPaused(true);
+        setStatusMessage('Transfer paused - machine feed hold active');
+        
+        // Log to console panel
+        logToConsole('warning', 'Transfer paused by user');
+      }
+    } 
+    // If execution phase (after transfer is complete), use serialService's feedHold
+    else if (isExecuting && window.serialService) {
+      try {
+        // Use the feedHold method from SerialCommunicationService
+        window.serialService.feedHold().then(success => {
+          if (success) {
+            setIsPaused(true);
+            setStatusMessage('Execution paused - machine feed hold active');
+            
+            // Log to console panel
+            logToConsole('warning', 'Execution paused by user');
+          } else {
+            logToConsole('error', 'Failed to pause execution');
+          }
+        });
+      } catch (error) {
+        console.error("Error sending feed hold command:", error);
+        logToConsole('error', `Failed to pause execution: ${error.message}`);
       }
     }
-  } else if (window.serialService) {
-    // If gcodeSender is not available, try to stop directly with a reset
-    try {
-      // Send GRBL soft reset command using the service
-      window.serialService.send('\x18').then(success => {
-        if (success) {
-          setIsPaused(false);
-          setIsTransferring(false);
-          setIsExecuting(false);
-          setTransferProgress(0);
-          setExecutionProgress(0);
-          setExecutedLine(0);
-          setStatusMessage('Operation stopped - reset sent to machine');
-          
-          logToConsole('error', 'Operation stopped by user');
-          logToConsole('system', 'Soft reset sent to machine');
-        } else {
-          logToConsole('error', 'Failed to send reset command');
-        }
-      });
-    } catch (error) {
-      console.error("Error sending soft reset command:", error);
-      logToConsole('error', `Failed to stop operation: ${error.message}`);
+  };
+
+  /**
+   * Resume the current operation (handles both transfer and execution)
+   */
+  const resumeTransfer = () => {
+    // If still transferring, use the gcodeSender's resume method
+    if (isTransferring && gcodeSender.current && gcodeSender.current.resume) {
+      const success = gcodeSender.current.resume();
+      if (success) {
+        setIsPaused(false);
+        setStatusMessage('Transfer resumed - continuing from paused position');
+        
+        // Log to console panel
+        logToConsole('info', 'Transfer resumed by user');
+      }
+    } 
+    // If execution phase (after transfer is complete), use serialService's resumeFromHold
+    else if (isExecuting && window.serialService) {
+      try {
+        // Use the resumeFromHold method from SerialCommunicationService
+        window.serialService.resumeFromHold().then(success => {
+          if (success) {
+            setIsPaused(false);
+            setStatusMessage('Execution resumed - machine continuing from paused position');
+            
+            // Log to console panel
+            logToConsole('info', 'Execution resumed by user');
+          } else {
+            logToConsole('error', 'Failed to resume execution');
+          }
+        });
+      } catch (error) {
+        console.error("Error sending resume command:", error);
+        logToConsole('error', `Failed to resume execution: ${error.message}`);
+      }
     }
-  }
-};
+  };
+
+  /**
+   * Stop/cancel the current operation (handles both transfer and execution)
+   */
+  const stopTransfer = () => {
+    if (gcodeSender.current && gcodeSender.current.stop) {
+      const success = gcodeSender.current.stop();
+      if (success) {
+        setIsPaused(false);
+        setIsTransferring(false);
+        setIsExecuting(false);
+        setTransferProgress(0);
+        setExecutionProgress(0);
+        setExecutedLine(0);
+        setStatusMessage('Operation stopped - machine operation cancelled');
+        
+        // Log to console panel
+        logToConsole('error', 'Operation stopped by user');
+        
+        // Also send a soft reset command to ensure the machine stops
+        if (window.serialService) {
+          try {
+            // Send GRBL soft reset command (Ctrl+X)
+            window.serialService.send('\x18');
+            logToConsole('system', 'Soft reset sent to machine');
+          } catch (error) {
+            console.error("Error sending soft reset command:", error);
+          }
+        }
+      }
+    } else if (window.serialService) {
+      // If gcodeSender is not available, try to stop directly with a reset
+      try {
+        // Send GRBL soft reset command using the service
+        window.serialService.send('\x18').then(success => {
+          if (success) {
+            setIsPaused(false);
+            setIsTransferring(false);
+            setIsExecuting(false);
+            setTransferProgress(0);
+            setExecutionProgress(0);
+            setExecutedLine(0);
+            setStatusMessage('Operation stopped - reset sent to machine');
+            
+            logToConsole('error', 'Operation stopped by user');
+            logToConsole('system', 'Soft reset sent to machine');
+          } else {
+            logToConsole('error', 'Failed to send reset command');
+          }
+        });
+      } catch (error) {
+        console.error("Error sending soft reset command:", error);
+        logToConsole('error', `Failed to stop operation: ${error.message}`);
+      }
+    }
+  };
 
   /**
    * Retry the transfer after an error
@@ -1162,6 +1206,7 @@ const stopTransfer = () => {
           executedLine={executedLine}
           errors={errors}
           warnings={warnings}
+          currentTheme={editorTheme} // Pass the current theme
         />
       </div>
 

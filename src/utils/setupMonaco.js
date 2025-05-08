@@ -1,6 +1,7 @@
 // src/utils/setupMonaco.js
 // Import Monaco editor
 import * as monaco from 'monaco-editor';
+import { setupMonacoThemes } from './MonacoThemeAdapter';
 
 /**
  * Configure the Monaco editor environment
@@ -182,20 +183,6 @@ export function registerGCodeLanguage() {
         ]
       }
     });
-    
-    // Register a theme
-    monaco.editor.defineTheme('gcode-theme', {
-      base: 'vs-dark',
-      inherit: true,
-      rules: [
-        { token: 'comment', foreground: '6A9955', fontStyle: 'italic' },
-        { token: 'keyword', foreground: '569CD6', fontStyle: 'bold' },
-        { token: 'variable', foreground: '9CDCFE' },
-        { token: 'number', foreground: 'B5CEA8' },
-        { token: 'type', foreground: 'E06C75', fontStyle: 'bold' },
-      ],
-      colors: {}
-    });
   }
 }
 
@@ -304,8 +291,9 @@ export function disposeMonacoEditor(editor) {
 
 /**
  * Initialize Monaco with all required configuration
+ * @param {string} initialTheme - Initial theme to apply (optional)
  */
-export function initializeMonaco() {
+export function initializeMonaco(initialTheme = 'dracula') {
   // Set up the error handler first
   setupMonacoErrorHandler();
   
@@ -313,8 +301,18 @@ export function initializeMonaco() {
   setupMonacoEnvironment();
   registerGCodeLanguage();
   
-  // Set the default theme
-  monaco.editor.setTheme('gcode-theme');
+  // Set up theme support
+  setupMonacoThemes(monaco);
+  
+  // Set the default theme based on the application theme
+  const monacoTheme = initialTheme === 'light' || initialTheme === 'light-spaced' ? 
+    'monaco-light' : initialTheme === 'visual-studio' ? 
+    'monaco-vs' : initialTheme === 'abyss' || initialTheme === 'abyss-spaced' ? 
+    'monaco-abyss' : initialTheme === 'replit' ? 
+    'monaco-replit' : initialTheme === 'dracula' ? 
+    'monaco-dracula' : 'monaco-dark';
+  
+  monaco.editor.setTheme(monacoTheme);
   
   return monaco;
 }

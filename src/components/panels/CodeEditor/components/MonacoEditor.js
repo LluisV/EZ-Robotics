@@ -1,10 +1,11 @@
 // src/components/panels/CodeEditor/components/MonacoEditor.js
 import React, { useRef, useEffect } from 'react';
 import { initializeMonaco, disposeMonacoEditor } from '../../../../utils/setupMonaco';
+import { applyMonacoTheme } from '../../../../utils/MonacoThemeAdapter';
 
 /**
  * Monaco Editor component for G-code
- * Enhanced with proper error handling and resource management
+ * Enhanced with proper error handling, resource management, and theme support
  */
 const MonacoEditor = ({
   code,
@@ -14,7 +15,8 @@ const MonacoEditor = ({
   selectedLine = -1,
   executedLine = 0,
   errors = [],
-  warnings = []
+  warnings = [],
+  currentTheme = 'dracula' // Add theme prop
 }) => {
   const containerRef = useRef(null);
   const editorRef = useRef(null);
@@ -34,15 +36,14 @@ const MonacoEditor = ({
       if (!isMounted || !containerRef.current) return;
       
       try {
-        // Initialize Monaco with proper configuration
-        const monaco = initializeMonaco();
+        // Initialize Monaco with the current app theme
+        const monaco = initializeMonaco(currentTheme);
         monacoRef.current = monaco;
         
         // Create editor with enhanced error handling
         const editorInstance = monaco.editor.create(containerRef.current, {
           value: code || '',
           language: 'gcode',
-          theme: 'gcode-theme',
           automaticLayout: true,
           folding: true,
           lineNumbers: 'on',
@@ -115,6 +116,14 @@ const MonacoEditor = ({
       }
     };
   }, []);
+  
+  // Update theme when the app theme changes
+  useEffect(() => {
+    // Only update if we have both monaco and an editor instance
+    if (monacoRef.current && editorRef.current) {
+      applyMonacoTheme(monacoRef.current, currentTheme);
+    }
+  }, [currentTheme]);
   
   // Add custom methods to the editor instance
   const enhanceEditorInstance = (editor, monaco) => {
