@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import GridEditor from './components/GridEditor';
 import MouseIndicatorSettings from './components/MouseIndicatorSettings';
 import VisualizationSettings from './components/VisualizationSettings';
+import ViewToggle from './components/ViewToggle'; // Import the new component
 import { VisualizationModes } from './utils/VisualizationModes';
 // Import Lucide icons with correct names
 import { 
@@ -10,16 +11,16 @@ import {
   MousePointer, 
   Box, 
   Route, 
-  Maximize, 
-  MinusSquare,
-  FileUp, // Changed from FilePlus2
+  Maximize,
+  MinusSquare, 
+  FileUp,
   ChevronDown,
   ChevronRight,
   PanelRight,
   Settings,
   Eye,
   EyeOff,
-  Import // Changed from ImportIcon
+  Import
 } from 'lucide-react';
 
 /**
@@ -253,27 +254,17 @@ const Controls = ({
         </div>
         
         <div className="controls-divider"></div>
-        
+        <div className="view-buttons">
+            {/* Replace the old buttons with our new ViewToggle component */}
+            <ViewToggle 
+              isPerspective={isPerspective} 
+              togglePerspective={togglePerspective} 
+            />
+          </div>
         {/* View and import options */}
         <div className="controls-section view-options">
-          <div className="view-buttons">
-            <button
-              className={`view-btn ${!isPerspective ? 'active' : ''}`}
-              onClick={togglePerspective}
-              title="Orthographic View"
-            >
-              <MinusSquare size={14} />
-              Ortho
-            </button>
-            <button
-              className={`view-btn ${isPerspective ? 'active' : ''}`}
-              onClick={togglePerspective}
-              title="Perspective View"
-            >
-              <Maximize size={14} />
-              Persp
-            </button>
-            <button
+
+          <button
               className="view-btn import-btn"
               onClick={handleImportClick}
               title="Import STL file"
@@ -289,7 +280,6 @@ const Controls = ({
               style={{ display: 'none' }}
               onChange={onFileSelect}
             />
-          </div>
         </div>
       </div>
     </div>

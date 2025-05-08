@@ -15,9 +15,9 @@
 .controls-toolbar {
   display: flex;
   align-items: center;
-  padding: 6px 8px;
+  padding: 8px 10px;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 14px 4px;
 }
 
 /* Controls section */
@@ -46,7 +46,6 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-right: 8px;
   cursor: pointer;
   user-select: none;
   position: relative;
@@ -262,6 +261,7 @@
   padding: 6px 12px;
   box-shadow: 0 2px 6px rgba(var(--accent-blue-rgb, 0, 119, 204), 0.3);
   font-weight: 500;
+  margin-left: 10px;
 }
 
 .import-btn:hover {
@@ -753,3 +753,121 @@
     flex: 1;
   }
 }
+
+/* View toggle styling */
+.view-toggle-container {
+  display: flex;
+  align-items: center;
+}
+
+.view-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  padding: 0;
+  margin: 0;
+}
+
+.view-toggle input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.view-toggle-label {
+  display: flex;
+  background-color: var(--bg-medium);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.toggle-side {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 500;
+  min-width: 70px;
+  justify-content: center;
+  z-index: 1;
+}
+
+.toggle-indicator {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  top: 50%;
+  z-index: 2;
+  background-color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+}
+
+.toggle-indicator.view-ortho {
+  transform: translateY(-50%);
+  left: 25%;
+}
+
+.toggle-indicator.view-persp {
+  transform: translateY(-50%);
+  left: 75%;
+}
+
+/* Add a subtle divider between the two toggle sides */
+.toggle-side.ortho-side {
+  border-right: 1px solid var(--border-color);
+}
+
+/* Simple text colors for active/inactive states */
+.view-toggle input:checked ~ .view-toggle-label .ortho-side,
+.view-toggle input:not(:checked) ~ .view-toggle-label .persp-side {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.view-toggle input:not(:checked) ~ .view-toggle-label .ortho-side,
+.view-toggle input:checked ~ .view-toggle-label .persp-side {
+  color: var(--text-secondary);
+}
+
+/* View toggle group styling - to make the toggles appear connected */
+.view-buttons-group {
+  display: flex;
+  align-items: center;
+}
+
+/* Make the two toggles appear connected */
+.view-buttons-group .toggle-switch {
+  margin-right: 0;
+  background-color: transparent;
+}
+
+
+.view-buttons-group .toggle-switch:last-child {
+  margin-left: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+/* Override some toggle-switch styles to make them connected */
+.view-buttons-group .toggle-switch {
+  background-color: transparent;
+}
+
+.view-buttons-group .toggle-switch:last-child {
+  border-right: none;
+}
+
+/* Ensure hover effects match other toggles */
+.view-buttons-group .toggle-switch:hover {
+  background-color: var(--dv-tabs-hover-background-color, rgba(255, 255, 255, 0.1));
+  transform: translateY(-1px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
