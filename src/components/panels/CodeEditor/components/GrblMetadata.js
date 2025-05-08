@@ -213,11 +213,6 @@ const GrblMetadata = ({ code, format, fileName, modified }) => {
           <span className="grbl-metadata-label">Moves:</span>
           <span className="grbl-metadata-value">
             {metadata.stats.explicitMoves + metadata.stats.impliedMoves}
-            {metadata.stats.impliedMoves > 0 && (
-              <span className="implied-count" style={{ fontSize: '10px' }}>
-                ({metadata.stats.impliedMoves} implied)
-              </span>
-            )}
           </span>
         </div>
         

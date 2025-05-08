@@ -3,6 +3,7 @@ import React from 'react';
 /**
  * Enhanced header component with toolbar for the code editor
  * Modern, IDE-like styling with proper component grouping
+ * UPDATED: Combined Start/Pause button functionality that works for the entire operation
  */
 const EditorHeader = ({
   fileName,
@@ -14,6 +15,8 @@ const EditorHeader = ({
   formatCode,
   sendToRobot,
   isPaused,
+  isTransferring,
+  isExecuting,
   pauseTransfer,
   resumeTransfer,
   stopTransfer,
@@ -21,6 +24,9 @@ const EditorHeader = ({
   showMetadata,
   toggleMetadata
 }) => {
+  // Operation is active if either transferring or executing
+  const isOperationActive = isTransferring || isExecuting;
+
   return (
     <div className="editor-toolbar">
       <div className="toolbar-section">
@@ -64,40 +70,46 @@ const EditorHeader = ({
           </button>
         </div>
         
-        {/* Execution controls group */}
+        {/* Execution controls group - UPDATED with combined Start/Pause button */}
         <div className="toolbar-group">
+          {/* Combined Start/Pause/Resume button */}
           <button 
             className="toolbar-btn action-btn" 
-            onClick={sendToRobot}
+            onClick={
+              !isOperationActive 
+                ? sendToRobot 
+                : (isPaused ? resumeTransfer : pauseTransfer)
+            }
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="var(--play-color, #4CAF50)" strokeWidth="2">
-              <polygon points="5 3 19 12 5 21 5 3"></polygon>
-            </svg>
-            <span className="toolbar-tooltip">Send to Machine</span>
-          </button>
-          
-          <button 
-            className="toolbar-btn action-btn" 
-            onClick={isPaused ? resumeTransfer : pauseTransfer}
-          >
-            {isPaused ? (
+            {!isOperationActive ? (
+              // Start button (play icon) when no operation is active
+              <>
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--play-color, #4CAF50)" strokeWidth="2">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                <span className="toolbar-tooltip">Start Transfer</span>
+              </>
+            ) : isPaused ? (
+              // Resume button (play icon with blue color) when paused
               <>
                 <svg viewBox="0 0 24 24" fill="none" stroke="var(--resume-color, #2196F3)" strokeWidth="2">
                   <polygon points="5 3 19 12 5 21 5 3"></polygon>
                 </svg>
-                <span className="toolbar-tooltip">Resume Transfer</span>
+                <span className="toolbar-tooltip">Resume Operation</span>
               </>
             ) : (
+              // Pause button (pause icon) when active and not paused
               <>
                 <svg viewBox="0 0 24 24" fill="none" stroke="var(--pause-color, #FF9800)" strokeWidth="2">
                   <rect x="6" y="4" width="4" height="16"></rect>
                   <rect x="14" y="4" width="4" height="16"></rect>
                 </svg>
-                <span className="toolbar-tooltip">Pause Transfer</span>
+                <span className="toolbar-tooltip">Pause Operation</span>
               </>
             )}
           </button>
           
+          {/* Stop button remains unchanged */}
           <button 
             className="toolbar-btn action-btn" 
             onClick={stopTransfer}
@@ -105,7 +117,7 @@ const EditorHeader = ({
             <svg viewBox="0 0 24 24" fill="none" stroke="var(--stop-color, #F44336)" strokeWidth="2">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
             </svg>
-            <span className="toolbar-tooltip">Stop Transfer</span>
+            <span className="toolbar-tooltip">Stop Operation</span>
           </button>
         </div>
       </div>

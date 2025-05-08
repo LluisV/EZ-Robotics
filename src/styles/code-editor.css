@@ -1585,3 +1585,105 @@
   }
 }
 
+/* Add these styles to src/styles/code-editor.css */
+
+/* Unified Operation Progress styling */
+.operation-progress-container {
+  margin: 8px;
+}
+
+.progress-box {
+  background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, rgba(30, 30, 30, 0.4));
+  border-radius: 8px;
+  border: 1px solid var(--dv-separator-border, rgba(255, 255, 255, 0.1));
+  padding: 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.progress-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Separator between sections when both are visible */
+.transfer-section + .execution-section {
+  padding-top: 8px;
+  border-top: 1px solid var(--dv-separator-border, rgba(255, 255, 255, 0.05));
+  margin-top: 4px;
+}
+
+/* Different status indicator colors */
+.status-indicator.transfer-indicator {
+  background-color: var(--transfer-color, #2196F3);
+}
+
+.status-indicator.transfer-indicator::before {
+  border-color: rgba(33, 150, 243, 0.3);
+}
+
+.status-indicator.execution-indicator {
+  background-color: var(--execution-color, #4CAF50);
+}
+
+.status-indicator.execution-indicator::before {
+  border-color: rgba(76, 175, 80, 0.3);
+}
+
+/* Different progress bar colors */
+.progress-bar.transfer-bar {
+  background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, rgba(0, 0, 0, 0.2));
+}
+
+.progress-fill.transfer-fill {
+  background-color: var(--transfer-color, #2196F3);
+}
+
+.progress-bar.execution-bar {
+  background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, rgba(0, 0, 0, 0.2));
+}
+
+.progress-fill.execution-fill {
+  background-color: var(--execution-color, #4CAF50);
+}
+
+/* Error styling */
+.transfer-error {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background-color: rgba(244, 67, 54, 0.1);
+  border-radius: 4px;
+  margin-top: 6px;
+  border-left: 3px solid var(--error-color, #F44336);
+}
+
+.error-message {
+  color: var(--error-color, #F44336);
+  font-size: 12px;
+  margin-right: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.retry-btn {
+  background-color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.retry-btn:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}

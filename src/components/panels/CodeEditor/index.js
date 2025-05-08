@@ -9,7 +9,6 @@ import useTransfer from './hooks/useTransfer';
 import EditorHeader from './components/EditorHeader';
 import EditorFooter from './components/EditorFooter';
 import TransformPanel from './components/TransformPanel';
-import TransferProgress from './components/TransferProgress';
 
 // Default export is the main panel component
 export default CodeEditorPanel;
@@ -20,7 +19,6 @@ export {
   EditorHeader,
   EditorFooter,
   TransformPanel,
-  TransferProgress,
   
   // Hooks
   useTransfer

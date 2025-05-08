@@ -11,8 +11,7 @@ import { disposeMonacoEditor } from '../../../utils/setupMonaco';
 import EditorHeader from './components/EditorHeader';
 import EditorFooter from './components/EditorFooter';
 import TransformPanel from './components/TransformPanel';
-import TransferProgress from './components/TransferProgress';
-import ExecutionTracker from './components/ExecutionTracker';
+import OperationProgress from './components/OperationProgress';
 import MonacoEditor from './components/MonacoEditor'; // Monaco-based editor
 
 /**
@@ -45,7 +44,7 @@ const CodeEditorPanel = () => {
   const [lastProgress, setLastProgress] = useState(0);
   const [codeFormat, setCodeFormat] = useState('unknown');
   const [showMetadata, setShowMetadata] = useState(true);
-  
+
   // Execution tracking state
   const [isExecuting, setIsExecuting] = useState(false);
   const [executedLine, setExecutedLine] = useState(0);
@@ -74,35 +73,35 @@ const CodeEditorPanel = () => {
     if (window.serialService) {
       gCodeSerialHelper.initialize(window.serialService);
     }
-    
+
     // Return cleanup function
     return () => {
       // Cleanup serial communication
       gCodeSerialHelper.cleanup();
-      
+
       // Stop any ongoing transfer
       if (gcodeSender.current) {
         gcodeSender.current.stop();
       }
-      
+
       // Cleanup resize observer
       if (resizeObserverRef.current) {
         resizeObserverRef.current.disconnect();
         resizeObserverRef.current = null;
       }
-      
+
       // Clear any pending timeouts
       if (resizeTimeoutRef.current) {
         clearTimeout(resizeTimeoutRef.current);
         resizeTimeoutRef.current = null;
       }
-      
+
       // Properly dispose of Monaco editor to prevent memory leaks
       if (editorInstanceRef.current) {
         disposeMonacoEditor(editorInstanceRef.current);
         editorInstanceRef.current = null;
       }
-      
+
       // Reset state variables that might cause re-renders
       setIsTransferring(false);
       setIsExecuting(false);
@@ -110,7 +109,7 @@ const CodeEditorPanel = () => {
       setExecutionProgress(0);
       setExecutedLine(0);
       setTransferError(null);
-      
+
       // Dispose of validator resources
       if (gCodeValidator.current) {
         gCodeValidator.current.dispose && gCodeValidator.current.dispose();
@@ -125,24 +124,24 @@ const CodeEditorPanel = () => {
       resizeObserverRef.current.disconnect();
       resizeObserverRef.current = null;
     }
-    
+
     if (!editorInstanceRef.current) return;
-    
+
     // Find the container element
     const editorContainer = document.querySelector('.monaco-editor-container');
     if (!editorContainer) return;
-    
+
     // Create a new ResizeObserver with throttling to avoid loop errors
     resizeObserverRef.current = new ResizeObserver((entries) => {
       // Clear any pending timeout to implement throttling
       if (resizeTimeoutRef.current) {
         clearTimeout(resizeTimeoutRef.current);
       }
-      
+
       // Set a new timeout to delay the resize handling
       resizeTimeoutRef.current = setTimeout(() => {
         if (!editorInstanceRef.current) return;
-        
+
         // Call layout() to resize the editor
         try {
           editorInstanceRef.current.layout();
@@ -151,7 +150,7 @@ const CodeEditorPanel = () => {
         }
       }, 100); // 100ms throttle
     });
-    
+
     // Start observing the container
     resizeObserverRef.current.observe(editorContainer);
   }, []);
@@ -196,18 +195,18 @@ const CodeEditorPanel = () => {
   // Detect the G-code format
   const detectCodeFormat = useCallback((content) => {
     if (!content) return;
-    
+
     // For performance, only check the first 50 lines
     const sampleLines = content.split('\n').slice(0, 50);
-    
+
     const grblStyleLines = sampleLines.filter(line => {
       return /G[0-9][0-9]*[XYZ][0-9]/.test(line) || /\$[A-Z0-9]/.test(line);
     }).length;
-    
+
     const standardStyleLines = sampleLines.filter(line => {
       return /G[0-9][0-9]*\s+[XYZ]/.test(line);
     }).length;
-    
+
     if (grblStyleLines > standardStyleLines) {
       setCodeFormat('grbl');
     } else if (standardStyleLines > grblStyleLines) {
@@ -226,7 +225,7 @@ const CodeEditorPanel = () => {
     const lines = codeToAnalyze.split('\n');
     const maxLinesToAnalyze = Math.min(lines.length, 5000);
     const step = Math.max(1, Math.floor(lines.length / maxLinesToAnalyze));
-    
+
     let minX = Infinity, maxX = -Infinity;
     let minY = Infinity, maxY = -Infinity;
     let minZ = Infinity, maxZ = -Infinity;
@@ -312,19 +311,19 @@ const CodeEditorPanel = () => {
       setWarnings([]);
       return;
     }
-    
+
     // Use the worker-based validator for large files
     const validationResult = gCodeValidator.current.validate(codeToValidate);
     setErrors(validationResult.errors);
     setWarnings(validationResult.warnings);
-    
+
     // Apply diagnostics to Monaco editor
     editorInstanceRef.current.setDiagnostics(validationResult.errors, validationResult.warnings);
-    
+
     // Update status message if current line has errors/warnings
     const currentError = validationResult.errors.find(err => err.line === currentLine);
     const currentWarning = validationResult.warnings.find(warn => warn.line === currentLine);
-    
+
     if (currentError) {
       setStatusMessage(`Error (Line ${currentLine}): ${currentError.message}`);
     } else if (currentWarning) {
@@ -337,7 +336,7 @@ const CodeEditorPanel = () => {
   // Format G-code to make it more readable
   const formatCode = () => {
     if (!editorInstanceRef.current) return;
-    
+
     const lines = code.split('\n');
     const formattedLines = lines.map(line => {
       // Skip empty lines or pure comments
@@ -346,7 +345,7 @@ const CodeEditorPanel = () => {
       // Separate commands and comments
       let commandPart = line;
       let commentPart = '';
-      
+
       if (line.includes(';')) {
         [commandPart, commentPart] = line.split(';', 2);
         commentPart = ';' + commentPart;
@@ -355,7 +354,7 @@ const CodeEditorPanel = () => {
         commandPart = line.substring(0, commentStart);
         commentPart = line.substring(commentStart);
       }
-      
+
       // Clean up whitespace, but preserve the existing format
       commandPart = commandPart.trim();
       commandPart = commandPart.replace(/\s+/g, ' ');
@@ -403,7 +402,7 @@ const CodeEditorPanel = () => {
     if (file.size > 10 * 1024 * 1024) { // 10MB
       // Show loading message
       setStatusMessage('Loading large file...');
-      
+
       const reader = new FileReader();
       reader.onload = (event) => {
         const content = event.target.result;
@@ -416,11 +415,11 @@ const CodeEditorPanel = () => {
         setModified(false);
         updateFileStats(content);
         detectCodeFormat(content);
-        
+
         // Delayed validation for large files
         setTimeout(() => {
           validateCode(content);
-          
+
           // Calculate boundaries in background
           setTimeout(() => {
             const boundaries = calculateBoundaries(content);
@@ -436,12 +435,12 @@ const CodeEditorPanel = () => {
               moveZ: 0,
               rotateAngle: 0
             }));
-            
+
             setStatusMessage('');
           }, 100);
         }, 500);
       };
-      
+
       reader.readAsText(file);
     } else {
       // Standard approach for smaller files
@@ -488,7 +487,7 @@ const CodeEditorPanel = () => {
     // For large files, use a web worker or chunk-based approach
     if (originalCode.length > 1000000) { // ~1MB
       setStatusMessage('Processing large file transformation...');
-      
+
       // Process in chunks to avoid freezing the UI
       setTimeout(() => {
         const transformedCode = transformGCode(originalCode);
@@ -500,14 +499,14 @@ const CodeEditorPanel = () => {
         setModified(true);
         setStatusMessage('');
       }, 100);
-      
+
       return '';
     }
-    
+
     // For smaller files, transform synchronously
     return transformGCode(originalCode);
   };
-  
+
   // Helper function to transform G-code (extracted for potential worker use)
   const transformGCode = (sourceCode) => {
     const lines = sourceCode.split('\n');
@@ -593,7 +592,7 @@ const CodeEditorPanel = () => {
   // Helper function to log messages to the console panel
   const logToConsole = (type, message) => {
     // Create a custom event to log to console panel
-    const event = new CustomEvent('consoleEntry', { 
+    const event = new CustomEvent('consoleEntry', {
       detail: { type, content: message }
     });
     document.dispatchEvent(event);
@@ -612,7 +611,7 @@ const CodeEditorPanel = () => {
       setTransferError(errorMsg);
       return;
     }
-  
+
     const gCodeToSend = code;
     if (!gCodeToSend.trim()) {
       const emptyMsg = "No G-code content to send";
@@ -620,7 +619,7 @@ const CodeEditorPanel = () => {
       setStatusMessage(emptyMsg);
       return;
     }
-  
+
     try {
       // Start file transfer UI updates
       setIsTransferring(true);
@@ -631,14 +630,14 @@ const CodeEditorPanel = () => {
       setTransferError(null);
       setIsPaused(false);
       setLastProgress(0);
-      
+
       // Load the G-code
       const totalLines = gcodeSender.current.loadGCode(gCodeToSend);
       const totalBytes = new Blob([gCodeToSend]).size;
-      
+
       // Log to console panel that we're starting transfer
       logToConsole('system', `Starting transfer: ${fileName} (${totalBytes} bytes, ${totalLines} lines)`);
-      
+
       // Set up the callbacks
       gcodeSender.current.setCallbacks({
         // Send progress callback
@@ -648,46 +647,46 @@ const CodeEditorPanel = () => {
           setStatusMessage(
             `Transferring: ${data.progress.toFixed(1)}% (${data.acknowledged}/${data.total} lines)`
           );
-          
+
           // Log progress occasionally (every 5%)
           const currentProgressFloor = Math.floor(data.progress);
-          if (currentProgressFloor % 5 === 0 && 
-              currentProgressFloor !== Math.floor(lastProgress)) {
-            logToConsole('info', 
+          if (currentProgressFloor % 5 === 0 &&
+            currentProgressFloor !== Math.floor(lastProgress)) {
+            logToConsole('info',
               `Transfer progress: ${data.progress.toFixed(1)}% (${data.acknowledged}/${data.total} lines)`
             );
             setLastProgress(data.progress);
           }
         },
-        
+
         // Execution progress callback
         onExecutionProgress: (data) => {
           // Update execution progress
           setExecutionProgress(data.progress);
           setExecutedLine(data.executed);
         },
-        
+
         // Transfer complete callback
         onComplete: (data) => {
           // Update UI for completion
           setTransferProgress(100);
           setIsTransferring(false);
-          
+
           const completeMsg = `Transfer completed: ${fileName} (${data.total} lines)`;
           logToConsole('system', completeMsg);
           setStatusMessage(completeMsg);
         },
-        
+
         // Execution complete callback
         onExecutionComplete: (data) => {
           // Update UI for execution completion
           setExecutionProgress(100);
           setIsExecuting(false);
-          
+
           const completeMsg = `Execution completed: ${fileName}`;
           logToConsole('system', completeMsg);
           setStatusMessage(completeMsg);
-          
+
           // Clear line highlight after execution
           setTimeout(() => {
             setSelectedLine(-1);
@@ -697,51 +696,51 @@ const CodeEditorPanel = () => {
             }
           }, 2000);
         },
-        
+
         // Error callback
         onError: (error) => {
           // Log error
           logToConsole('error', `Transfer error: ${error}`);
-          
+
           // Update error message in UI
           setTransferError(error);
         },
-        
+
         // Line success callback
         onLineSuccess: (lineIndex, lineContent) => {
           // Only log detailed line info for smaller files
           if (totalLines < 100) {
-            logToConsole('debug', `Sent line ${lineIndex+1}: ${lineContent}`);
+            logToConsole('debug', `Sent line ${lineIndex + 1}: ${lineContent}`);
           }
         },
-        
+
         // Line error callback
         onLineError: (lineIndex, lineContent, errorMessage) => {
           // Always log line errors
-          logToConsole('error', `Error at line ${lineIndex+1}: ${errorMessage} - ${lineContent}`);
-          
+          logToConsole('error', `Error at line ${lineIndex + 1}: ${errorMessage} - ${lineContent}`);
+
           // Highlight the line with error
           setSelectedLine(lineIndex + 1);
-          
+
           // Add retry information to status
           const status = gcodeSender.current.getStatus();
-          setStatusMessage(`Error at line ${lineIndex+1} - Retry ${status.retryCount}/${status.maxRetries}`);
+          setStatusMessage(`Error at line ${lineIndex + 1} - Retry ${status.retryCount}/${status.maxRetries}`);
         },
-        
+
         // Pause callback
         onPause: (reason) => {
           logToConsole('warning', `Transfer paused: ${reason || 'User requested'}`);
           setStatusMessage(`Transfer paused: ${reason || 'User requested'}`);
           setIsPaused(true);
         },
-        
+
         // Resume callback
         onResume: () => {
           logToConsole('info', 'Transfer resumed');
           setIsPaused(false);
           setStatusMessage(`Transfer resumed`);
         },
-        
+
         // Status update callback
         onStatusUpdate: (status) => {
           // Update machine status display with controller state
@@ -749,9 +748,9 @@ const CodeEditorPanel = () => {
           if (status.executedLine !== undefined && status.executedLine >= 0) {
             setExecutedLine(status.executedLine);
           }
-          
+
           // Update machine status display
-          document.dispatchEvent(new CustomEvent('machineStatus', { 
+          document.dispatchEvent(new CustomEvent('machineStatus', {
             detail: {
               state: status.state,
               position: status.position,
@@ -761,14 +760,14 @@ const CodeEditorPanel = () => {
           }));
         }
       });
-      
+
       // Start the transfer - the 'false' parameter means not to use check mode
       const success = await gcodeSender.current.start(window.serialService, false);
-      
+
       if (!success) {
         throw new Error("Failed to start G-code transfer");
       }
-      
+
     } catch (error) {
       const errorMsg = `Error sending G-code to machine: ${error.message}`;
       console.error(errorMsg);
@@ -776,64 +775,141 @@ const CodeEditorPanel = () => {
       setTransferError(`Error: ${error.message}`);
       setIsTransferring(false);
       setIsExecuting(false);
-      
+
       // Make sure to stop the sender
       gcodeSender.current.stop();
     }
   };
 
   /**
-   * Pause the current transfer
-   */
-  const pauseTransfer = () => {
-    if (gcodeSender.current && gcodeSender.current.pause) {
-      const success = gcodeSender.current.pause();
-      if (success) {
-        setIsPaused(true);
-        setStatusMessage('Transfer paused - machine feed hold active');
-        
-        // Log to console panel
-        logToConsole('warning', 'Transfer paused by user');
-      }
+ * Pause the current operation (handles both transfer and execution)
+ */
+const pauseTransfer = () => {
+  // If still transferring, use the gcodeSender's pause method
+  if (isTransferring && gcodeSender.current && gcodeSender.current.pause) {
+    const success = gcodeSender.current.pause();
+    if (success) {
+      setIsPaused(true);
+      setStatusMessage('Transfer paused - machine feed hold active');
+      
+      // Log to console panel
+      logToConsole('warning', 'Transfer paused by user');
     }
-  };
+  } 
+  // If execution phase (after transfer is complete), use serialService's feedHold
+  else if (isExecuting && window.serialService) {
+    try {
+      // Use the feedHold method from SerialCommunicationService
+      window.serialService.feedHold().then(success => {
+        if (success) {
+          setIsPaused(true);
+          setStatusMessage('Execution paused - machine feed hold active');
+          
+          // Log to console panel
+          logToConsole('warning', 'Execution paused by user');
+        } else {
+          logToConsole('error', 'Failed to pause execution');
+        }
+      });
+    } catch (error) {
+      console.error("Error sending feed hold command:", error);
+      logToConsole('error', `Failed to pause execution: ${error.message}`);
+    }
+  }
+};
 
-  /**
-   * Resume the current transfer
-   */
-  const resumeTransfer = () => {
-    if (gcodeSender.current && gcodeSender.current.resume) {
-      const success = gcodeSender.current.resume();
-      if (success) {
-        setIsPaused(false);
-        setStatusMessage('Transfer resumed - continuing from paused position');
-        
-        // Log to console panel
-        logToConsole('info', 'Transfer resumed by user');
-      }
+/**
+ * Resume the current operation (handles both transfer and execution)
+ */
+const resumeTransfer = () => {
+  // If still transferring, use the gcodeSender's resume method
+  if (isTransferring && gcodeSender.current && gcodeSender.current.resume) {
+    const success = gcodeSender.current.resume();
+    if (success) {
+      setIsPaused(false);
+      setStatusMessage('Transfer resumed - continuing from paused position');
+      
+      // Log to console panel
+      logToConsole('info', 'Transfer resumed by user');
     }
-  };
+  } 
+  // If execution phase (after transfer is complete), use serialService's resumeFromHold
+  else if (isExecuting && window.serialService) {
+    try {
+      // Use the resumeFromHold method from SerialCommunicationService
+      window.serialService.resumeFromHold().then(success => {
+        if (success) {
+          setIsPaused(false);
+          setStatusMessage('Execution resumed - machine continuing from paused position');
+          
+          // Log to console panel
+          logToConsole('info', 'Execution resumed by user');
+        } else {
+          logToConsole('error', 'Failed to resume execution');
+        }
+      });
+    } catch (error) {
+      console.error("Error sending resume command:", error);
+      logToConsole('error', `Failed to resume execution: ${error.message}`);
+    }
+  }
+};
 
-  /**
-   * Stop/cancel the current transfer
-   */
-  const stopTransfer = () => {
-    if (gcodeSender.current && gcodeSender.current.stop) {
-      const success = gcodeSender.current.stop();
-      if (success) {
-        setIsPaused(false);
-        setIsTransferring(false);
-        setIsExecuting(false);
-        setTransferProgress(0);
-        setExecutionProgress(0);
-        setExecutedLine(0);
-        setStatusMessage('Transfer stopped - machine operation cancelled');
-        
-        // Log to console panel
-        logToConsole('error', 'Transfer stopped by user');
+/**
+ * Stop/cancel the current operation (handles both transfer and execution)
+ */
+const stopTransfer = () => {
+  if (gcodeSender.current && gcodeSender.current.stop) {
+    const success = gcodeSender.current.stop();
+    if (success) {
+      setIsPaused(false);
+      setIsTransferring(false);
+      setIsExecuting(false);
+      setTransferProgress(0);
+      setExecutionProgress(0);
+      setExecutedLine(0);
+      setStatusMessage('Operation stopped - machine operation cancelled');
+      
+      // Log to console panel
+      logToConsole('error', 'Operation stopped by user');
+      
+      // Also send a soft reset command to ensure the machine stops
+      if (window.serialService) {
+        try {
+          // Send GRBL soft reset command (Ctrl+X)
+          window.serialService.send('\x18');
+          logToConsole('system', 'Soft reset sent to machine');
+        } catch (error) {
+          console.error("Error sending soft reset command:", error);
+        }
       }
     }
-  };
+  } else if (window.serialService) {
+    // If gcodeSender is not available, try to stop directly with a reset
+    try {
+      // Send GRBL soft reset command using the service
+      window.serialService.send('\x18').then(success => {
+        if (success) {
+          setIsPaused(false);
+          setIsTransferring(false);
+          setIsExecuting(false);
+          setTransferProgress(0);
+          setExecutionProgress(0);
+          setExecutedLine(0);
+          setStatusMessage('Operation stopped - reset sent to machine');
+          
+          logToConsole('error', 'Operation stopped by user');
+          logToConsole('system', 'Soft reset sent to machine');
+        } else {
+          logToConsole('error', 'Failed to send reset command');
+        }
+      });
+    } catch (error) {
+      console.error("Error sending soft reset command:", error);
+      logToConsole('error', `Failed to stop operation: ${error.message}`);
+    }
+  }
+};
 
   /**
    * Retry the transfer after an error
@@ -921,11 +997,11 @@ const CodeEditorPanel = () => {
   const handleCursorPositionChange = (line, column) => {
     setCurrentLine(line);
     setCurrentColumn(column);
-    
+
     // Check for errors/warnings at current position
     const lineError = errors.find(err => err.line === line);
     const lineWarning = warnings.find(warn => warn.line === line);
-    
+
     if (lineError) {
       setStatusMessage(`Error (Line ${line}): ${lineError.message}`);
     } else if (lineWarning) {
@@ -941,24 +1017,24 @@ const CodeEditorPanel = () => {
       console.warn("Editor or Monaco instance is null in handleEditorDidMount");
       return;
     }
-    
+
     try {
       // Store references
       editorInstanceRef.current = editor;
       monacoRef.current = monaco;
-      
+
       // Initialize editor with current code (if provided)
       if (code) {
         editor.setValue(code);
         updateFileStats(code);
-        
+
         // Use setTimeout to avoid blocking the UI
         setTimeout(() => {
           validateCode(code);
           detectCodeFormat(code);
         }, 50);
       }
-      
+
       // Add cursor position change listener with error handling
       const cursorDisposable = editor.onDidChangeCursorPosition(e => {
         try {
@@ -967,18 +1043,18 @@ const CodeEditorPanel = () => {
           console.warn("Error handling cursor position change:", err);
         }
       });
-      
+
       // Store the disposable to clean it up later
       editor._cursorDisposable = cursorDisposable;
-      
+
       // Content change is handled in the component itself
-      
+
       // Set initial cursor position
       editor.setPosition({ lineNumber: 1, column: 1 });
-      
+
       // Set up custom resize handling
       setupEditorResizeHandling();
-      
+
       console.log("Monaco editor initialized successfully");
     } catch (err) {
       console.error("Error in handleEditorDidMount:", err);
@@ -1025,6 +1101,8 @@ const CodeEditorPanel = () => {
         formatCode={formatCode}
         sendToRobot={sendToRobot}
         isPaused={isPaused}
+        isTransferring={isTransferring}
+        isExecuting={isExecuting}
         pauseTransfer={pauseTransfer}
         resumeTransfer={resumeTransfer}
         stopTransfer={stopTransfer}
@@ -1032,39 +1110,32 @@ const CodeEditorPanel = () => {
         showMetadata={showMetadata}
         toggleMetadata={() => setShowMetadata(!showMetadata)}
       />
-      
+
       {/* G-code Metadata Panel */}
       {showMetadata && (
-  <GrblMetadata 
-    code={code} 
-    format={codeFormat} 
-    fileName={fileName}
-    modified={modified}
-  />
-)}
-
-      {/* File transfer progress UI */}
-      {isTransferring && (
-        <TransferProgress
-          statusMessage={statusMessage}
-          transferProgress={transferProgress}
-          isPaused={isPaused}
-          pauseTransfer={pauseTransfer}
-          resumeTransfer={resumeTransfer}
-          stopTransfer={stopTransfer}
-          transferError={transferError}
-          retryTransfer={retryTransfer}
+        <GrblMetadata
+          code={code}
+          format={codeFormat}
           fileName={fileName}
+          modified={modified}
         />
       )}
 
-      {/* Execution tracking UI */}
-      {isExecuting && (
-        <ExecutionTracker
+      {/* Unified Operation Progress UI */}
+      {(isTransferring || isExecuting) && (
+        <OperationProgress
+          isTransferring={isTransferring}
+          transferProgress={transferProgress}
+          transferStatusMessage={statusMessage}
+          transferError={transferError}
+          retryTransfer={retryTransfer}
+
           isExecuting={isExecuting}
           executedLine={executedLine}
           executionProgress={executionProgress}
           totalLines={totalLines}
+
+          fileName={fileName}
         />
       )}
 
