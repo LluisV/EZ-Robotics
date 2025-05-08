@@ -1,4 +1,55 @@
-/* Enhanced G-Code Editor styles with Monaco Editor support */
+@keyframes execution-pulse {
+  0%,to {
+      opacity: 1;
+      transform: scale(1)
+  }
+
+  50% {
+      opacity: .6;
+      transform: scale(.8)
+  }
+}
+
+@keyframes spin {
+  to {
+      transform: rotate(360deg)
+  }
+}
+
+@keyframes pulse {
+  0%,to {
+      transform: scale(1);
+      opacity: 1
+  }
+
+  50% {
+      transform: scale(1.5);
+      opacity: .5
+  }
+}
+
+@keyframes shimmer {
+  0% {
+      background-position: -100%0
+  }
+
+  to {
+      background-position: 100%0
+  }
+}
+
+@keyframes executing-pulse {
+  0%,to {
+      opacity: 1;
+      transform: scale(1)
+  }
+
+  50% {
+      opacity: .6;
+      transform: scale(.8)
+  }
+}
+
 .gcode-editor-panel {
   --editor-bg: var(--dv-activegroup-hiddenpanel-tab-background-color, #1c1c2c);
   --editor-fg: var(--dv-activegroup-visiblepanel-tab-color, #e0e0e0);
@@ -14,31 +65,25 @@
   --editor-btn-primary: var(--dv-paneview-active-outline-color, var(--accent-blue));
   --editor-radius: var(--dv-border-radius, 8px);
   --editor-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  
-  /* Error and warning colors */
   --error-color: #ff5252;
   --warning-color: #ffab40;
-
-  /* Syntax highlighting colors */
   --syntax-comment: #6A9955;
   --syntax-command: #569CD6;
   --syntax-param: #9CDCFE;
   --syntax-value: #B5CEA8;
-
   display: flex;
   flex-direction: column;
   height: 100%;
-  font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
+  font-family: "Fira Code","Consolas","Monaco",monospace;
   font-size: 14px;
   background-color: var(--editor-bg);
   color: var(--editor-fg);
   position: relative;
   overflow: hidden;
   backdrop-filter: blur(8px);
-  border-radius: var(--editor-radius);
+  border-radius: var(--editor-radius)
 }
 
-/* Light theme variant */
 .gcode-editor-panel.light {
   --editor-bg: #f5f5f5;
   --editor-fg: #2d2d2d;
@@ -53,138 +98,90 @@
   --syntax-param: #267F99;
   --syntax-value: #098658;
   --error-color: #d32f2f;
-  --warning-color: #f57c00;
+  --warning-color: #f57c00
 }
 
-/* Editor toolbar */
 .editor-toolbar {
-  display: flex;
   flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 4px;
-  border-bottom: 1px solid var(--dv-separator-border, rgba(255, 255, 255, 0.1));
-  background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, var(--bg-light));
-  z-index: 10;
   min-height: 38px;
-  user-select: none;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   width: 100%;
   box-sizing: border-box;
-  position: relative; /* For absolute positioning of toggle button */
+  position: relative
 }
 
 .toolbar-section {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap; /* Allow wrapping in section */
-  padding: 2px;
+  flex-wrap: wrap;
+  padding: 2px
 }
 
 .toolbar-btn {
-  width: 34px;
-  height: 34px;
   padding: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: transparent;
-  border: none;
-  color: var(--editor-fg);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.12s ease;
-  position: relative;
-}
-
-.toolbar-btn svg {
-  width: 20px;
-  height: 20px;
+  color: var(--editor-fg)
 }
 
 .toolbar-btn:hover {
-  background-color: var(--editor-btn-hover);
+  background-color: var(--editor-btn-hover)
 }
 
-.toolbar-btn:active {
-  background-color: var(--editor-btn-active);
-  transform: translateY(1px);
+.toolbar-btn.active,.toolbar-btn:active {
+  background-color: var(--editor-btn-active)
 }
 
 .toolbar-btn.active {
-  background-color: var(--editor-btn-active);
-  color: white;
+  color: #fff
 }
 
 .toolbar-btn.primary {
   background-color: var(--editor-btn-primary);
-  color: white;
+  color: #fff
 }
 
 .toolbar-btn.primary:hover {
-  filter: brightness(1.1);
+  filter: brightness(1.1)
 }
 
 .toolbar-divider {
-  width: 1px;
-  height: 24px;
-  background-color: var(--editor-border);
-  margin: 0 4px;
+  background-color: var(--editor-border)
 }
 
-/* File info section */
 .file-info {
-  display: flex;
   flex-direction: column;
-  justify-content: center;
-}
-
-.file-name {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 500;
-}
-
-.file-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  justify-content: center
 }
 
 .modified-indicator {
-  font-size: 16px;
-  color: var(--dv-paneview-active-outline-color, var(--accent-blue));
-  line-height: 0;
+  line-height: 0
 }
 
-/* Transform panel */
 .transform-panel {
   border-bottom: var(--editor-border);
   background-color: var(--editor-bg);
   padding: 16px;
   max-height: 400px;
-  overflow-y: auto;
+  overflow-y: auto
 }
 
 .transform-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 10px
 }
 
 .transform-header h3 {
   margin: 0;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 600
+}
+
+.close-btn,.control-group input {
+  border-radius: 4px;
+  color: var(--editor-fg)
 }
 
 .close-btn {
-  background: none;
-  border: none;
-  color: var(--editor-fg);
+  background: 0 0;
+  border: 0;
   font-size: 20px;
   cursor: pointer;
   padding: 0;
@@ -192,472 +189,246 @@
   align-items: center;
   justify-content: center;
   width: 24px;
-  height: 24px;
-  border-radius: 4px;
+  height: 24px
 }
 
 .close-btn:hover {
-  background-color: var(--editor-btn-hover);
+  background-color: var(--editor-btn-hover)
 }
 
 .transform-controls {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
+  grid-template-columns: repeat(4,1fr);
+  gap: 16px
 }
 
 .control-group {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 4px
 }
 
 .control-group label {
   font-size: 12px;
   color: var(--editor-fg);
-  opacity: 0.8;
+  opacity: .8
 }
 
 .control-group input {
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: rgba(255,255,255,.05);
   border: var(--editor-border);
-  border-radius: 4px;
   padding: 5px 8px;
-  color: var(--editor-fg);
-  font-family: inherit;
+  font-family: inherit
 }
 
-/* MONACO EDITOR CONTAINER - NEW */
 .monaco-editor-container {
   flex-grow: 1;
   min-height: 200px;
   position: relative;
   overflow: hidden;
-  border-bottom: var(--editor-border);
+  border-bottom: var(--editor-border)
 }
 
 .monaco-editor-wrapper {
   width: 100%;
   height: 100%;
-  overflow: hidden;
+  overflow: hidden
 }
 
-/* Ensure the Monaco editor is properly sized */
 .monaco-editor {
   width: 100%;
-  height: 100%;
+  height: 100%
 }
 
-/* Customize Monaco editor */
-.monaco-editor .margin,
-.monaco-editor .minimap {
-}
-
-.monaco-editor .editor-scrollable {
-}
-
-/* Custom execution line highlighting */
 .executing-line {
-  background-color: rgba(76, 175, 80, 0.1) !important;
-  border-left: 3px solid var(--execution-color, #4CAF50) !important;
+  background-color: rgba(76,175,80,.1)!important;
+  border-left: 3px solid var(--execution-color, #4CAF50)!important
 }
 
 .executing-line-glyph {
-  background-color: var(--execution-color, #4CAF50) !important;
+  background-color: var(--execution-color, #4CAF50)!important;
   border-radius: 50%;
-  width: 8px !important;
-  height: 8px !important;
-  margin-left: 4px;
+  width: 8px!important;
+  height: 8px!important;
+  margin-left: 4px
 }
 
-/* Editor footer */
 .editor-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0;
   border-top: var(--editor-border);
-  font-size: 12px;
-  background-color: var(--editor-footer-bg);
-  backdrop-filter: blur(8px);
-  z-index: 10;
+  background-color: var(--editor-footer-bg)
 }
 
 .editor-status-bar {
-  display: flex;
-  align-items: center;
-  height: 22px;
-  padding: 0 5px;
-  width: 100%;
+  padding: 0 5px
 }
 
 .status-section {
-  display: flex;
-  align-items: center;
-  height: 100%;
-  padding: 0 8px;
-  border-right: var(--editor-border);
-}
-
-.status-section:last-child {
-  border-right: none;
-  margin-left: auto;
+  border-right: var(--editor-border)
 }
 
 .info-item {
-  font-size: 11px;
-  color: var(--dv-inactivegroup-hiddenpanel-tab-color, var(--text-secondary));
+  color: var(--dv-inactivegroup-hiddenpanel-tab-color, var(--text-secondary))
 }
 
 .info-item.error {
-  color: var(--error-color);
+  color: var(--error-color)
 }
 
 .info-item.warning {
-  color: var(--warning-color);
+  color: var(--warning-color)
 }
 
 .status-divider {
-  margin: 0 5px;
-  color: var(--dv-separator-border, var(--border-color));
+  color: var(--dv-separator-border, var(--border-color))
 }
 
-.mode-indicator {
-  font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 3px;
-  color: var(--dv-inactivegroup-hiddenpanel-tab-color, var(--text-secondary));
+.cursor-position,.mode-indicator {
+  color: var(--dv-inactivegroup-hiddenpanel-tab-color, var(--text-secondary))
 }
 
 .mode-indicator.modified {
-  background-color: rgba(255, 119, 0, 0.15);
-  color: var(--accent-orange);
+  color: var(--accent-orange)
 }
 
-.cursor-position {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-variant-numeric: tabular-nums;
-  color: var(--dv-inactivegroup-hiddenpanel-tab-color, var(--text-secondary));
-}
-
-.position-text {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-/* Transfer progress container */
 .transfer-progress-container {
-  padding: 8px 10px;
-  background-color: rgba(33, 150, 243, 0.05);
-  border-radius: 6px;
-  border: 1px solid rgba(33, 150, 243, 0.2);
-  margin: 8px;
-}
-
-.transfer-status {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  justify-content: space-between;
-}
-
-.status-indicator-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  overflow: hidden;
-  flex-grow: 1;
-  min-width: 0;
-}
-
-.status-text {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  background-color: rgba(33,150,243,.05);
+  border: 1px solid rgba(33,150,243,.2);
+  margin: 8px
 }
 
 .status-indicator {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background-color: var(--transfer-color, #2196F3);
-  animation: pulse 1.5s infinite;
+  animation: pulse 1.5s infinite
 }
 
-@keyframes pulse {
-  0% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.4;
-  }
-  100% {
-    opacity: 1;
-  }
-}
-
-/* Progress bars */
 .progress-bar {
-  width: 100%;
-  height: 6px;
-  background-color: rgba(33, 150, 243, 0.1);
-  border-radius: 4px;
-  overflow: hidden;
-  position: relative;
-  margin-top: 6px;
+  background-color: rgba(33,150,243,.1)
 }
 
 .progress-fill {
-  height: 100%;
-  background-color: var(--transfer-color, #2196F3);
-  transition: width 0.3s ease;
-  border-radius: 4px;
-  opacity: 0.8;
-}
-
-/* Transfer controls */
-.transfer-controls {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto;
-  flex-shrink: 0;
+  opacity: .8
 }
 
 .transfer-controls .toolbar-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
   padding: 0;
-  background-color: rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-  transition: all 0.15s ease;
+  background-color: rgba(0,0,0,.2);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 4px
 }
 
 .transfer-controls .toolbar-btn:hover {
-  background-color: rgba(0, 0, 0, 0.3);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-.transfer-error {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 10px;
-  background-color: rgba(244, 67, 54, 0.1);
-  border-radius: 4px;
-  margin-top: 6px;
-  border-left: 3px solid var(--error-color, #F44336);
-}
-
-.error-message {
-  color: var(--error-color, #F44336);
-  font-size: 12px;
-  margin-right: 10px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  background-color: rgba(0,0,0,.3);
+  border-color: rgba(255,255,255,.2)
 }
 
 .retry-btn {
-  background-color: var(--editor-btn-primary);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 4px 10px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  flex-shrink: 0;
-}
-
-.retry-btn:hover {
-  filter: brightness(1.1);
-}
-
-/* Execution container styles */
-.execution-container {
-  margin: 8px;
+  background-color: var(--editor-btn-primary)
 }
 
 .execution-progress-container {
-  padding: 8px 10px;
-  background-color: rgba(76, 175, 80, 0.05);
-  border-radius: 6px;
-  margin-bottom: 8px;
-  border: 1px solid rgba(76, 175, 80, 0.2);
-}
-
-.execution-status {
-  display: flex;
-  align-items: center;
-  margin-bottom: 6px;
+  background-color: rgba(76,175,80,.05);
+  border: 1px solid rgba(76,175,80,.2)
 }
 
 .status-indicator.execution-indicator {
-  background-color: var(--execution-color, #4CAF50);
-  animation: execution-pulse 1.5s infinite;
-}
-
-@keyframes execution-pulse {
-  0% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.6;
-    transform: scale(0.8);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
+  animation: execution-pulse 1.5s infinite
 }
 
 .execution-bar {
-  background-color: rgba(76, 175, 80, 0.1);
-  height: 6px;
+  background-color: rgba(76,175,80,.1)
 }
 
 .execution-fill {
-  background-color: var(--execution-color, #4CAF50);
-  height: 100%;
-  transition: width 0.3s ease;
-  opacity: 0.8;
+  opacity: .8
 }
 
-/* GRBL specific metadata panel */
 .grbl-metadata {
-  display: flex;
-  flex-wrap: wrap;
-  background-color: rgba(0, 0, 0, 0.1);
-  border-bottom: var(--editor-border);
-  padding: 8px 12px;
-  font-size: 12px;
-}
-
-.grbl-metadata-item {
-  display: flex;
-  align-items: center;
-  margin-right: 16px;
-  margin-bottom: 4px;
+  background-color: rgba(0,0,0,.1);
+  border-bottom: var(--editor-border)
 }
 
 .grbl-metadata-label {
-  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
-  margin-right: 6px;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7))
 }
 
 .grbl-metadata-value {
-  font-weight: 500;
-  color: var(--editor-fg);
+  color: var(--editor-fg)
 }
 
-/* File format indicator */
 .file-format-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 3px;
-  padding: 0 8px;
-  height: 18px;
-  margin-left: 8px;
-  font-size: 10px;
-  font-weight: 500;
-  text-transform: uppercase;
+  height: 18px
 }
 
-.file-format-badge.grbl {
-  background-color: rgba(233, 30, 99, 0.15);
-  color: #E91E63;
-  border: 1px solid rgba(233, 30, 99, 0.3);
-}
-
-.file-format-badge.standard {
-  background-color: rgba(33, 150, 243, 0.15);
-  color: #2196F3;
-  border: 1px solid rgba(33, 150, 243, 0.3);
-}
-
-/* Define CSS variables for color themes */
 :root {
-  /* Execution colors */
   --execution-color: #4CAF50;
   --idle-color: #4CAF50;
   --running-color: #2196F3;
   --holding-color: #FF9800;
   --alarm-color: #F44336;
   --transfer-color: #2196F3;
-  
-  /* Action button colors */
   --play-color: var(--editor-btn-primary, #4CAF50);
   --pause-color: var(--warning-color, #FF9800);
   --resume-color: var(--editor-btn-primary, #2196F3);
   --stop-color: var(--error-color, #F44336);
-  
-  /* Convert main colors to RGB for transparency operations */
-  --editor-btn-active-rgb: 65, 105, 225;
+  --editor-btn-active-rgb: 65, 105, 225
 }
 
-/* Responsive adjustments */
-@media (max-width: 1200px) {
+@media (max-width:1200px) {
   .transform-controls {
-    grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(2,1fr)
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width:768px) {
   .transform-controls {
-    grid-template-columns: 1fr;
+      grid-template-columns: 1fr
   }
-  
+
   .toolbar-btn {
-    width: 28px;
-    height: 28px;
+      width: 28px;
+      height: 28px
   }
-  
+
   .toolbar-btn svg {
-    width: 16px;
-    height: 16px;
+      width: 16px;
+      height: 16px
   }
 }
 
-/* Transform section styles */
 .transform-section {
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding: 10px;
   border-radius: 4px;
-  background-color: rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background-color: rgba(0,0,0,.1);
+  border: 1px solid rgba(255,255,255,.05)
 }
 
 .transform-section h4 {
-  margin: 0 0 6px 0;
+  margin: 0 0 6px;
   font-size: 12px;
   font-weight: 600;
   color: var(--dv-paneview-active-outline-color, var(--accent-blue));
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255,255,255,.08);
   padding-bottom: 4px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
+  letter-spacing: .5px;
+  text-transform: uppercase
 }
 
 .transform-actions {
-  grid-column: 1 / -1;
+  grid-column: 1/-1;
   display: flex;
   justify-content: flex-end;
   gap: 10px;
   margin-top: 14px;
   padding-top: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid rgba(255,255,255,.08)
 }
 
 .transform-btn {
@@ -665,83 +436,75 @@
   border-radius: 3px;
   font-size: 12px;
   font-weight: 500;
-  border: none;
+  border: 0;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all .15s ease;
   min-width: 70px;
   max-width: 90px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 2px rgba(0,0,0,.1)
 }
 
 .preview-btn {
   background-color: var(--editor-bg);
   color: var(--editor-fg);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255,255,255,.1)
 }
 
 .preview-btn:hover {
-  background-color: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.2);
+  background-color: rgba(255,255,255,.05);
+  border-color: rgba(255,255,255,.2)
 }
 
 .apply-btn {
   background-color: var(--editor-btn-primary);
-  color: white;
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  color: #fff;
+  border: 1px solid rgba(0,0,0,.1)
 }
 
 .apply-btn:hover {
-  filter: brightness(1.1);
+  filter: brightness(1.1)
 }
 
 .reset-btn {
   background-color: transparent;
   color: var(--error-color, #F44336);
-  border: 1px solid rgba(244, 67, 54, 0.3);
+  border: 1px solid rgba(244,67,54,.3)
 }
 
 .reset-btn:hover {
-  background-color: rgba(244, 67, 54, 0.05);
-  border-color: rgba(244, 67, 54, 0.5);
+  background-color: rgba(244,67,54,.05);
+  border-color: rgba(244,67,54,.5)
 }
 
-/* Loading indicator for large file operations */
 .editor-loading {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0,0,0,.5);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
   flex-direction: column;
-  gap: 12px;
+  gap: 12px
 }
 
 .editor-loading-spinner {
   width: 40px;
   height: 40px;
-  border: 4px solid rgba(255, 255, 255, 0.1);
+  border: 4px solid rgba(255,255,255,.1);
   border-radius: 50%;
   border-top-color: var(--editor-btn-primary);
-  animation: spin 1s linear infinite;
+  animation: spin 1s linear infinite
 }
 
 .editor-loading-message {
-  color: white;
-  font-size: 14px;
+  color: #fff;
+  font-size: 14px
 }
 
-@keyframes spin {
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
-/* Enhanced Editor toolbar - Modern IDE-Style */
 .editor-toolbar {
   display: flex;
   justify-content: space-between;
@@ -752,13 +515,13 @@
   z-index: 10;
   height: 38px;
   user-select: none;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen,Ubuntu,Cantarell,"Open Sans","Helvetica Neue",sans-serif
 }
 
 .toolbar-section {
   display: flex;
   align-items: center;
-  height: 100%;
+  height: 100%
 }
 
 .toolbar-group {
@@ -766,9 +529,12 @@
   align-items: center;
   padding: 2px 4px;
   margin: 2px;
-  border-right: 1px solid var(--dv-separator-border, rgba(255, 255, 255, 0.05));
+  border-right: 1px solid var(--dv-separator-border, rgba(255, 255, 255, 0.05))
 }
 
+.toolbar-btn,.toolbar-tooltip {
+  color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary))
+}
 
 .toolbar-btn {
   width: 28px;
@@ -777,45 +543,39 @@
   align-items: center;
   justify-content: center;
   background-color: transparent;
-  border: none;
-  color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
+  border: 0;
   border-radius: 3px;
   cursor: pointer;
-  transition: all 0.12s ease;
+  transition: all .12s ease;
   position: relative;
-  margin: 0 2px;
+  margin: 0 2px
 }
 
 .toolbar-btn svg {
   width: 16px;
   height: 16px;
-  opacity: 0.85;
-  transition: opacity 0.2s ease;
+  opacity: .85;
+  transition: opacity .2s ease
 }
 
-.toolbar-btn:hover svg {
-  opacity: 1;
+.toolbar-btn.active svg,.toolbar-btn:hover svg {
+  opacity: 1
 }
 
 .toolbar-btn:hover {
-  background-color: var(--dv-tabs-hover-background-color, rgba(90, 93, 94, 0.31));
+  background-color: var(--dv-tabs-hover-background-color, rgba(90, 93, 94, 0.31))
 }
 
 .toolbar-btn:active {
   background-color: var(--dv-element-active-background-color, rgba(0, 127, 212, 0.4));
-  transform: translateY(1px);
+  transform: translateY(1px)
 }
 
 .toolbar-btn.active {
   background-color: var(--dv-element-active-background-color, rgba(0, 127, 212, 0.2));
-  color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  color: var(--dv-paneview-active-outline-color, var(--accent-blue))
 }
 
-.toolbar-btn.active svg {
-  opacity: 1;
-}
-
-/* Modern tooltip effect */
 .toolbar-tooltip {
   position: absolute;
   bottom: -30px;
@@ -823,140 +583,113 @@
   transform: translateX(-50%);
   padding: 4px 8px;
   background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, rgba(30, 30, 30, 0.95));
-  color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
   font-size: 11px;
   border-radius: 4px;
   white-space: nowrap;
   pointer-events: none;
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.2s, visibility 0.2s;
+  transition: opacity .2s,visibility .2s;
   z-index: 100;
   border: 1px solid var(--dv-separator-border, rgba(255, 255, 255, 0.1));
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 8px rgba(0,0,0,.3)
 }
 
 .toolbar-btn:hover .toolbar-tooltip {
   opacity: 1;
-  visibility: visible;
+  visibility: visible
 }
 
-/* Action buttons with accent colors */
 .toolbar-btn.action-btn {
-  transition: all 0.2s ease;
+  transition: all .2s ease
 }
 
 .toolbar-btn.action-btn svg {
   width: 17px;
-  height: 17px;
+  height: 17px
 }
 
 .toolbar-btn.action-btn:hover {
-  transform: translateY(-1px);
+  transform: translateY(-1px)
 }
 
 .toolbar-btn.action-btn:active {
-  transform: translateY(1px);
+  transform: translateY(1px)
 }
 
 .toolbar-divider {
   width: 1px;
   height: 16px;
   background-color: var(--dv-separator-border, rgba(255, 255, 255, 0.1));
-  margin: 0 4px;
+  margin: 0 4px
 }
 
-/* Enhanced file info section */
-.file-info {
+.file-info,.file-name {
   display: flex;
   align-items: center;
+  overflow: hidden;
+  max-width: 100%
+}
+
+.file-info {
   padding: 4px 8px;
   margin: 2px;
   border-left: 1px solid var(--dv-separator-border, rgba(255, 255, 255, 0.1));
   background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, rgba(30, 30, 30, 0.4));
   min-width: 120px;
-  max-width: 100%;
-  overflow: hidden;
-  box-sizing: border-box; /* Ensure padding is included in width calculation */
-}
-
-.name {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  box-sizing: border-box
 }
 
 .file-name {
-  display: flex;
-  align-items: center;
   gap: 6px;
   font-weight: 500;
   font-size: 12px;
   color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
+  text-overflow: ellipsis
 }
 
 .file-icon {
-  display: flex;
   align-items: center;
-  justify-content: center;
-  color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  justify-content: center
 }
 
 .modified-indicator {
-  font-size: 12px;
-  color: var(--dv-paneview-active-outline-color, var(--accent-blue));
-  opacity: 0.8;
-}
-
-/* Enhanced format badge */
-.file-format-badge {
-  font-size: 9px;
-  padding: 2px 6px;
-  border-radius: 3px;
-  text-transform: uppercase;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  margin-left: 6px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  opacity: .8
 }
 
 .file-format-badge.grbl {
-  background-color: rgba(233, 30, 99, 0.15);
-  color: #E91E63;
-  border: 1px solid rgba(233, 30, 99, 0.3);
+  background-color: rgba(233,30,99,.15);
+  color: #e91e63;
+  border: 1px solid rgba(233,30,99,.3)
 }
 
 .file-format-badge.standard {
-  background-color: rgba(33, 150, 243, 0.15);
-  color: #2196F3;
-  border: 1px solid rgba(33, 150, 243, 0.3);
+  background-color: rgba(33,150,243,.15);
+  color: #2196f3;
+  border: 1px solid rgba(33,150,243,.3)
 }
 
-/* Responsive adjustments */
-@media (max-width: 576px) {
+@media (max-width:576px) {
   .toolbar-btn {
-    width: 26px;
-    height: 26px;
+      width: 26px;
+      height: 26px
   }
-  
+
   .toolbar-btn svg {
-    width: 14px;
-    height: 14px;
+      width: 14px;
+      height: 14px
   }
-  
+
   .toolbar-group {
-    padding: 0 2px;
+      padding: 0 2px
   }
-  
+
   .file-name {
-    font-size: 11px;
+      font-size: 11px
   }
 }
 
-/* Enhanced Footer Status Bar */
 .editor-footer {
   display: flex;
   justify-content: space-between;
@@ -968,78 +701,76 @@
   backdrop-filter: blur(8px);
   z-index: 10;
   height: 22px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen,Ubuntu,Cantarell,"Open Sans","Helvetica Neue",sans-serif
+}
+
+.editor-status-bar,.status-section {
+  display: flex;
+  align-items: center;
+  height: 100%
 }
 
 .editor-status-bar {
-  display: flex;
-  align-items: center;
-  height: 100%;
-  width: 100%;
+  width: 100%
 }
 
 .status-section {
-  display: flex;
-  align-items: center;
-  height: 100%;
   padding: 0 8px;
   border-right: 1px solid var(--dv-separator-border, rgba(255, 255, 255, 0.1));
   font-size: 11px;
-  color: var(--dv-tab-inactive-foreground-color, #8a8a8a);
+  color: var(--dv-tab-inactive-foreground-color, #8a8a8a)
 }
 
 .status-section:last-child {
   border-right: none;
-  margin-left: auto;
+  margin-left: auto
 }
 
 .info-item {
   font-size: 11px;
-  color: var(--dv-tab-inactive-foreground-color, #8a8a8a);
+  color: var(--dv-tab-inactive-foreground-color, #8a8a8a)
 }
 
 .info-item.error {
-  color: var(--error-color, #ff5252);
+  color: var(--error-color, #ff5252)
 }
 
 .info-item.warning {
-  color: var(--warning-color, #ffab40);
+  color: var(--warning-color, #ffab40)
 }
 
 .status-divider {
   margin: 0 5px;
-  color: var(--dv-separator-border, rgba(255, 255, 255, 0.1));
+  color: var(--dv-separator-border, rgba(255, 255, 255, 0.1))
+}
+
+.cursor-position,.mode-indicator {
+  color: var(--dv-tab-inactive-foreground-color, #8a8a8a)
 }
 
 .mode-indicator {
   font-size: 11px;
   padding: 1px 6px;
-  border-radius: 3px;
-  color: var(--dv-tab-inactive-foreground-color, #8a8a8a);
+  border-radius: 3px
 }
 
 .mode-indicator.modified {
-  background-color: rgba(255, 119, 0, 0.15);
-  color: var(--accent-orange, #ff7700);
+  background-color: rgba(255,119,0,.15);
+  color: var(--accent-orange, #ff7700)
 }
 
 .cursor-position {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-variant-numeric: tabular-nums;
-  color: var(--dv-tab-inactive-foreground-color, #8a8a8a);
+  font-variant-numeric: tabular-nums
 }
 
-.position-text {
+.cursor-position,.position-text {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 4px
 }
 
-/* Enhanced Transfer Progress */
 .transfer-container {
-  margin: 8px;
+  margin: 8px
 }
 
 .transfer-progress-container {
@@ -1048,14 +779,14 @@
   border-radius: 6px;
   border: 1px solid var(--dv-separator-border, rgba(33, 150, 243, 0.2));
   margin-bottom: 8px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 6px rgba(0,0,0,.15)
 }
 
 .transfer-status {
   display: flex;
   align-items: center;
   width: 100%;
-  justify-content: space-between;
+  justify-content: space-between
 }
 
 .status-indicator-wrapper {
@@ -1064,14 +795,14 @@
   gap: 8px;
   overflow: hidden;
   flex-grow: 1;
-  min-width: 0;
+  min-width: 0
 }
 
 .status-text {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 12px;
+  font-size: 12px
 }
 
 .status-indicator {
@@ -1079,136 +810,86 @@
   height: 8px;
   border-radius: 50%;
   background-color: var(--transfer-color, #2196F3);
-  position: relative;
+  position: relative
 }
 
 .status-indicator::before {
-  content: '';
+  content: "";
   position: absolute;
   top: -2px;
   left: -2px;
   right: -2px;
   bottom: -2px;
   border-radius: 50%;
-  background: transparent;
-  border: 2px solid rgba(33, 150, 243, 0.3);
-  animation: pulse 2s infinite;
+  background: 0 0;
+  border: 2px solid rgba(33,150,243,.3);
+  animation: pulse 2s infinite
 }
 
-@keyframes pulse {
-  0% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.5); opacity: 0.5; }
-  100% { transform: scale(1); opacity: 1; }
+.progress-bar,.transfer-controls .toolbar-btn {
+  background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, rgba(0, 0, 0, 0.2))
 }
 
-/* Improved Progress Bar */
+.progress-bar,.progress-fill {
+  border-radius: 2px;
+  position: relative
+}
+
 .progress-bar {
   width: 100%;
   height: 4px;
-  background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, rgba(0, 0, 0, 0.2));
-  border-radius: 2px;
   overflow: hidden;
-  position: relative;
-  margin-top: 8px;
+  margin-top: 8px
 }
 
 .progress-fill {
   height: 100%;
   background-color: var(--transfer-color, #2196F3);
-  transition: width 0.3s ease;
-  border-radius: 2px;
-  position: relative;
+  transition: width .3s ease
 }
 
-.progress-fill::after {
-  content: '';
+.execution-fill::after,.progress-fill::after {
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(
-    to right,
-    rgba(255, 255, 255, 0),
-    rgba(255, 255, 255, 0.3),
-    rgba(255, 255, 255, 0)
-  );
+  background: linear-gradient(to right,rgba(255,255,255,0),rgba(255,255,255,.3),rgba(255,255,255,0));
   background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
+  animation: shimmer 1.5s infinite
 }
 
-@keyframes shimmer {
-  0% { background-position: -100% 0; }
-  100% { background-position: 100% 0; }
-}
-
-/* Transfer controls */
 .transfer-controls {
   display: flex;
   align-items: center;
   gap: 4px;
   margin-left: auto;
-  flex-shrink: 0;
+  flex-shrink: 0
 }
 
 .transfer-controls .toolbar-btn {
   width: 26px;
   height: 26px;
-  background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, rgba(0, 0, 0, 0.2));
   border: 1px solid var(--dv-separator-border, rgba(255, 255, 255, 0.1));
-  transition: all 0.15s ease;
+  transition: all .15s ease
 }
 
 .transfer-controls .toolbar-btn:hover {
   background-color: var(--dv-tabs-hover-background-color, rgba(255, 255, 255, 0.1));
-  border-color: var(--dv-separator-border, rgba(255, 255, 255, 0.2));
+  border-color: var(--dv-separator-border, rgba(255, 255, 255, 0.2))
 }
 
-/* Enhanced Error Message Styling */
 .transfer-error {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 10px;
-  background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, rgba(244, 67, 54, 0.1));
-  border-radius: 4px;
-  margin-top: 8px;
-  border-left: 3px solid var(--error-color, #F44336);
-}
-
-.error-message {
-  color: var(--error-color, #F44336);
-  font-size: 12px;
-  margin-right: 10px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.retry-btn {
-  background-color: var(--dv-paneview-active-outline-color, var(--accent-blue));
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 4px 10px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  flex-shrink: 0;
-}
-
-.retry-btn:hover {
-  filter: brightness(1.1);
-  transform: translateY(-1px);
+  background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, rgba(244, 67, 54, 0.1))
 }
 
 .retry-btn:active {
-  transform: translateY(1px);
+  transform: translateY(1px)
 }
 
-/* Enhanced Execution Tracker */
 .execution-container {
-  margin: 8px;
+  margin: 8px
 }
 
 .execution-progress-container {
@@ -1217,209 +898,160 @@
   border-radius: 6px;
   margin-bottom: 8px;
   border: 1px solid var(--dv-separator-border, rgba(76, 175, 80, 0.2));
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 6px rgba(0,0,0,.15)
 }
 
 .execution-status {
   display: flex;
   align-items: center;
-  margin-bottom: 8px;
-}
-
-.status-indicator.execution-indicator {
-  background-color: var(--execution-color, #4CAF50);
-}
-
-.status-indicator.execution-indicator::before {
-  border-color: rgba(76, 175, 80, 0.3);
+  margin-bottom: 8px
 }
 
 .status-indicator.execution-indicator.executing {
-  animation: executing-pulse 1.2s infinite;
-}
-
-@keyframes executing-pulse {
-  0% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.6; transform: scale(0.8); }
-  100% { opacity: 1; transform: scale(1); }
+  animation: executing-pulse 1.2s infinite
 }
 
 .execution-bar {
   background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, rgba(0, 0, 0, 0.2));
-  height: 4px;
+  height: 4px
 }
 
 .execution-fill {
   background-color: var(--execution-color, #4CAF50);
   height: 100%;
-  transition: width 0.3s ease;
-  position: relative;
+  transition: width .3s ease;
+  position: relative
 }
 
 .execution-fill::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(
-    to right,
-    rgba(255, 255, 255, 0),
-    rgba(255, 255, 255, 0.3),
-    rgba(255, 255, 255, 0)
-  );
-  background-size: 200% 100%;
-  animation: shimmer 2s infinite;
+  animation: shimmer 2s infinite
 }
 
-/* GRBL specific metadata panel */
 .grbl-metadata {
-  display: flex;
   flex-wrap: wrap;
-  background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, rgba(30, 30, 30, 0.4));
   border-bottom: 1px solid var(--dv-separator-border, rgba(255, 255, 255, 0.1));
-  padding: 10px 12px;
   font-size: 12px;
-  gap: 16px;
+  gap: 16px
 }
 
 .grbl-metadata-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.grbl-metadata-label {
-  color: var(--dv-tab-inactive-foreground-color, #8a8a8a);
-}
-
-.grbl-metadata-value {
-  font-weight: 500;
-  color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
+  gap: 6px
 }
 
 .implied-count {
   font-size: 10px;
-  opacity: 0.7;
+  opacity: .7
 }
 
-@media (max-width: 768px) {
+@media (max-width:768px) {
   .editor-toolbar {
-    padding: 2px;
+      padding: 2px
   }
-  
+
   .toolbar-section {
-    width: 100%;
-    justify-content: flex-start;
-    margin-bottom: 2px;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -ms-overflow-style: none; /* IE and Edge */
-    scrollbar-width: none; /* Firefox */
+      width: 100%;
+      justify-content: flex-start;
+      margin-bottom: 2px;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -ms-overflow-style: none;
+      scrollbar-width: none
   }
-  
+
   .toolbar-section::-webkit-scrollbar {
-    display: none; /* Hide scrollbar for Chrome/Safari/Opera */
+      display: none
   }
-  
+
   .toolbar-group {
-    margin: 0 2px;
-    padding: 2px;
-    border-right: none;
-    background-color: rgba(0, 0, 0, 0.1);
-    border-radius: 4px;
+      margin: 0 2px;
+      padding: 2px;
+      border-right: none;
+      background-color: rgba(0,0,0,.1);
+      border-radius: 4px
   }
-  
+
   .file-info {
-    width: calc(100% - 4px);
-    margin: 2px;
-    border-left: none;
-    justify-content: space-between;
+      width: calc(100% - 4px);
+      margin: 2px;
+      border-left: none;
+      justify-content: space-between
   }
 }
 
-/* Very small screens */
-@media (max-width: 576px) {
+@media (max-width:576px) {
   .toolbar-btn {
-    width: 24px;
-    height: 24px;
-    padding: 2px;
+      width: 24px;
+      height: 24px;
+      padding: 2px
   }
-  
+
   .toolbar-btn svg {
-    width: 14px;
-    height: 14px;
+      width: 14px;
+      height: 14px
   }
-  
+
   .toolbar-group {
-    padding: 1px;
-    margin: 1px;
+      padding: 1px;
+      margin: 1px
   }
-  
+
   .file-name {
-    font-size: 10px;
+      font-size: 10px
   }
-  
+
   .file-format-badge {
-    font-size: 8px;
-    padding: 1px 4px;
+      font-size: 8px;
+      padding: 1px 4px
   }
 }
 
-/* Add these new styles to src/styles/code-editor.css */
-
-/* Metadata toggle button styling */
 .metadata-toggle-btn {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 28px;
   height: 28px;
-  background: transparent;
-  border: none;
+  background: 0 0;
+  border: 0;
   border-radius: 3px;
   color: var(--dv-inactivegroup-hiddenpanel-tab-color, var(--text-secondary));
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all .15s ease;
   margin-left: auto;
   margin-right: 5px;
-  padding: 0;
+  padding: 0
+}
+
+.grbl-metadata .file-name,.metadata-toggle-btn:hover {
+  color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary))
 }
 
 .metadata-toggle-btn:hover {
-  background-color: var(--dv-tabs-hover-background-color, rgba(255, 255, 255, 0.1));
-  color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
+  background-color: var(--dv-tabs-hover-background-color, rgba(255, 255, 255, 0.1))
 }
 
 .metadata-toggle-btn svg {
   width: 20px;
   height: 20px;
-  transition: transform 0.2s ease;
+  transition: transform .2s ease
 }
 
-/* Fully adaptive multi-row metadata styling */
 .grbl-metadata {
   display: flex;
   flex-direction: column;
   padding: 0;
   background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, rgba(30, 30, 30, 0.4));
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen,Ubuntu,Cantarell,"Open Sans","Helvetica Neue",sans-serif;
   min-height: 36px;
-  /* Removed max-height to allow unlimited rows */
   overflow: hidden;
   border-bottom: 1px solid var(--dv-separator-border, rgba(255, 255, 255, 0.05));
-  transition: all 0.2s ease;
+  transition: all .2s ease
 }
 
 .grbl-metadata .file-name {
-  display: flex;
-  align-items: center;
   font-size: 12px;
   font-weight: 500;
-  color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
-  margin-right: 14px;
-  white-space: nowrap;
+  margin-right: 14px
 }
 
 .metadata-content {
@@ -1428,65 +1060,62 @@
   flex-wrap: wrap;
   min-height: 36px;
   padding: 4px 8px;
-  overflow: visible;
+  overflow: visible
+}
+
+.grbl-metadata .file-name,.grbl-metadata-item {
+  display: flex;
+  align-items: center;
+  white-space: nowrap
 }
 
 .grbl-metadata-item {
-  display: flex;
-  align-items: center;
   margin: 2px 4px 2px 0;
   padding: 0 10px;
   height: 28px;
   border-right: 1px solid var(--dv-separator-border, rgba(255, 255, 255, 0.05));
-  white-space: nowrap;
-  min-width: fit-content;
+  min-width: fit-content
 }
 
-/* File item should always be visible and never truncated */
 .grbl-metadata-item:first-child {
   padding-left: 0;
   min-width: 120px;
-  order: -1; /* Always first */
+  order: -1
 }
 
-/* Format item */
 .grbl-metadata-item:nth-child(2) {
   min-width: 100px;
-  order: 0;
+  order: 0
 }
 
-/* Lines item */
 .grbl-metadata-item:nth-child(3) {
   min-width: 80px;
-  order: 1;
+  order: 1
 }
 
-/* Moves item */
 .grbl-metadata-item:nth-child(4) {
   min-width: 80px;
-  order: 2;
+  order: 2
 }
 
-/* Dimensions item */
 .grbl-metadata-item:nth-child(5) {
   min-width: 120px;
-  order: 3;
+  order: 3
 }
 
 .grbl-metadata-item:last-of-type {
-  border-right: none;
+  border-right: none
 }
 
-/* Last item in each row should not have a right border */
 .grbl-metadata-item:last-child {
-  border-right: none;
+  border-right: none
 }
 
 .grbl-metadata-label {
   color: var(--dv-tab-inactive-foreground-color, #8a8a8a);
   font-size: 11px;
   margin-right: 5px;
-  white-space: nowrap;
+  white-space: nowrap
 }
 
 .grbl-metadata-value {
@@ -1496,100 +1125,101 @@
   line-height: 1;
   display: flex;
   align-items: center;
-  white-space: nowrap;
+  white-space: nowrap
+}
+
+.file-icon,.modified-indicator {
+  color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  flex-shrink: 0
 }
 
 .file-icon {
   display: flex;
-  margin-right: 6px;
-  color: var(--dv-paneview-active-outline-color, var(--accent-blue));
-  flex-shrink: 0;
+  margin-right: 6px
 }
 
 .modified-indicator {
   font-size: 12px;
-  color: var(--dv-paneview-active-outline-color, var(--accent-blue));
-  margin: 0 5px;
-  flex-shrink: 0;
+  margin: 0 5px
+}
+
+.dimensions-badge,.file-format-badge {
+  border-radius: 3px;
+  margin-left: 6px;
+  flex-shrink: 0
 }
 
 .file-format-badge {
   font-size: 9px;
   padding: 2px 5px;
-  border-radius: 3px;
   text-transform: uppercase;
   font-weight: 600;
-  letter-spacing: 0.5px;
-  margin-left: 6px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-  flex-shrink: 0;
+  letter-spacing: .5px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.2)
 }
 
 .dimensions-badge {
-  background-color: rgba(0, 119, 204, 0.1);
+  background-color: rgba(0,119,204,.1);
   color: var(--dv-paneview-active-outline-color, var(--accent-blue));
   padding: 1px 5px;
-  border-radius: 3px;
-  font-size: 10px;
-  margin-left: 6px;
-  flex-shrink: 0;
+  font-size: 10px
 }
 
 .bounds-value {
   font-feature-settings: "tnum";
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: tabular-nums
 }
 
-/* Special treatment for the filename to ensure it's visible */
 .name {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 150px;
+  font-weight: bold;
 }
 
-/* Small width handling - prioritize file name */
-@media (max-width: 600px) {
+@media (max-width:600px) {
   .grbl-metadata-item:first-child {
-    max-width: none;
-    min-width: 120px;
-    flex-basis: 100%;
-    border-right: none;
-    border-bottom: 1px solid var(--dv-separator-border, rgba(255, 255, 255, 0.05));
-    margin-bottom: 4px;
+      max-width: none;
+      min-width: 120px;
+      flex-basis: 100%;
+      border-right: none;
+      border-bottom: 1px solid var(--dv-separator-border, rgba(255, 255, 255, 0.05));
+      margin-bottom: 4px
   }
-  
+
   .name {
-    max-width: 250px;
+      max-width: 250px
   }
-  
+
   .grbl-metadata-item:nth-child(n+2) {
-    min-width: 70px;
+      min-width: 70px
   }
-  
+
   .metadata-content {
-    padding-top: 0;
-    padding-bottom: 4px;
+      padding-top: 0;
+      padding-bottom: 4px
   }
 }
 
-/* Extremely narrow screens - stack items vertically */
-@media (max-width: 400px) {
+@media (max-width:400px) {
   .grbl-metadata-item {
-    flex-basis: 100%;
-    border-right: none;
-    border-bottom: 1px solid var(--dv-separator-border, rgba(255, 255, 255, 0.05));
+      flex-basis: 100%;
+      border-right: none;
+      border-bottom: 1px solid var(--dv-separator-border, rgba(255, 255, 255, 0.05))
   }
-  
+
   .grbl-metadata-item:last-child {
-    border-bottom: none;
+      border-bottom: none
   }
 }
 
-/* Add these styles to src/styles/code-editor.css */
-
-/* Unified Operation Progress styling */
 .operation-progress-container {
-  margin: 8px;
+  margin: 8px
+}
+
+.progress-box,.progress-section {
+  display: flex;
+  flex-direction: column
 }
 
 .progress-box {
@@ -1597,69 +1227,61 @@
   border-radius: 8px;
   border: 1px solid var(--dv-separator-border, rgba(255, 255, 255, 0.1));
   padding: 12px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,.15);
+  gap: 12px
 }
 
 .progress-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  gap: 8px
 }
 
-/* Separator between sections when both are visible */
-.transfer-section + .execution-section {
+.transfer-section+.execution-section {
   padding-top: 8px;
   border-top: 1px solid var(--dv-separator-border, rgba(255, 255, 255, 0.05));
-  margin-top: 4px;
+  margin-top: 4px
 }
 
-/* Different status indicator colors */
 .status-indicator.transfer-indicator {
-  background-color: var(--transfer-color, #2196F3);
+  background-color: var(--transfer-color, #2196F3)
 }
 
 .status-indicator.transfer-indicator::before {
-  border-color: rgba(33, 150, 243, 0.3);
+  border-color: rgba(33,150,243,.3)
 }
 
 .status-indicator.execution-indicator {
-  background-color: var(--execution-color, #4CAF50);
+  background-color: var(--execution-color, #4CAF50)
 }
 
 .status-indicator.execution-indicator::before {
-  border-color: rgba(76, 175, 80, 0.3);
+  border-color: rgba(76,175,80,.3)
 }
 
-/* Different progress bar colors */
 .progress-bar.transfer-bar {
-  background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, rgba(0, 0, 0, 0.2));
+  background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, rgba(0, 0, 0, 0.2))
 }
 
 .progress-fill.transfer-fill {
-  background-color: var(--transfer-color, #2196F3);
+  background-color: var(--transfer-color, #2196F3)
 }
 
 .progress-bar.execution-bar {
-  background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, rgba(0, 0, 0, 0.2));
+  background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, rgba(0, 0, 0, 0.2))
 }
 
 .progress-fill.execution-fill {
-  background-color: var(--execution-color, #4CAF50);
+  background-color: var(--execution-color, #4CAF50)
 }
 
-/* Error styling */
 .transfer-error {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 6px 10px;
-  background-color: rgba(244, 67, 54, 0.1);
+  background-color: rgba(244,67,54,.1);
   border-radius: 4px;
   margin-top: 6px;
-  border-left: 3px solid var(--error-color, #F44336);
+  border-left: 3px solid var(--error-color, #F44336)
 }
 
 .error-message {
@@ -1668,22 +1290,22 @@
   margin-right: 10px;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: nowrap
 }
 
 .retry-btn {
   background-color: var(--dv-paneview-active-outline-color, var(--accent-blue));
-  color: white;
-  border: none;
+  color: #fff;
+  border: 0;
   border-radius: 4px;
   padding: 4px 10px;
   font-size: 12px;
   cursor: pointer;
-  transition: all 0.15s ease;
-  flex-shrink: 0;
+  transition: all .15s ease;
+  flex-shrink: 0
 }
 
 .retry-btn:hover {
   filter: brightness(1.1);
-  transform: translateY(-1px);
+  transform: translateY(-1px)
 }
