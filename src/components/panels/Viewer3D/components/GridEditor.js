@@ -1,7 +1,16 @@
 import React, { useState } from 'react';
+import { 
+  Edit, 
+  Check, 
+  X, 
+  Box, 
+  MoveHorizontal, 
+  MoveVertical, 
+  ArrowDown
+} from 'lucide-react';
 
 /**
- * Enhanced GridEditor component with improved UI
+ * Enhanced GridEditor component with improved UI and icons
  * Allows editing the workspace grid dimensions (width, height, and depth)
  */
 const GridEditor = ({ gridDimensions, setGridDimensions }) => {
@@ -46,6 +55,7 @@ const GridEditor = ({ gridDimensions, setGridDimensions }) => {
       {!isEditing ? (
         <div className="grid-dimensions-display">
           <div className="dimensions-value">
+            <Box size={14} style={{ marginRight: '6px', opacity: 0.7, display: 'inline-block', verticalAlign: 'middle' }} />
             {gridDimensions.width} × {gridDimensions.height} × {gridDimensions.depth || Math.min(gridDimensions.width, gridDimensions.height)} mm
           </div>
           <button
@@ -59,6 +69,7 @@ const GridEditor = ({ gridDimensions, setGridDimensions }) => {
             }}
             className="edit-dimensions-btn"
           >
+            <Edit size={14} />
             Edit
           </button>
         </div>
@@ -66,7 +77,9 @@ const GridEditor = ({ gridDimensions, setGridDimensions }) => {
         <div className="grid-dimensions-editor">
           <div className="dimensions-inputs">
             <div className="dimension-input-group">
-              <label className="dimension-label">W:</label>
+              <label className="dimension-label">
+                <MoveHorizontal size={12} style={{ opacity: 0.8 }} />
+              </label>
               <input
                 type="number"
                 name="width"
@@ -77,7 +90,9 @@ const GridEditor = ({ gridDimensions, setGridDimensions }) => {
               />
             </div>
             <div className="dimension-input-group">
-              <label className="dimension-label">H:</label>
+              <label className="dimension-label">
+                <MoveVertical size={12} style={{ opacity: 0.8 }} />
+              </label>
               <input
                 type="number"
                 name="height"
@@ -88,7 +103,9 @@ const GridEditor = ({ gridDimensions, setGridDimensions }) => {
               />
             </div>
             <div className="dimension-input-group">
-              <label className="dimension-label">D:</label>
+              <label className="dimension-label">
+                <ArrowDown size={12} style={{ opacity: 0.8 }} />
+              </label>
               <input
                 type="number"
                 name="depth"
@@ -105,12 +122,14 @@ const GridEditor = ({ gridDimensions, setGridDimensions }) => {
               onClick={applyDimensions}
               className="apply-dimensions-btn"
             >
+              <Check size={14} />
               Apply
             </button>
             <button
               onClick={cancelEditing}
               className="cancel-dimensions-btn"
             >
+              <X size={14} />
               Cancel
             </button>
           </div>

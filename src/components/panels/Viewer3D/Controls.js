@@ -3,9 +3,27 @@ import GridEditor from './components/GridEditor';
 import MouseIndicatorSettings from './components/MouseIndicatorSettings';
 import VisualizationSettings from './components/VisualizationSettings';
 import { VisualizationModes } from './utils/VisualizationModes';
+// Import Lucide icons with correct names
+import { 
+  Axis3d, 
+  Grid3x3, 
+  MousePointer, 
+  Box, 
+  Route, 
+  Maximize, 
+  MinusSquare,
+  FileUp, // Changed from FilePlus2
+  ChevronDown,
+  ChevronRight,
+  PanelRight,
+  Settings,
+  Eye,
+  EyeOff,
+  Import // Changed from ImportIcon
+} from 'lucide-react';
 
 /**
- * Enhanced Controls component for the Viewer3D panel
+ * Enhanced Controls component for the Viewer3D panel with icons
  * Provides UI controls for various display options in a streamlined horizontal layout
  */
 const Controls = ({
@@ -74,7 +92,12 @@ const Controls = ({
                   checked={showAxes}
                   onChange={() => setShowAxes(!showAxes)}
                 />
-                <span className="toggle-label">World Axes</span>
+                <span className="toggle-label">
+                  <span className="toggle-icon">
+                    <Axis3d size={14} />
+                  </span>
+                  World Axes
+                </span>
                 <span className={`toggle-indicator ${showAxes ? 'on' : 'off'}`}></span>
               </label>
               
@@ -84,7 +107,12 @@ const Controls = ({
                   checked={showWorkAxes}
                   onChange={() => setShowWorkAxes(!showWorkAxes)}
                 />
-                <span className="toggle-label">Work Axes</span>
+                <span className="toggle-label">
+                  <span className="toggle-icon">
+                    <Axis3d size={14} strokeWidth={1.5} color="#ffaa33" />
+                  </span>
+                  Work Axes
+                </span>
                 <span className={`toggle-indicator ${showWorkAxes ? 'on' : 'off'}`}></span>
               </label>
               
@@ -94,7 +122,12 @@ const Controls = ({
                   checked={isGridVisible}
                   onChange={() => setIsGridVisible(!isGridVisible)}
                 />
-                <span className="toggle-label">Grid</span>
+                <span className="toggle-label">
+                  <span className="toggle-icon">
+                    <Grid3x3 size={14} />
+                  </span>
+                  Grid
+                </span>
                 <span className={`toggle-indicator ${isGridVisible ? 'on' : 'off'}`}></span>
               </label>
             </div>
@@ -112,7 +145,12 @@ const Controls = ({
                 checked={showMousePosition}
                 onChange={toggleMousePosition}
               />
-              <span className="toggle-label">Mouse Indicator</span>
+              <span className="toggle-label">
+                <span className="toggle-icon">
+                  <MousePointer size={14} />
+                </span>
+                Mouse Indicator
+              </span>
               <span className={`toggle-indicator ${showMousePosition ? 'on' : 'off'}`}></span>
             </label>
             
@@ -121,7 +159,7 @@ const Controls = ({
               onClick={() => toggleSection('mouse')}
               title="Mouse Indicator Settings"
             >
-              <span className="toggle-icon">{activeSection === 'mouse' ? '▼' : '▶'}</span>
+              <span className="toggle-icon">{activeSection === 'mouse' ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>
             </button>
           </div>
           
@@ -148,7 +186,12 @@ const Controls = ({
                 checked={showToolpath}
                 onChange={() => setShowToolpath(!showToolpath)}
               />
-              <span className="toggle-label">Toolpath</span>
+              <span className="toggle-label">
+                <span className="toggle-icon">
+                  <Route size={14} />
+                </span>
+                Toolpath
+              </span>
               <span className={`toggle-indicator ${showToolpath ? 'on' : 'off'}`}></span>
             </label>
             
@@ -157,7 +200,7 @@ const Controls = ({
               onClick={() => toggleSection('visualization')}
               title="Visualization Settings"
             >
-              <span className="toggle-icon">{activeSection === 'visualization' ? '▼' : '▶'}</span>
+              <span className="toggle-icon">{activeSection === 'visualization' ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>
             </button>
           </div>
           
@@ -192,8 +235,11 @@ const Controls = ({
             onClick={() => toggleSection('grid')}
             title="Grid Settings"
           >
+            <span className="toggle-icon">
+              <Box size={14} />
+            </span>
             <span>Workspace</span>
-            <span className="toggle-icon">{activeSection === 'grid' ? '▼' : '▶'}</span>
+            <span className="toggle-icon">{activeSection === 'grid' ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>
           </button>
           
           {activeSection === 'grid' && (
@@ -216,6 +262,7 @@ const Controls = ({
               onClick={togglePerspective}
               title="Orthographic View"
             >
+              <MinusSquare size={14} />
               Ortho
             </button>
             <button
@@ -223,6 +270,7 @@ const Controls = ({
               onClick={togglePerspective}
               title="Perspective View"
             >
+              <Maximize size={14} />
               Persp
             </button>
             <button
@@ -230,6 +278,7 @@ const Controls = ({
               onClick={handleImportClick}
               title="Import STL file"
             >
+              <Import size={14} />
               Import STL
             </button>
             <input

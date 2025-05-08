@@ -1,7 +1,8 @@
 import React from 'react';
+import { Minus } from 'lucide-react';
 
 /**
- * Simplified MouseIndicatorSettings component 
+ * Enhanced MouseIndicatorSettings component with improved UI and icons
  * Controls only the projection lines visibility
  */
 const MouseIndicatorSettings = ({ 
@@ -33,6 +34,7 @@ const MouseIndicatorSettings = ({
               onChange={handleToggleProjectionLines}
               className="indicator-checkbox"
             />
+            <Minus size={14} style={{ opacity: 0.8 }} />
             <span>Projection Lines</span>
           </label>
         </div>
