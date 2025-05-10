@@ -23,7 +23,6 @@ const ViewToggle = ({ isPerspective, togglePerspective }) => {
         <span className={`toggle-indicator ${!isPerspective ? 'on' : 'off'}`}></span>
       </label>
       
-      <div className="controls-divider"></div>
       
       <label className="toggle-switch active-toggle" title="Perspective View (3D projection)">
         <input
