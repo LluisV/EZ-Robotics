@@ -59,6 +59,10 @@ const MonitorPanel = () => {
   const timeHistoryRef = useRef([]);
   const maxDataPoints = 30;
   
+  // Reference for tracking the last update time
+  const lastUpdateTimeRef = useRef(Date.now());
+  const noUpdateIntervalRef = useRef(null);
+  
   /**
    * Calculate acceleration and jerk from velocity history
    * @param {Array<number>} velocities - Array of velocities in mm/min
@@ -214,6 +218,44 @@ const MonitorPanel = () => {
   };
 
   /**
+   * Update the charts with a zero value when no updates are received
+   */
+  const updateChartsWithZeroValue = () => {
+    const currentTime = Date.now();
+    const timeSinceLastUpdate = currentTime - lastUpdateTimeRef.current;
+    
+    // If no updates for 250ms, start adding zeros for velocity, acceleration, and jerk
+    if (timeSinceLastUpdate >= 110) {
+      // Add a zero value with the current timestamp
+      velocityHistoryRef.current.push(0);
+      timeHistoryRef.current.push(currentTime);
+      
+      // Limit history size
+      while (velocityHistoryRef.current.length > maxDataPoints) {
+        velocityHistoryRef.current.shift();
+        timeHistoryRef.current.shift();
+      }
+      
+      // Calculate kinematics with the new zero values
+      const kinematics = calculateKinematics(
+        velocityHistoryRef.current, 
+        timeHistoryRef.current
+      );
+      
+      // Update history data for charts
+      setHistoryData(prev => {
+        return {
+          speedHistory: [...prev.speedHistory.slice(1), 0],
+          accelerationHistory: [...prev.accelerationHistory.slice(1), kinematics.acceleration],
+          jerkHistory: [...prev.jerkHistory.slice(1), kinematics.jerk],
+          tempHistory: [...prev.tempHistory.slice(1), prev.tempHistory[prev.tempHistory.length-1] || 0],
+          positionHistory: prev.positionHistory // Keep position history unchanged
+        };
+      });
+    }
+  };
+
+  /**
    * Listen for machine status updates
    */
   useEffect(() => {
@@ -224,6 +266,9 @@ const MonitorPanel = () => {
         // Check if this is a status message in FluidNC/GRBL format
         if (data.data.startsWith('<') && data.data.includes('|')) {
           try {
+            // Update last update time
+            lastUpdateTimeRef.current = Date.now();
+            
             const parsedStatus = parseStatusMessage(data.data);
             if (!parsedStatus) return;
             
@@ -285,8 +330,15 @@ const MonitorPanel = () => {
     // Listen for status data from serial port
     document.addEventListener('serialdata', handlePositionStatus);
     
+    // Set up interval to check for lack of updates and add zero values if needed
+    noUpdateIntervalRef.current = setInterval(updateChartsWithZeroValue, 100);
+    
     return () => {
       document.removeEventListener('serialdata', handlePositionStatus);
+      // Clear the interval when component unmounts
+      if (noUpdateIntervalRef.current) {
+        clearInterval(noUpdateIntervalRef.current);
+      }
     };
   }, []);
 
@@ -711,7 +763,7 @@ const MonitorPanel = () => {
                     <div className="meter-bar">
                       <div 
                         className="meter-fill feed-fill"
-                        style={{ width: `${Math.min((statusData.feedRate / 1000) * 100, 100)}%` }}
+                        style={{ width: `${Math.min((statusData.feedRate / 2000) * 100, 100)}%` }}
                       ></div>
                     </div>
                   </div>
