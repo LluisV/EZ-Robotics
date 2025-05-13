@@ -593,7 +593,7 @@ const ControlPanel = () => {
             <div className="exact-position-form">
               <div className="input-row">
                 <div className="input-group">
-                  <label className="axis-label x-axis">X:</label>
+                  <label className="axis-label x-axis-label">X:</label>
                   <input
                     type="number"
                     value={targetPosition.x}
@@ -604,7 +604,7 @@ const ControlPanel = () => {
                 </div>
 
                 <div className="input-group">
-                  <label className="axis-label y-axis">Y:</label>
+                  <label className="axis-label y-axis-label">Y:</label>
                   <input
                     type="number"
                     value={targetPosition.y}
@@ -617,7 +617,7 @@ const ControlPanel = () => {
 
               <div className="input-row">
                 <div className="input-group">
-                  <label className="axis-label z-axis">Z:</label>
+                  <label className="axis-label z-axis-label">Z:</label>
                   <input
                     type="number"
                     value={targetPosition.z}
@@ -628,7 +628,7 @@ const ControlPanel = () => {
                 </div>
 
                 <div className="input-group">
-                  <label className="axis-label a-axis">A:</label>
+                  <label className="axis-label a-axis-label">A:</label>
                   <input
                     type="number"
                     value={targetPosition.a}
@@ -983,7 +983,7 @@ const ControlPanel = () => {
       {/* Speed Controls */}
       <div className="control-section speed-section">
         <div className="section-header">
-          <h3>Speed Control</h3>
+          <h3>Feed Override</h3>
           <div className="speed-value">{speed}%</div>
         </div>
         <div className="speed-slider-container">
