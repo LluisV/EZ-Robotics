@@ -8,7 +8,6 @@ import '../../styles/control-panel.css';
 const ControlPanel = () => {
   const [speed, setSpeed] = useState(25);
   const [stepSize, setStepSize] = useState(1.0);
-  const [activeTool, setActiveTool] = useState(null);
   const [position, setPosition] = useState({
     work: { x: 0, y: 0, z: 0, a: 0 },
     world: { x: 0, y: 0, z: 0, a: 0 }
@@ -157,37 +156,6 @@ const ControlPanel = () => {
     isPressedRef.current = false;
   };
 
-  // Function to handle tool control
-  const handleToolToggle = () => {
-    if (!isConnected) {
-      logToConsole('error', 'Cannot toggle tool: Not connected to machine');
-      showToast('Cannot toggle tool: Not connected to machine');
-      return;
-    }
-    
-    // Toggle tool state
-    const newState = !activeTool;
-    
-    // Send the appropriate FluidNC command to toggle spindle
-    const command = newState ? 'M3 S1000' : 'M5';  // M3=Spindle on, M5=Spindle off, S1000=1000 RPM
-    
-    logToConsole('command', `Toggling tool state: ${command}`);
-    
-    // Send command to the serial port
-    serialService.send(command)
-      .then(success => {
-        if (success) {
-          setActiveTool(newState);
-          showToast(`Tool ${newState ? 'activated' : 'deactivated'}`);
-        } else {
-          logToConsole('error', 'Failed to toggle tool: No response from machine');
-        }
-      })
-      .catch(error => {
-        logToConsole('error', `Error toggling tool: ${error.message}`);
-      });
-  };
-
   // Function to home axes for FluidNC
   const homeAxes = (axes = 'all') => {
     if (!isConnected) {
@@ -243,7 +211,7 @@ const ControlPanel = () => {
     serialService.send('!')
       .then(success => {
         if (success) {
-          showToast('Emergency stop sent');
+          showToast('EMERGENCY STOP ACTIVATED');
           
           // Also follow with a soft reset
           setTimeout(() => {
@@ -939,51 +907,54 @@ const ControlPanel = () => {
           </div>
         </div>
 
+        {/* Updated Global Controls with STOP on separate row */}
         <div className="global-controls">
-          <button
-            className="global-btn home-all"
-            onClick={() => homeAxes('all')}
-            disabled={!isConnected}
-          >
-            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-              <polyline points="9 22 9 12 15 12 15 22"></polyline>
-            </svg>
-            Home All
-          </button>
+          <div className="global-btn-row">
+            <button
+              className="global-btn home-all"
+              onClick={() => homeAxes('all')}
+              disabled={!isConnected}
+            >
+              <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" strokeWidth="2" fill="none">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+              </svg>
+              Home All
+            </button>
 
-          <button
-            className="global-btn set-zero"
-            onClick={() => setWorkZero('all')}
-            title="Set current position as work zero"
-            disabled={!isConnected}
-          >
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="8" x2="12" y2="16" />
-              <line x1="8" y1="12" x2="16" y2="12" />
-            </svg>
-            Set Zero
-          </button>
+            <button
+              className="global-btn set-zero"
+              onClick={() => setWorkZero('all')}
+              title="Set current position as work zero"
+              disabled={!isConnected}
+            >
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="16" />
+                <line x1="8" y1="12" x2="16" y2="12" />
+              </svg>
+              Set Zero
+            </button>
 
-          <button
-            className="global-btn move-to-zero"
-            onClick={moveToWorkZero}
-            title="Move to work zero position"
-            disabled={!isConnected}
-          >
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
-              <polygon points="5 3 19 12 5 21 5 3"></polygon>
-            </svg>
-            Go To Zero
-          </button>
+            <button
+              className="global-btn move-to-zero"
+              onClick={moveToWorkZero}
+              title="Move to work zero position"
+              disabled={!isConnected}
+            >
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+              Go To Zero
+            </button>
+          </div>
 
           <button
             className="global-btn stop-btn"
             onClick={handleStop}
             disabled={!isConnected}
           >
-            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none">
+            <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
             </svg>
             STOP
@@ -1039,56 +1010,7 @@ const ControlPanel = () => {
           <button onClick={() => setSpeed(100)}>100%</button>
         </div>
       </div>
-
-      {/* Tool Controls - Modified for FluidNC spindle control */}
-      <div className="control-section tool-section">
-        <div className="section-header">
-          <h3>Tool Control</h3>
-          <div className="status-badge">
-            <span className={`status-text ${activeTool ? 'active' : 'inactive'}`}>
-              {activeTool ? 'Enabled' : 'Disabled'}
-            </span>
-          </div>
-        </div>
-
-        <div className="tool-control-container">
-          <div className="tool-status-display">
-            <div className={`status-indicator ${activeTool ? 'active' : 'inactive'}`}>
-              <div className="pulse-ring"></div>
-            </div>
-            <div className="tool-status-info">
-              <div className="tool-name">FluidNC Spindle</div>
-              <div className="tool-state">{activeTool ? 'Spindle running' : 'Spindle stopped'}</div>
-            </div>
-          </div>
-
-          <label className="toggle-switch">
-            <input
-              type="checkbox"
-              checked={activeTool}
-              onChange={handleToolToggle}
-              disabled={!isConnected}
-            />
-            <span className="toggle-slider">
-              <span className="toggle-knob">
-                <span className="toggle-icon">
-                  {activeTool ? (
-                    <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="3" fill="none">
-                      <path d="M5 12l5 5 9-9" />
-                    </svg>
-                  ) : (
-                    <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="3" fill="none">
-                      <path d="M18 6L6 18M6 6l12 12" />
-                    </svg>
-                  )}
-                </span>
-              </span>
-            </span>
-          </label>
-        </div>
-      </div>
     </div>
   )};
-
 
 export default ControlPanel;
