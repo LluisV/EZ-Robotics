@@ -17,7 +17,7 @@
   display: flex;
   align-items: center;
   padding: 4px 8px;
-  background-color: var(--dv-tabs-container-background-color, #252526);
+  background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, var(--bg-dark));
   border-bottom: 1px solid var(--dv-separator-border, #333333);
   font-size: 11px;
   min-height: 28px;
