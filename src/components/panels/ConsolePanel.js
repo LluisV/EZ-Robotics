@@ -726,144 +726,124 @@ const FluidNCConsolePanel = ({ onSendCommand = () => {} }) => {
     };
   }, [addEntry, debugLevels.TELEMETRY]);
 
-  return (
-    <div className="console-container">
-      {/* Enhanced Toolbar with filter groups */}
-      <div className="console-toolbar">
-        <div className="toolbar-section">
-          <div className="section-label">Message Types</div>
-          <div className="console-filters">
-            <div 
-              className={`filter-option ${debugLevels.ERROR ? 'active' : ''}`}
-              onClick={() => toggleDebugLevel('ERROR')}
-              title="Show ERROR messages (Ctrl+1)"
-            >
-              <span className="filter-indicator error"></span>
-              <span className="filter-label">ERROR</span>
-            </div>
-            
-            <div 
-              className={`filter-option ${debugLevels.WARNING ? 'active' : ''}`}
-              onClick={() => toggleDebugLevel('WARNING')}
-              title="Show WARNING messages (Ctrl+2)"
-            >
-              <span className="filter-indicator warning"></span>
-              <span className="filter-label">WARN</span>
-            </div>
-            
-            <div 
-              className={`filter-option ${debugLevels.INFO ? 'active' : ''}`}
-              onClick={() => toggleDebugLevel('INFO')}
-              title="Show INFO messages (Ctrl+3)"
-            >
-              <span className="filter-indicator info"></span>
-              <span className="filter-label">INFO</span>
-            </div>
-            
-            <div 
-              className={`filter-option ${debugLevels.DEBUG ? 'active' : ''}`}
-              onClick={() => toggleDebugLevel('DEBUG')}
-              title="Show DEBUG messages (Ctrl+4)"
-            >
-              <span className="filter-indicator debug"></span>
-              <span className="filter-label">DEBUG</span>
-            </div>
-          </div>
+return (
+  <div className="console-container">
+    {/* Simplified Toolbar with filters in a grid and actions on the right */}
+    <div className="console-toolbar">
+      {/* Filter options in a grid */}
+      <div className="console-filters">
+        {/* Error filter */}
+        <div 
+          className={`filter-option ${debugLevels.ERROR ? 'active' : ''}`}
+          onClick={() => toggleDebugLevel('ERROR')}
+          title="Show ERROR messages (Ctrl+1)"
+        >
+          <span className="filter-indicator error"></span>
+          <span className="filter-label">ERROR</span>
         </div>
         
-        <div className="toolbar-divider"></div>
+        {/* Warning filter */}
+        <div 
+          className={`filter-option ${debugLevels.WARNING ? 'active' : ''}`}
+          onClick={() => toggleDebugLevel('WARNING')}
+          title="Show WARNING messages (Ctrl+2)"
+        >
+          <span className="filter-indicator warning"></span>
+          <span className="filter-label">WARN</span>
+        </div>
         
-        <div className="toolbar-section">
-          <div className="console-filters">
-            <div 
-              className={`filter-option ${debugLevels.SENT ? 'active' : ''}`}
-              onClick={() => toggleDebugLevel('SENT')}
-              title="Show sent commands"
-            >
-              <span className="filter-indicator sent"></span>
-              <span className="filter-label">SENT</span>
-            </div>
-            
-            <div 
-              className={`filter-option ${debugLevels.RESPONSE ? 'active' : ''}`}
-              onClick={() => toggleDebugLevel('RESPONSE')}
-              title="Show general responses"
-            >
-              <span className="filter-indicator response"></span>
-              <span className="filter-label">RESP</span>
-            </div>
-            
-            <div 
-              className={`filter-option ${debugLevels.SYSTEM ? 'active' : ''}`}
-              onClick={() => toggleDebugLevel('SYSTEM')}
-              title="Show system messages"
-            >
-              <span className="filter-indicator system"></span>
-              <span className="filter-label">SYS</span>
-            </div>
+        {/* Info filter */}
+        <div 
+          className={`filter-option ${debugLevels.INFO ? 'active' : ''}`}
+          onClick={() => toggleDebugLevel('INFO')}
+          title="Show INFO messages (Ctrl+3)"
+        >
+          <span className="filter-indicator info"></span>
+          <span className="filter-label">INFO</span>
+        </div>
+        
+        {/* Debug filter */}
+        <div 
+          className={`filter-option ${debugLevels.DEBUG ? 'active' : ''}`}
+          onClick={() => toggleDebugLevel('DEBUG')}
+          title="Show DEBUG messages (Ctrl+4)"
+        >
+          <span className="filter-indicator debug"></span>
+          <span className="filter-label">DEBUG</span>
+        </div>
+        
+        {/* Sent filter */}
+        <div 
+          className={`filter-option ${debugLevels.SENT ? 'active' : ''}`}
+          onClick={() => toggleDebugLevel('SENT')}
+          title="Show sent commands"
+        >
+          <span className="filter-indicator sent"></span>
+          <span className="filter-label">SENT</span>
+        </div>
+        
+        {/* Response filter */}
+        <div 
+          className={`filter-option ${debugLevels.RESPONSE ? 'active' : ''}`}
+          onClick={() => toggleDebugLevel('RESPONSE')}
+          title="Show general responses"
+        >
+          <span className="filter-indicator response"></span>
+          <span className="filter-label">RESP</span>
+        </div>
+        
+        {/* System filter */}
+        <div 
+          className={`filter-option ${debugLevels.SYSTEM ? 'active' : ''}`}
+          onClick={() => toggleDebugLevel('SYSTEM')}
+          title="Show system messages"
+        >
+          <span className="filter-indicator system"></span>
+          <span className="filter-label">SYS</span>
+        </div>
 
-            <div 
-              className={`filter-option ${debugLevels.TELEMETRY ? 'active' : ''}`}
-              onClick={() => toggleDebugLevel('TELEMETRY')}
-              title="Show position reports (toggle with T key)"
-            >
-              <span className="filter-indicator telemetry"></span>
-              <span className="filter-label">STATUS</span>
-            </div>
-            
-            <div 
-              className={`filter-option ${debugLevels.ALARM ? 'active' : ''}`}
-              onClick={() => toggleDebugLevel('ALARM')}
-              title="Show ALARM messages"
-            >
-              <span className="filter-indicator alarm"></span>
-              <span className="filter-label">ALARM</span>
-            </div>
-            
-            <div 
-              className={`filter-option ${debugLevels.PROBE ? 'active' : ''}`}
-              onClick={() => toggleDebugLevel('PROBE')}
-              title="Show PROBE results"
-            >
-              <span className="filter-indicator probe"></span>
-              <span className="filter-label">PROBE</span>
-            </div>
-          </div>
+        {/* Telemetry filter */}
+        <div 
+          className={`filter-option ${debugLevels.TELEMETRY ? 'active' : ''}`}
+          onClick={() => toggleDebugLevel('TELEMETRY')}
+          title="Show position reports (toggle with T key)"
+        >
+          <span className="filter-indicator telemetry"></span>
+          <span className="filter-label">STATUS</span>
         </div>
         
-        <div className="toolbar-spacer"></div>
+        {/* Alarm filter */}
+        <div 
+          className={`filter-option ${debugLevels.ALARM ? 'active' : ''}`}
+          onClick={() => toggleDebugLevel('ALARM')}
+          title="Show ALARM messages"
+        >
+          <span className="filter-indicator alarm"></span>
+          <span className="filter-label">ALARM</span>
+        </div>
         
-        <div className="console-actions">
-          {!autoScroll && (
-            <button 
-              className="toolbar-button"
-              onClick={() => {
-                setAutoScroll(true);
-                consoleEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-              }}
-              title="Scroll to bottom (End)"
-            >
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                width="14" 
-                height="14" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-              >
-                <path d="M12 3v18"></path>
-                <path d="M6 15l6 6 6-6"></path>
-              </svg>
-            </button>
-          )}
-          
+        {/* Probe filter */}
+        <div 
+          className={`filter-option ${debugLevels.PROBE ? 'active' : ''}`}
+          onClick={() => toggleDebugLevel('PROBE')}
+          title="Show PROBE results"
+        >
+          <span className="filter-indicator probe"></span>
+          <span className="filter-label">PROBE</span>
+        </div>
+      </div>
+
+      {/* Action buttons (always right-aligned) */}
+      <div className="console-actions">
+        {/* Auto-scroll button */}
+        {!autoScroll && (
           <button 
             className="toolbar-button"
-            onClick={() => setCommandHistory([])}
-            title="Clear console (Ctrl+L)"
+            onClick={() => {
+              setAutoScroll(true);
+              consoleEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }}
+            title="Scroll to bottom (End)"
           >
             <svg 
               xmlns="http://www.w3.org/2000/svg" 
@@ -876,98 +856,121 @@ const FluidNCConsolePanel = ({ onSendCommand = () => {} }) => {
               strokeLinecap="round" 
               strokeLinejoin="round"
             >
-              <path d="M3 6h18"></path>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-              <line x1="10" y1="11" x2="10" y2="17"></line>
-              <line x1="14" y1="11" x2="14" y2="17"></line>
+              <path d="M12 3v18"></path>
+              <path d="M6 15l6 6 6-6"></path>
             </svg>
           </button>
-        </div>
+        )}
+        
+        {/* Clear button */}
+        <button 
+          className="toolbar-button"
+          onClick={() => setCommandHistory([])}
+          title="Clear console (Ctrl+L)"
+        >
+          <svg 
+            xmlns="http://www.w3.org/2000/svg" 
+            width="14" 
+            height="14" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+          >
+            <path d="M3 6h18"></path>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            <line x1="10" y1="11" x2="10" y2="17"></line>
+            <line x1="14" y1="11" x2="14" y2="17"></line>
+          </svg>
+        </button>
       </div>
+    </div>
 
-      {/* Console output area */}
-      <div 
-        className="console-output" 
-        ref={consoleOutputRef}
-        onScroll={handleScroll}
-        onClick={handleConsoleClick}
-      >
-        {commandHistory.length === 0 && (
-          <div className="console-welcome">
-            <p>Welcome to the FluidNC Command Console.</p>
-            <p>Type 'help' for a list of available commands.</p>
-            <p>Type 'clear' or press Ctrl+L to clear the console.</p>
-            <p>Use up/down arrows to navigate command history.</p>
-          </div>
-        )}
-        
-        {commandHistory.length > 0 && (
-          <VirtualizedConsoleOutput 
-            entries={visibleMessages}
-            getLevelStyle={getLevelStyle}
-            containerRef={consoleOutputRef}
-          />
-        )}
-        
-        <div ref={consoleEndRef} />
+    {/* Console output area */}
+    <div 
+      className="console-output" 
+      ref={consoleOutputRef}
+      onScroll={handleScroll}
+      onClick={handleConsoleClick}
+    >
+      {commandHistory.length === 0 && (
+        <div className="console-welcome">
+          <p>Welcome to the FluidNC Command Console.</p>
+          <p>Type 'help' for a list of available commands.</p>
+          <p>Type 'clear' or press Ctrl+L to clear the console.</p>
+          <p>Use up/down arrows to navigate command history.</p>
+        </div>
+      )}
+      
+      {commandHistory.length > 0 && (
+        <VirtualizedConsoleOutput 
+          entries={visibleMessages}
+          getLevelStyle={getLevelStyle}
+          containerRef={consoleOutputRef}
+        />
+      )}
+      
+      <div ref={consoleEndRef} />
+    </div>
+    
+    {/* Input area with command execution button */}
+    <div className="console-input-container">
+      <div className="console-input-wrapper">
+        <span className="console-prompt">&gt;</span>
+        <input
+          type="text"
+          className="console-input"
+          value={currentCommand}
+          onChange={(e) => setCurrentCommand(e.target.value)}
+          onKeyDown={handleKeyPress}
+          placeholder="Enter command... (↑↓ for history)"
+          autoFocus
+          ref={inputRef}
+          spellCheck="false"
+        />
+        <button 
+          className="send-button"
+          onClick={sendCommand}
+          title="Send command (Enter)"
+          disabled={!currentCommand.trim()}
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
       </div>
       
-      {/* Input area with command execution button */}
-      <div className="console-input-container">
-        <div className="console-input-wrapper">
-          <span className="console-prompt">&gt;</span>
-          <input
-            type="text"
-            className="console-input"
-            value={currentCommand}
-            onChange={(e) => setCurrentCommand(e.target.value)}
-            onKeyDown={handleKeyPress}
-            placeholder="Enter command... (↑↓ for history)"
-            autoFocus
-            ref={inputRef}
-            spellCheck="false"
-          />
-          <button 
-            className="send-button"
-            onClick={sendCommand}
-            title="Send command (Enter)"
-            disabled={!currentCommand.trim()}
-          >
-            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none">
-              <line x1="22" y1="2" x2="11" y2="13"></line>
-              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-            </svg>
-          </button>
+      {/* Status bar with useful information */}
+      <div className="console-status-bar">
+        <div className="status-item">
+          <span className="status-label">Connection:</span>
+          <span className={`status-value ${window.sendSerialData ? "connected" : "disconnected"}`}>
+            {window.sendSerialData ? "Connected" : "Disconnected"}
+          </span>
         </div>
-        
-        {/* Status bar with useful information */}
-        <div className="console-status-bar">
-          <div className="status-item">
-            <span className="status-label">Connection:</span>
-            <span className={`status-value ${window.sendSerialData ? "connected" : "disconnected"}`}>
-              {window.sendSerialData ? "Connected" : "Disconnected"}
-            </span>
-          </div>
-          <div className="status-item">
-            <span className="status-label">Messages:</span>
-            <span className="status-value">
-              {visibleMessages.length}/{commandHistory.length}
-            </span>
-          </div>
-          <div className="status-item">
-            <span className="status-label">Auto-scroll:</span>
-            <span className={`status-value ${autoScroll ? "enabled" : "disabled"}`}>
-              {autoScroll ? "On" : "Off"}
-            </span>
-          </div>
-          <div className="status-item keyboard-shortcuts">
-            <span className="kbd" title="History navigation">↑↓</span>
-            <span className="kbd" title="Clear console">Ctrl+L</span>
-          </div>
+        <div className="status-item">
+          <span className="status-label">Messages:</span>
+          <span className="status-value">
+            {visibleMessages.length}/{commandHistory.length}
+          </span>
+        </div>
+        <div className="status-item">
+          <span className="status-label">Auto-scroll:</span>
+          <span className={`status-value ${autoScroll ? "enabled" : "disabled"}`}>
+            {autoScroll ? "On" : "Off"}
+          </span>
+        </div>
+        <div className="status-item keyboard-shortcuts">
+          <span className="kbd" title="History navigation">↑↓</span>
+          <span className="kbd" title="Clear console">Ctrl+L</span>
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 };
 
 export default FluidNCConsolePanel;

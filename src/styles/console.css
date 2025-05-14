@@ -12,40 +12,36 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
-/* Console toolbar - modern IDE style */
+/* Console toolbar - flex layout with grid for filters */
 .console-toolbar {
   display: flex;
   align-items: center;
-  padding: 4px 8px;
+  padding: 12px 8px 8px 8px;
   background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, var(--bg-dark));
   border-bottom: 1px solid var(--dv-separator-border, #333333);
   font-size: 11px;
   min-height: 28px;
-  flex-wrap: wrap;
+  width: 100%;
+  box-sizing: border-box;
   gap: 4px;
-}
-
-.toolbar-section {
-  display: flex;
-  align-items: center;
-  margin-right: 8px;
   flex-wrap: wrap;
-  gap: 4px;
-}
-
-.section-label {
-  color: var(--dv-tab-inactive-foreground-color, #8a8a8a);
-  margin-right: 8px;
-  font-size: 11px;
-  white-space: nowrap;
-  font-weight: 500;
 }
 
 .console-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(60px, auto));
+  grid-gap: 4px;
+  flex: 1;
+}
+
+.toolbar-spacer {
+  margin-left: auto;
+}
+
+.console-actions {
   display: flex;
   gap: 4px;
-  align-items: center;
-  flex-wrap: wrap;
+  margin-left: auto;
 }
 
 .filter-option {
@@ -59,6 +55,7 @@
   user-select: none;
   height: 18px;
   border: 1px solid transparent;
+  white-space: nowrap;
 }
 
 .filter-option:hover {
@@ -126,26 +123,29 @@
   letter-spacing: 0.5px;
 }
 
-.toolbar-divider {
-  width: 1px;
-  height: 18px;
-  background-color: var(--dv-separator-border, #333333);
-  margin: 0 8px;
-}
-
-.toolbar-spacer {
-  flex: 1;
-}
-
 .console-actions {
-  display: flex;
-  gap: 4px;
+  display: contents; /* Flatten grid structure */
 }
 
+.toolbar-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background-color: transparent;
+  border: 1px solid transparent;
+  color: var(--dv-activegroup-visiblepanel-tab-color, #cccccc);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  opacity: 0.7;
+}
 
 .toolbar-button:hover {
   background-color: var(--dv-tabs-hover-background-color, #2d2d2d);
   border-color: var(--dv-separator-border, #333333);
+  opacity: 1;
 }
 
 .toolbar-button:disabled {
@@ -683,6 +683,10 @@
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
+  .console-filters {
+    grid-template-columns: repeat(auto-fill, minmax(40px, auto));
+  }
+  
   .filter-label {
     display: none;
   }
@@ -693,10 +697,6 @@
   
   .filter-indicator {
     margin-right: 0;
-  }
-  
-  .section-label {
-    display: none;
   }
   
   .entry-line-number {
