@@ -1,3 +1,4 @@
+// App.js with updated toolbar implementation
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { 
   DockviewReact,
@@ -18,11 +19,10 @@ import './styles/control-panel.css';
 import './styles/monitor-panel.css';
 import './styles/serial-connection.css';
 import './styles/3dview-panel.css';
+import './styles/toolbar.css';
 
-import Header from './components/common/Header';
 import Footer from './components/common/Footer';
-import Toolbar from './components/common/Toolbar';
-import ThemeSelector from './components/common/ThemeSelector';
+import MainToolbar from './components/common/MainToolBar';
 import dockingManager from './services/docking/DockingManager';
 import { GCodeProvider } from './contexts/GCodeContext';
 import './services/SerialCommunicationService';
@@ -34,7 +34,6 @@ import Viewer3DPanel from './components/panels/Viewer3D/exports';
 import CodeEditorPanel from './components/panels/CodeEditor';
 import ConsolePanel from './components/panels/ConsolePanel';
 import AccelerationPanel from './components/panels/AccelerationPanel';
-
 
 /**
  * Main application component
@@ -66,7 +65,7 @@ function App() {
     if (savedTheme && availableThemes.some(t => t.id === savedTheme)) {
       setCurrentTheme(savedTheme);
     }
-  }, [availableThemes]);
+  }, []);
 
   // Get current theme object from theme ID
   const getCurrentThemeObject = useCallback(() => {
@@ -86,7 +85,7 @@ function App() {
     }
     
     return found ? found.theme : themeDracula;
-  }, [currentTheme, availableThemes]);
+  }, [currentTheme]);
 
   // Handle theme change
   const handleThemeChange = useCallback((themeId) => {
@@ -94,6 +93,55 @@ function App() {
     // Save theme preference in localStorage
     localStorage.setItem('preferredTheme', themeId);
   }, []);
+
+  // File open handler
+  const handleFileOpen = useCallback(() => {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.gcode,.nc,.tap,.cnc';
+    fileInput.click();
+    
+    fileInput.onchange = (event) => {
+      const file = event.target.files[0];
+      if (file) {
+        // Find GCode editor panel to open the file in
+        const editorPanel = dockviewApi.panels.find(p => 
+          p.component === 'codeEditor' || p.id.startsWith('codeEditor')
+        );
+        
+        if (editorPanel) {
+          // Read the file and pass it to the editor
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            // Dispatch custom event for the editor panel to handle
+            document.dispatchEvent(new CustomEvent('file-content-loaded', {
+              detail: {
+                name: file.name,
+                content: e.target.result
+              }
+            }));
+          };
+          reader.readAsText(file);
+        } else {
+          // If no editor panel exists, create one and then open the file
+          dockingManager.addPanel('codeEditor');
+          // Short delay to ensure panel is created
+          setTimeout(() => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              document.dispatchEvent(new CustomEvent('file-content-loaded', {
+                detail: {
+                  name: file.name,
+                  content: e.target.result
+                }
+              }));
+            };
+            reader.readAsText(file);
+          }, 100);
+        }
+      }
+    };
+  }, [dockviewApi]);
 
   // Create wrapper components for our panels
   const ControlPanelWrapper = React.memo(props => {
@@ -170,6 +218,9 @@ function App() {
       const { api } = event;
       setDockviewApi(api);
       
+      // Make the dockviewApi globally available for plugins and tools
+      window.dockviewApi = api;
+      
       // Add a listener for when panels are added to set constraints immediately
       api.onDidAddPanel(panel => {
         console.log(`Panel added: ${panel.id}, setting minimum width to ${MINIMUM_WIDTH}px`);
@@ -216,17 +267,49 @@ function App() {
     }
   };
 
+  // Handle panel addition
+  const handleAddPanel = (panelType) => {
+    if (!dockviewApi) return;
+    
+    try {
+      dockingManager.addPanel(panelType);
+    } catch (err) {
+      console.error(`Error adding panel ${panelType}:`, err);
+      setError(err.message);
+    }
+  };
+
+  // Handle plugin import
+  const handleImportPlugin = (pluginId) => {
+    // This would integrate with your plugin system
+    console.log(`Importing plugin: ${pluginId}`);
+    
+    // If you have a plugin manager, you would call it here
+    if (window.pluginManager && typeof window.pluginManager.loadPlugin === 'function') {
+      window.pluginManager.loadPlugin(pluginId)
+        .then(plugin => {
+          console.log(`Plugin ${pluginId} loaded:`, plugin);
+        })
+        .catch(err => {
+          console.error(`Error loading plugin ${pluginId}:`, err);
+        });
+    }
+  };
+
   return (
     <GCodeProvider>
       <div className="app-container">
-        <Header>
-          <ThemeSelector 
-            currentTheme={currentTheme}
-            onThemeChange={handleThemeChange}
-            availableThemes={availableThemes}
-          />
-        </Header>
-        <Toolbar dockviewApi={dockviewApi} />
+        {/* New MainToolbar component */}
+        <MainToolbar
+          dockviewApi={dockviewApi}
+          onThemeChange={handleThemeChange}
+          currentTheme={currentTheme}
+          availableThemes={availableThemes}
+          onFileOpen={handleFileOpen}
+          onAddPanel={handleAddPanel}
+          onImportPlugin={handleImportPlugin}
+        />
+        
         <div className="dock-container">
           {error ? (
             <div className="error-container">
