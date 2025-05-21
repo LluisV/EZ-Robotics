@@ -21,7 +21,6 @@ import './styles/serial-connection.css';
 import './styles/3dview-panel.css';
 import './styles/toolbar.css';
 
-import Footer from './components/common/Footer';
 import MainToolbar from './components/common/MainToolBar';
 import dockingManager from './services/docking/DockingManager';
 import { GCodeProvider } from './contexts/GCodeContext';
