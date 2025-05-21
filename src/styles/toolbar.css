@@ -1,4 +1,4 @@
-/* MainToolbar.css */
+/* MainToolbar.css - Enhanced theme support */
 
 .main-toolbar {
   display: flex;
@@ -12,6 +12,7 @@
   user-select: none;
   z-index: 10;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 }
 
 /* Toolbar sections */
@@ -32,6 +33,7 @@
   background-color: var(--dv-separator-border, var(--border-color));
   margin: 0 4px;
   opacity: 0.6;
+  transition: background-color 0.3s ease;
 }
 
 .dropdown-divider {
@@ -39,6 +41,7 @@
   background-color: var(--dv-separator-border, var(--border-color));
   margin: 4px 0;
   opacity: 0.6;
+  transition: background-color 0.3s ease;
 }
 
 /* Buttons */
@@ -53,7 +56,7 @@
   border-radius: 4px;
   cursor: pointer;
   padding: 0 8px;
-  transition: all 0.2s ease;
+  transition: all 0.2s ease, color 0.3s ease, background-color 0.3s ease;
 }
 
 .toolbar-button:hover {
@@ -75,6 +78,86 @@
   opacity: 0.9;
 }
 
+/* Enhanced Theme Selector Styling */
+.toolbar-button.theme-button {
+  color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
+  border: 1px solid var(--dv-separator-border, var(--border-color));
+  padding: 0 8px;
+  transition: all 0.2s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+.toolbar-button.theme-button:hover {
+  border-color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+}
+
+.theme-icon {
+  color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  transition: color 0.3s ease;
+}
+
+.theme-dropdown {
+  min-width: 200px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.theme-item {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  transition: background-color 0.2s ease;
+}
+
+.theme-color-preview {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  margin-right: 8px;
+  border: 1px solid var(--dv-separator-border, var(--border-color));
+  transition: border-color 0.3s ease;
+}
+
+/* Theme colors for the preview swatches */
+.theme-color-preview.dark {
+  background-color: #1e1e1e;
+}
+
+.theme-color-preview.light {
+  background-color: #f5f5f5;
+}
+
+.theme-color-preview.dracula {
+  background-color: #282a36;
+}
+
+.theme-color-preview.visual-studio {
+  background-color: #1e1e1e;
+  border: 1px solid #007acc;
+}
+
+.theme-color-preview.abyss {
+  background-color: #000c18;
+}
+
+.theme-color-preview.replit {
+  background-color: #0e1525;
+}
+
+.theme-color-preview.light-spaced {
+  background-color: #f5f5f5;
+  border: 2px solid #ddd;
+}
+
+.theme-color-preview.abyss-spaced {
+  background-color: #000c18;
+  border: 2px solid #004;
+}
+
+.theme-name {
+  flex: 1;
+  text-align: left;
+}
+
 /* Dropdowns */
 .toolbar-dropdown {
   position: relative;
@@ -93,6 +176,7 @@
   z-index: 100;
   overflow: hidden;
   animation: dropdown-appear 0.15s ease-out;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 @keyframes dropdown-appear {
@@ -116,6 +200,7 @@
   color: var(--dv-inactivegroup-visiblepanel-tab-color, var(--text-secondary));
   opacity: 0.7;
   font-weight: 500;
+  transition: color 0.3s ease;
 }
 
 .dropdown-item {
@@ -129,7 +214,7 @@
   border: none;
   color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition: background-color 0.15s ease, color 0.3s ease;
 }
 
 .dropdown-item:hover {
@@ -191,6 +276,7 @@
   height: 24px;
   background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, rgba(0, 0, 0, 0.2));
   border-radius: 12px;
+  transition: background-color 0.3s ease;
 }
 
 .status-indicator {
@@ -198,6 +284,7 @@
   height: 8px;
   border-radius: 50%;
   position: relative;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .status-indicator.connected {
@@ -240,6 +327,7 @@
 .status-text {
   font-size: 12px;
   font-weight: 500;
+  transition: color 0.3s ease;
 }
 
 /* Connection controls */
@@ -270,6 +358,7 @@
   background-position: right 0px center;
   background-size: 16px;
   padding-right: 20px;
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
 .baud-select:focus {
@@ -294,7 +383,7 @@
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.15s ease, background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
   margin-left: 0px;
 }
 
@@ -345,15 +434,135 @@
   }
 }
 
-/* Theme-specific adaptations */
+/* Explicit theme-specific toolbar adaptations */
+/* Light Theme */
 :root.theme-light .main-toolbar, 
 :root.theme-light-spaced .main-toolbar {
+  background-color: #f5f5f5;
+  color: #333333;
+  border-bottom: 1px solid #e0e0e0;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
+:root.theme-light .toolbar-button,
+:root.theme-light-spaced .toolbar-button {
+  color: #333333;
+}
+
+:root.theme-light .toolbar-divider,
+:root.theme-light-spaced .toolbar-divider,
+:root.theme-light .dropdown-divider,
+:root.theme-light-spaced .dropdown-divider {
+  background-color: #e0e0e0;
+}
+
+:root.theme-light .toolbar-dropdown-content,
+:root.theme-light-spaced .toolbar-dropdown-content {
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+:root.theme-light .dropdown-item,
+:root.theme-light-spaced .dropdown-item {
+  color: #333333;
+}
+
+:root.theme-light .dropdown-item:hover,
+:root.theme-light-spaced .dropdown-item:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+:root.theme-light .dropdown-section-title,
+:root.theme-light-spaced .dropdown-section-title {
+  color: #777777;
+}
+
+:root.theme-light .baud-select,
+:root.theme-light-spaced .baud-select {
+  background-color: rgba(0, 0, 0, 0.05);
+  border-color: #e0e0e0;
+  color: #333333;
+}
+
+/* Dracula Theme */
+:root.theme-dracula .main-toolbar {
+  background-color: #282a36;
+  color: #f8f8f2;
+  border-bottom: 1px solid #44475a;
+}
+
+:root.theme-dracula .toolbar-divider,
+:root.theme-dracula .dropdown-divider {
+  background-color: #44475a;
+}
+
+:root.theme-dracula .toolbar-dropdown-content {
+  background-color: #282a36;
+  border: 1px solid #44475a;
+}
+
+:root.theme-dracula .dropdown-section-title {
+  color: #6272a4;
+}
+
+/* Visual Studio Theme */
+:root.theme-visual-studio .main-toolbar {
+  background-color: #252526;
+  color: #cccccc;
+  border-bottom: 1px solid #333333;
+}
+
+:root.theme-visual-studio .toolbar-button {
+  color: #cccccc;
+}
+
+:root.theme-visual-studio .toolbar-dropdown-content {
+  background-color: #252526;
+  border: 1px solid #333333;
+}
+
+/* Abyss Theme */
+:root.theme-abyss .main-toolbar,
+:root.theme-abyss-spaced .main-toolbar {
+  background-color: #000c18;
+  color: #6688cc;
+  border-bottom: 1px solid #001733;
+}
+
+:root.theme-abyss .toolbar-divider,
+:root.theme-abyss-spaced .toolbar-divider {
+  background-color: #001733;
+}
+
+:root.theme-abyss .toolbar-dropdown-content,
+:root.theme-abyss-spaced .toolbar-dropdown-content {
+  background-color: #000c18;
+  border: 1px solid #001733;
+}
+
+/* Replit Theme */
+:root.theme-replit .main-toolbar {
+  background-color: #0e1525;
+  color: #e0e0e0;
+  border-bottom: 1px solid #1c2333;
+}
+
+:root.theme-replit .toolbar-divider {
+  background-color: #1c2333;
+}
+
+:root.theme-replit .toolbar-dropdown-content {
+  background-color: #0e1525;
+  border: 1px solid #1c2333;
+}
+
+/* Connection status theme adaptations */
 :root.theme-dark .connection-status, 
 :root.theme-abyss .connection-status,
-:root.theme-dracula .connection-status {
+:root.theme-abyss-spaced .connection-status,
+:root.theme-dracula .connection-status,
+:root.theme-replit .connection-status {
   background-color: rgba(0, 0, 0, 0.3);
 }
 
@@ -361,4 +570,46 @@
 :root.theme-light-spaced .connection-status,
 :root.theme-visual-studio .connection-status {
   background-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Theme-specific toolbar adaptations */
+:root.theme-light .theme-icon, 
+:root.theme-light-spaced .theme-icon {
+  color: #0077cc;
+}
+
+:root.theme-dracula .theme-icon {
+  color: #bd93f9;
+}
+
+:root.theme-abyss .theme-icon,
+:root.theme-abyss-spaced .theme-icon {
+  color: #6688cc;
+}
+
+:root.theme-visual-studio .theme-icon {
+  color: #007acc;
+}
+
+:root.theme-replit .theme-icon {
+  color: #59a8e2;
+}
+
+/* Scrollbar styling for theme dropdown */
+.theme-dropdown::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.theme-dropdown::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.theme-dropdown::-webkit-scrollbar-thumb {
+  background-color: var(--dv-tabs-container-scrollbar-color, #424242);
+  border-radius: 4px;
+}
+
+.theme-dropdown::-webkit-scrollbar-thumb:hover {
+  background-color: var(--dv-tabs-container-scrollbar-color-hover, #525252);
 }

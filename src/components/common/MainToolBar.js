@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   FileText, LayoutGrid, PlusSquare, Package, 
-  Settings, ChevronDown, Plug, PlugZap
+  Settings, ChevronDown, Plug, PlugZap, Palette
 } from 'lucide-react';
 import dockingManager from '../../services/docking/DockingManager';
 import serialService from '../../services/SerialCommunicationService';
@@ -186,6 +186,12 @@ const MainToolbar = ({
   const getCurrentLayoutName = () => {
     const layout = layouts.find(l => l.id === currentLayout);
     return layout ? layout.name : 'Default';
+  };
+
+  // Get current theme name
+  const getCurrentThemeName = () => {
+    const theme = availableThemes.find(t => t.id === currentTheme);
+    return theme ? theme.name : 'Default';
   };
   
   return (
@@ -445,29 +451,31 @@ const MainToolbar = ({
         
         <div className="toolbar-divider"></div>
         
-        {/* Theme selector */}
+        {/* Theme selector - IMPROVED */}
         <div className="toolbar-dropdown toolbar-dropdown-trigger">
           <button 
-            className="toolbar-button with-text" 
+            className="toolbar-button with-text theme-button" 
             onClick={() => toggleDropdown('theme')}
             title="Change Theme"
           >
-            <span className="button-text">Theme</span>
+            <Palette size={16} className="theme-icon" />
+            <span className="button-text">Theme: {getCurrentThemeName()}</span>
             <ChevronDown size={12} />
           </button>
           
           {activeDropdown === 'theme' && (
-            <div className="toolbar-dropdown-content">
+            <div className="toolbar-dropdown-content theme-dropdown">
               {availableThemes.map(theme => (
                 <button 
                   key={theme.id}
-                  className={`dropdown-item ${currentTheme === theme.id ? 'active' : ''}`}
+                  className={`dropdown-item theme-item ${currentTheme === theme.id ? 'active' : ''}`}
                   onClick={() => {
                     onThemeChange(theme.id);
                     setActiveDropdown(null);
                   }}
                 >
-                  {theme.name}
+                  <span className={`theme-color-preview ${theme.id}`}></span>
+                  <span className="theme-name">{theme.name}</span>
                 </button>
               ))}
             </div>
