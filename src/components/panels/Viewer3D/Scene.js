@@ -8,6 +8,8 @@ import ToolpathRenderer from './ToolpathRenderer';
 import StlManager from './StlManager';
 import { getThemeColors } from './utils/themeColors';
 import MouseIndicator from './MouseIndicator';
+import Robot3D from './robot/Robot3D';
+import { getPredefinedRobot } from './robot/predefinedRobots';
 
 /**
  * Scene component for the 3D Viewer
@@ -41,7 +43,9 @@ const Scene = forwardRef(({
     directionIndicatorDensity,
     directionIndicatorScale, 
     showPathLine,
-    setToolpathRendererRef
+    setToolpathRendererRef,
+    showRobot,
+    robotConfig
 }, ref) => {
     // Scene scale - conversion factor from mm to scene units
     const sceneScale = 0.1; // 10mm = 1 unit
@@ -59,6 +63,7 @@ const Scene = forwardRef(({
     const robotToolRef = useRef(null);
     const mouseIndicatorRef = useRef(null);
     const gridPlaneRef = useRef(null);
+    const robot3DRef = useRef(null);
 
     // Theme colors
     const themeColors = getThemeColors();
@@ -231,6 +236,19 @@ const Scene = forwardRef(({
             );
         }
 
+        // Create DH Robot if enabled
+        if (showRobot && robotConfig) {
+            if (!robot3DRef.current) {
+                robot3DRef.current = new Robot3D(
+                    sceneRef.current,
+                    robotConfig.dhParameters || getPredefinedRobot('planar-2dof').dhParameters,
+                    sceneScale,
+                    themeColors
+                );
+                console.log("DH Robot created");
+            }
+        }
+
         // Create robot tool
         createRobotTool();
         console.log("Scene managers initialized successfully");
@@ -282,6 +300,61 @@ const Scene = forwardRef(({
       setGridManager(gridManagerRef.current);
     }
   }, [gridManagerRef.current, setGridManager]);
+
+  // Handle robot visibility and configuration
+    useEffect(() => {
+        if (!sceneRef.current) return;
+
+        if (showRobot) {
+            // Create robot if it doesn't exist
+            if (!robot3DRef.current && robotConfig) {
+                robot3DRef.current = new Robot3D(
+                    sceneRef.current,
+                    robotConfig.dhParameters,
+                    sceneScale,
+                    themeColors
+                );
+                
+                // Apply visual settings if available
+                if (robotConfig.visualSettings) {
+                    robot3DRef.current.setVisualProperties(robotConfig.visualSettings);
+                }
+                
+                console.log("DH Robot created with config:", robotConfig);
+            } else if (robot3DRef.current) {
+                // Update existing robot
+                robot3DRef.current.setVisible(true);
+                
+                // Update DH parameters if changed
+                if (robotConfig && robotConfig.dhParameters) {
+                    robot3DRef.current.setDHParameters(robotConfig.dhParameters);
+                }
+                
+                // Update visual settings if available
+                if (robotConfig && robotConfig.visualSettings) {
+                    robot3DRef.current.setVisualProperties(robotConfig.visualSettings);
+                }
+            }
+        } else {
+            // Hide robot
+            if (robot3DRef.current) {
+                robot3DRef.current.setVisible(false);
+            }
+        }
+    }, [showRobot, robotConfig, sceneScale, themeColors]);
+
+    // Update robot position to match the robot tool position
+    useEffect(() => {
+        if (robot3DRef.current && showRobot) {
+            // Update robot to match current robot position
+            const success = robot3DRef.current.updateToPosition(robotPosition);
+            
+            if (!success) {
+                // If IK fails
+                console.warn("Failed to update robot to position:", robotPosition);
+            }
+        }
+    }, [robotPosition, showRobot]);
 
     // Update grid and axes visibility
     useEffect(() => {
@@ -589,6 +662,10 @@ const Scene = forwardRef(({
             if (unmounting) {
                 console.log("Scene component is truly unmounting, running cleanup");
                 cleanup && cleanup();
+                if (robot3DRef.current) {
+                    robot3DRef.current.dispose();
+                    robot3DRef.current = null;
+                }
             } else {
                 console.log("Scene component state update only, skipping cleanup");
             }

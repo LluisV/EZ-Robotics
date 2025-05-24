@@ -1,0 +1,305 @@
+/* Robot Settings Styles */
+.robot-settings {
+  width: 100%;
+  min-width: 350px;
+}
+
+.robot-settings-header {
+  margin-bottom: 12px;
+}
+
+.robot-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.robot-checkbox-label:hover {
+  background-color: var(--dv-tabs-hover-background-color, rgba(255, 255, 255, 0.1));
+}
+
+.robot-checkbox {
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+}
+
+.robot-settings-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 12px;
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+
+/* Preset Selection */
+.robot-preset-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.robot-setting-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.robot-select {
+  flex: 1;
+  padding: 5px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--dv-separator-border, var(--border-color));
+  background-color: var(--bg-medium);
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+/* Visual Settings */
+.robot-visual-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background-color: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+}
+
+.robot-setting-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.robot-slider-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.robot-slider-label {
+  font-size: 12px;
+  min-width: 60px;
+}
+
+.robot-slider {
+  flex: 1;
+  height: 4px;
+  -webkit-appearance: none;
+  background: var(--dv-activegroup-hiddenpanel-tab-background-color, var(--bg-medium));
+  border-radius: 2px;
+  outline: none;
+}
+
+.robot-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  cursor: pointer;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.2);
+}
+
+.robot-slider-value {
+  font-size: 11px;
+  min-width: 36px;
+  text-align: right;
+  font-weight: 500;
+}
+
+/* DH Parameters Editor */
+.robot-dh-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background-color: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+}
+
+.dh-editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.dh-editor-header h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.edit-mode-btn {
+  background: none;
+  border: none;
+  padding: 4px 8px;
+  cursor: pointer;
+  color: var(--text-primary);
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+  border-radius: 3px;
+}
+
+.edit-mode-btn:hover {
+  opacity: 1;
+  background-color: var(--dv-tabs-hover-background-color, rgba(255, 255, 255, 0.1));
+}
+
+/* DH Table */
+.dh-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.dh-table th {
+  text-align: left;
+  padding: 6px 4px;
+  font-weight: 500;
+  border-bottom: 1px solid var(--dv-separator-border, var(--border-color));
+  color: var(--text-secondary);
+}
+
+.dh-table td {
+  padding: 4px;
+}
+
+.dh-input {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid var(--dv-separator-border, var(--border-color));
+  border-radius: 3px;
+  background-color: var(--bg-medium);
+  color: var(--text-primary);
+  font-size: 11px;
+}
+
+.dh-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dh-input:focus {
+  border-color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  outline: none;
+}
+
+.remove-joint-btn {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: #e74c3c;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+  border-radius: 3px;
+}
+
+.remove-joint-btn:hover {
+  opacity: 1;
+  background-color: rgba(231, 76, 60, 0.1);
+}
+
+.add-joint-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  margin-top: 8px;
+  background-color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.add-joint-btn:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+/* DH Parameters View Mode */
+.dh-parameters-view {
+  padding: 8px;
+}
+
+.dh-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.dh-joint-count {
+  font-weight: 500;
+  color: var(--dv-paneview-active-outline-color, var(--accent-blue));
+}
+
+.dh-type {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* Import/Export Buttons */
+.robot-io-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.robot-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--dv-separator-border, var(--border-color));
+  border-radius: 4px;
+  background-color: var(--bg-medium);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.robot-btn:hover {
+  background-color: var(--dv-tabs-hover-background-color, rgba(255, 255, 255, 0.1));
+  transform: translateY(-1px);
+}
+
+.export-btn {
+  background-color: var(--bg-medium);
+}
+
+.import-btn {
+  background-color: var(--bg-medium);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .robot-settings-content {
+    padding: 8px;
+  }
+  
+  .dh-table {
+    font-size: 10px;
+  }
+  
+  .dh-input {
+    padding: 2px 4px;
+    font-size: 10px;
+  }
+}

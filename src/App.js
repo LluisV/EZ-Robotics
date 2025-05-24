@@ -20,6 +20,7 @@ import './styles/monitor-panel.css';
 import './styles/serial-connection.css';
 import './styles/3dview-panel.css';
 import './styles/toolbar.css';
+import './styles/robot-settings.css';
 
 import MainToolbar from './components/common/MainToolBar';
 import dockingManager from './services/docking/DockingManager';
