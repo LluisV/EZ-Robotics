@@ -411,16 +411,19 @@ const ControlPanel = () => {
   // Listen to FluidNC position updates
   useEffect(() => {
     const handlePositionTelemetry = (event) => {
-      const data = event.detail;
+      const eventData = event.detail;
       
-      if (data && data.type === 'response' && data.data) {
+      // Handle the new event structure from SerialCommunicationService
+      if (eventData && eventData.data) {
+        const statusData = eventData.data;
+        
         // Check if this is a status message in GRBL format: <status|MPos:x,y,z|...>
-        if (data.data.startsWith('<') && data.data.includes('|MPos:')) {
+        if (statusData.startsWith('<') && statusData.includes('|MPos:')) {
           try {
             // Parse machine position (MPos)
-            const mPosMatch = data.data.match(/MPos:([^,|]+),([^,|]+),([^,|]+)/);
+            const mPosMatch = eventData.data.match(/MPos:([^,|]+),([^,|]+),([^,|]+)/);
             // Parse work coordinate offset (WCO)
-            const wcoMatch = data.data.match(/WCO:([^,|]+),([^,|]+),([^,|]+)/);
+            const wcoMatch = eventData.data.match(/WCO:([^,|]+),([^,|]+),([^,|]+)/);
             
             if (mPosMatch) {
               // Extract machine positions
