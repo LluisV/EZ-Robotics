@@ -345,16 +345,35 @@ const Scene = forwardRef(({
 
     // Update robot position to match the robot tool position
     useEffect(() => {
-        if (robot3DRef.current && showRobot) {
-            // Update robot to match current robot position
-            const success = robot3DRef.current.updateToPosition(robotPosition);
-            
-            if (!success) {
-                // If IK fails
-                console.warn("Failed to update robot to position:", robotPosition);
-            }
-        }
-    }, [robotPosition, showRobot]);
+    if (robot3DRef.current && showRobot && robot3DRef.current.jointValues) {
+      // The robotPosition.x is inverted from telemetry (it's already negative)
+      // The robot model expects the actual machine coordinates
+      // So we need to un-invert X to get back to machine coordinates
+      const robotWorldPos = {
+        x: -robotPosition.x, // Un-invert X to get machine coordinates
+        y: robotPosition.y,
+        z: robotPosition.z
+      };
+      
+      console.log("Updating DH robot to machine coordinates:", robotWorldPos);
+      
+      // Update robot to match current position
+      const success = robot3DRef.current.updateToPosition(robotWorldPos);
+      
+      if (!success) {
+        console.warn("Failed to update DH robot to position:", robotWorldPos);
+      } else {
+        // Get the actual position the robot achieved
+        const actualPos = robot3DRef.current.getEndEffectorPosition();
+        const worldPositions = robot3DRef.current.getRobotWorldPositions();
+        console.log("DH robot update successful:", {
+          targetPos: robotWorldPos,
+          endEffectorPos: actualPos,
+          worldPositions
+        });
+      }
+    }
+  }, [robotPosition.x, robotPosition.y, robotPosition.z, showRobot]);
 
     // Update grid and axes visibility
     useEffect(() => {

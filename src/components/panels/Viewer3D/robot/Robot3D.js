@@ -114,8 +114,8 @@ export class Robot3D {
    * Create the robot base
    */
   createBase() {
-    const baseRadius = 50 * this.scale;
-    const baseHeight = 20 * this.scale;
+    const baseRadius = 5 * this.scale;
+    const baseHeight = 2 * this.scale;
     
     const baseGeometry = new THREE.CylinderGeometry(
       baseRadius, 
@@ -150,35 +150,53 @@ export class Robot3D {
    * @param {number} jointIndex Joint index
    * @returns {THREE.Mesh} Joint mesh
    */
-  createJoint(jointIndex) {
-    const jointRadius = 30 * this.scale;
-    const jointLength = 40 * this.scale;
+   createJoint(jointIndex) {
+    const params = this.kinematics.dhParameters[jointIndex];
+    const isPrismatic = params.theta !== undefined; // If theta is fixed, it's prismatic
     
-    // Use different geometries for different joint types
     let geometry;
-    if (jointIndex % 2 === 0) {
-      // Cylindrical joint
+    let mesh;
+    
+    if (isPrismatic) {
+      // For prismatic joints (like cartesian robots), create a box-shaped joint
+      const jointSize = 2.5 * this.scale; 
+      geometry = new THREE.BoxGeometry(jointSize * 1.5, jointSize * 1.5, jointSize * 2);
+      
+      const material = new THREE.MeshPhongMaterial({
+        color: this.jointColor,
+        transparent: this.opacity < 1,
+        opacity: this.opacity,
+        wireframe: this.wireframe,
+        emissive: this.jointColor,
+        emissiveIntensity: 0.2 // Add some glow
+      });
+      
+      mesh = new THREE.Mesh(geometry, material);
+    } else {
+      // For revolute joints, create a smaller cylinder
+      const jointRadius = 1 * this.scale; // Reduced from 30
+      const jointLength = 1.5 * this.scale; // Reduced from 40
+      
       geometry = new THREE.CylinderGeometry(
         jointRadius,
         jointRadius,
         jointLength,
-        32
+        16
       );
-    } else {
-      // Spherical joint
-      geometry = new THREE.SphereGeometry(jointRadius * 1.2, 32, 16);
+      
+      const material = new THREE.MeshPhongMaterial({
+        color: this.jointColor,
+        transparent: this.opacity < 1,
+        opacity: this.opacity,
+        wireframe: this.wireframe
+      });
+      
+      mesh = new THREE.Mesh(geometry, material);
+      // Align cylinder with Z axis for revolute joints
+      mesh.rotation.x = Math.PI / 2;
     }
     
-    const material = new THREE.MeshPhongMaterial({
-      color: this.jointColor,
-      transparent: this.opacity < 1,
-      opacity: this.opacity,
-      wireframe: this.wireframe
-    });
-    
-    const mesh = new THREE.Mesh(geometry, material);
     mesh.name = `joint-mesh-${jointIndex + 1}`;
-    
     return mesh;
   }
 
@@ -189,32 +207,58 @@ export class Robot3D {
    * @returns {THREE.Mesh} Link mesh
    */
   createLink(length, linkIndex) {
-    const linkRadius = 15 * this.scale;
-    const scaledLength = length * this.scale;
+    const params = this.kinematics.dhParameters[linkIndex];
+    const isPrismatic = params.theta !== undefined;
     
-    // Create a tapered cylinder for the link
-    const geometry = new THREE.CylinderGeometry(
-      linkRadius,
-      linkRadius * 0.8,
-      scaledLength,
-      16
-    );
-    
-    const material = new THREE.MeshPhongMaterial({
-      color: this.linkColor,
-      transparent: this.opacity < 1,
-      opacity: this.opacity,
-      wireframe: this.wireframe
-    });
-    
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.x = scaledLength / 2;
-    mesh.rotation.z = -Math.PI / 2;
-    mesh.name = `link-mesh-${linkIndex + 1}`;
-    
-    return mesh;
+    if (isPrismatic) {
+      // For prismatic joints, create a rail/guide
+      const railWidth = 2 * this.scale; // Thin rail
+      const railHeight = 1 * this.scale;
+      const scaledLength = length * this.scale;
+      
+      const geometry = new THREE.BoxGeometry(
+        scaledLength,
+        railWidth,
+        railHeight
+      );
+      
+      const material = new THREE.MeshPhongMaterial({
+        color: this.linkColor,
+        transparent: this.opacity < 1,
+        opacity: this.opacity,
+        wireframe: this.wireframe
+      });
+      
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.x = scaledLength / 2;
+      mesh.name = `link-mesh-${linkIndex + 1}`;
+      return mesh;
+    } else {
+      // For revolute joints, create a thinner link
+      const linkRadius = 1 * this.scale; // Reduced from 15
+      const scaledLength = length * this.scale;
+      
+      const geometry = new THREE.CylinderGeometry(
+        linkRadius,
+        linkRadius * 0.9, // Less taper
+        scaledLength,
+        12
+      );
+      
+      const material = new THREE.MeshPhongMaterial({
+        color: this.linkColor,
+        transparent: this.opacity < 1,
+        opacity: this.opacity,
+        wireframe: this.wireframe
+      });
+      
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.x = scaledLength / 2;
+      mesh.rotation.z = -Math.PI / 2;
+      mesh.name = `link-mesh-${linkIndex + 1}`;
+      return mesh;
+    }
   }
-
   /**
    * Create axes for a joint
    * @param {number} jointIndex Joint index
@@ -268,8 +312,8 @@ export class Robot3D {
     effectorGroup.name = 'end-effector';
     
     // Create a cone for the tool
-    const coneRadius = 20 * this.scale;
-    const coneHeight = 60 * this.scale;
+    const coneRadius = 2 * this.scale;
+    const coneHeight = 6 * this.scale;
     
     const coneGeometry = new THREE.ConeGeometry(coneRadius, coneHeight, 16);
     const coneMaterial = new THREE.MeshPhongMaterial({

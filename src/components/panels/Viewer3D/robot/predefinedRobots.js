@@ -23,25 +23,25 @@ export const predefinedRobots = {
     }
   },
 
-  // 3-DOF Cartesian Robot
+  // 3-DOF Cartesian Robot (CNC XYZ)
   'cartesian-3dof': {
-    name: '3-DOF Cartesian Robot',
-    description: 'XYZ Cartesian gantry robot',
+    name: '3-DOF Cartesian CNC',
+    description: 'XYZ Cartesian CNC machine',
     dhParameters: [
-      { a: 0, alpha: 90, theta: 0 },   // Joint 1: Prismatic X
-      { a: 0, alpha: 90, theta: 90 },  // Joint 2: Prismatic Y
-      { a: 0, alpha: 0, theta: 0 }     // Joint 3: Prismatic Z
+      { a: 0, alpha: 0, d: 0, theta: 0 },     // X-axis (prismatic)
+      { a: 0, alpha: 0, d: 0, theta: 0 },     // Y-axis (prismatic)  
+      { a: 0, alpha: 0, d: 0, theta: 0 }      // Z-axis (prismatic)
     ],
     jointLimits: [
-      { min: 0, max: 200 },    // X: 0-200mm
-      { min: 0, max: 200 },    // Y: 0-200mm
-      { min: 0, max: 100 }     // Z: 0-100mm
+      { min: -120, max: 120 },    // X: -120 to +120mm
+      { min: -175, max: 175 },    // Y: -175 to +175mm
+      { min: 0, max: 100 }        // Z: 0-100mm
     ],
     jointTypes: ['prismatic', 'prismatic', 'prismatic'],
-    homePosition: [100, 100, 50],
+    homePosition: [0, 0, 50],
     workspace: {
-      x: [0, 200],
-      y: [0, 200],
+      x: [-120, 120],
+      y: [-175, 175],
       z: [0, 100]
     }
   },

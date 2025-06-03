@@ -14,7 +14,7 @@ const RobotSettings = ({
   onConfigChange
 }) => {
   const [editMode, setEditMode] = useState(false);
-  const [selectedPreset, setSelectedPreset] = useState('planar-2dof');
+  const [selectedPreset, setSelectedPreset] = useState('cartesian-3dof');
   const [dhParameters, setDhParameters] = useState(robotConfig?.dhParameters || []);
   const [visualSettings, setVisualSettings] = useState({
     showJointAxes: true,

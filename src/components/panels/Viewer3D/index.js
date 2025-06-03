@@ -25,8 +25,8 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
   const [showWorkAxes, setShowWorkAxes] = useState(true);
   const [showToolpath, setShowToolpath] = useState(true);
   const [showMousePosition, setShowMousePosition] = useState(true);
-  const [showRobot, setShowRobot] = useState(false);
-  const [robotConfig, setRobotConfig] = useState(getPredefinedRobot('planar-2dof'));
+  const [showRobot, setShowRobot] = useState(true);
+  const [robotConfig, setRobotConfig] = useState(getPredefinedRobot('cartesian-3dof'));
   
   // Simplified indicator settings - only showProjectionLines
   const [indicatorSettings, setIndicatorSettings] = useState({

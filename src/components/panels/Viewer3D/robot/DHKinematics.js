@@ -80,12 +80,12 @@ export class DHKinematics {
 
   /**
    * Calculate forward kinematics
-   * @param {Array} jointAngles Array of joint angles (radians)
+   * @param {Array} jointValues Array of joint values (angles for revolute, distances for prismatic)
    * @returns {Object} {position, rotation, transformations}
    */
-  forwardKinematics(jointAngles) {
-    if (jointAngles.length !== this.numJoints) {
-      throw new Error(`Expected ${this.numJoints} joint angles, got ${jointAngles.length}`);
+  forwardKinematics(jointValues) {
+    if (jointValues.length !== this.numJoints) {
+      throw new Error(`Expected ${this.numJoints} joint values, got ${jointValues.length}`);
     }
 
     const transformations = [];
@@ -94,8 +94,20 @@ export class DHKinematics {
     // Calculate transformation for each joint
     for (let i = 0; i < this.numJoints; i++) {
       const params = this.dhParameters[i];
-      const theta = params.theta !== undefined ? params.theta : jointAngles[i];
-      const d = params.d !== undefined ? params.d : 0;
+      
+      // Determine if this is a prismatic or revolute joint
+      const isPrismatic = params.theta !== undefined;
+      
+      let theta, d;
+      if (isPrismatic) {
+        // Prismatic joint: theta is fixed, d varies
+        theta = params.theta;
+        d = jointValues[i]; // Joint value is the displacement
+      } else {
+        // Revolute joint: d is fixed, theta varies
+        theta = jointValues[i]; // Joint value is the angle
+        d = params.d || 0;
+      }
       
       const jointTransform = this.createDHMatrix(
         params.a || 0,
@@ -132,26 +144,70 @@ export class DHKinematics {
   }
 
   /**
-   * Calculate inverse kinematics using numerical methods
+   * Simple analytical IK for 3-DOF Cartesian robot
+   * @param {THREE.Vector3} targetPosition Target position
+   * @returns {Object} {jointValues, success}
+   */
+  solveCartesianIK(targetPosition) {
+    // For a cartesian robot, the solution is trivial
+    // Just return the target coordinates as joint values
+    return {
+      jointValues: [targetPosition.x, targetPosition.y, targetPosition.z],
+      success: true,
+      error: 0
+    };
+  }
+
+  /**
+   * Calculate inverse kinematics using appropriate method
    * @param {THREE.Vector3} targetPosition Target end effector position
    * @param {THREE.Euler} targetOrientation Target orientation (optional)
-   * @param {Array} initialJointAngles Initial guess for joint angles
-   * @returns {Object} {jointAngles, success, error}
+   * @param {Array} initialJointValues Initial guess for joint values
+   * @returns {Object} {jointValues, success, error}
    */
-  inverseKinematics(targetPosition, targetOrientation = null, initialJointAngles = null) {
-    // Use current joint angles or zeros as initial guess
-    let jointAngles = initialJointAngles || new Array(this.numJoints).fill(0);
+  inverseKinematics(targetPosition, targetOrientation = null, initialJointValues = null) {
+    // Safety check
+    if (!targetPosition) {
+      return {
+        jointValues: initialJointValues || new Array(this.numJoints).fill(0),
+        success: false,
+        error: 'No target position provided'
+      };
+    }
+    
+    // Check if this is a cartesian robot (all joints are prismatic)
+    const isCartesian = this.dhParameters.every(param => param.theta !== undefined);
+    
+    if (isCartesian && this.numJoints === 3) {
+      // Use simple analytical solution for cartesian robots
+      return this.solveCartesianIK(targetPosition);
+    }
+    
+    // For other robots, use the numerical method
+    return this.numericalIK(targetPosition, targetOrientation, initialJointValues);
+  }
+
+  /**
+   * Numerical inverse kinematics using Jacobian method
+   * @param {THREE.Vector3} targetPosition Target position
+   * @param {THREE.Euler} targetOrientation Target orientation (optional)
+   * @param {Array} initialJointValues Initial guess
+   * @returns {Object} {jointValues, success, error}
+   */
+  numericalIK(targetPosition, targetOrientation = null, initialJointValues = null) {
+    // Use current joint values or zeros as initial guess
+    let jointValues = initialJointValues || new Array(this.numJoints).fill(0);
     
     const maxIterations = 100;
     const positionTolerance = 0.001; // 1mm
     const orientationTolerance = 0.01; // ~0.57 degrees
     const learningRate = 0.1;
     
-    let posError = new THREE.Vector3(); // Declare posError outside the loop
+    let posError = new THREE.Vector3();
     
     for (let iter = 0; iter < maxIterations; iter++) {
       // Calculate current position with forward kinematics
-      const fk = this.forwardKinematics(jointAngles);
+      const fk = this.forwardKinematics(jointValues);
       const currentPos = fk.position;
       
       // Calculate position error
@@ -160,52 +216,35 @@ export class DHKinematics {
       
       // Check if we've reached the target
       if (posErrorMagnitude < positionTolerance) {
-        // Check orientation if specified
-        if (targetOrientation) {
-          const orientError = this.calculateOrientationError(
-            fk.rotation.euler,
-            targetOrientation
-          );
-          
-          if (orientError < orientationTolerance) {
-            return {
-              jointAngles,
-              success: true,
-              error: posErrorMagnitude,
-              iterations: iter
-            };
-          }
-        } else {
-          return {
-            jointAngles,
-            success: true,
-            error: posErrorMagnitude,
-            iterations: iter
-          };
-        }
+        return {
+          jointValues,
+          success: true,
+          error: posErrorMagnitude,
+          iterations: iter
+        };
       }
       
       // Calculate Jacobian matrix
-      const jacobian = this.calculateJacobian(jointAngles);
+      const jacobian = this.calculateJacobian(jointValues);
       
-      // Use pseudo-inverse to calculate joint angle changes
+      // Use pseudo-inverse to calculate joint value changes
       const deltaQ = this.calculateDeltaQ(jacobian, posError, targetOrientation, fk.rotation.euler);
       
-      // Update joint angles
+      // Update joint values
       for (let i = 0; i < this.numJoints; i++) {
-        jointAngles[i] += learningRate * deltaQ[i];
+        jointValues[i] += learningRate * deltaQ[i];
         
         // Apply joint limits
-        jointAngles[i] = Math.max(
+        jointValues[i] = Math.max(
           this.jointLimits[i].min,
-          Math.min(this.jointLimits[i].max, jointAngles[i])
+          Math.min(this.jointLimits[i].max, jointValues[i])
         );
       }
     }
     
     // Failed to converge
     return {
-      jointAngles,
+      jointValues: jointValues || initialJointValues || new Array(this.numJoints).fill(0),
       success: false,
       error: posError.length(),
       iterations: maxIterations
