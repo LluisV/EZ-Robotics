@@ -1061,3 +1061,118 @@ button:disabled {
   width: 0;
   height: 0;
 }
+/* Position cards styling - MORE COMPACT */
+.position-display {
+  padding-bottom: 16px; /* Reduced from 20px */
+  min-height: 720px; /* Reduced from 740px */
+}
+
+.position-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+  gap: 6px; /* Reduced from 8px */
+  margin: 6px 0; /* Reduced from 10px */
+  width: 100%;
+}
+
+.position-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  padding: 6px; /* Reduced from 10px */
+  border-radius: var(--dv-border-radius, var(--border-radius));
+  background-color: rgba(0, 0, 0, 0.15);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+  position: relative;
+  min-height: 60px; /* Reduced from 70px */
+}
+
+/* Individual axis zero button */
+.axis-zero-btn {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background-color: rgba(0, 119, 204, 0.2);
+  border: 1px solid rgba(0, 119, 204, 0.3);
+  border-radius: 50%;
+  color: var(--dv-activegroup-visiblepanel-tab-color, var(--text-primary));
+  font-size: 11px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+}
+
+.axis-zero-btn:hover:not(:disabled) {
+  opacity: 1;
+  background-color: rgba(0, 119, 204, 0.4);
+  border-color: rgba(0, 119, 204, 0.6);
+  transform: scale(1.1);
+}
+
+.axis-zero-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.x-position .axis-zero-btn {
+  background-color: rgba(204, 51, 51, 0.2);
+  border-color: rgba(204, 51, 51, 0.3);
+}
+
+.x-position .axis-zero-btn:hover:not(:disabled) {
+  background-color: rgba(204, 51, 51, 0.4);
+  border-color: rgba(204, 51, 51, 0.6);
+}
+
+.y-position .axis-zero-btn {
+  background-color: rgba(0, 170, 85, 0.2);
+  border-color: rgba(0, 170, 85, 0.3);
+}
+
+.y-position .axis-zero-btn:hover:not(:disabled) {
+  background-color: rgba(0, 170, 85, 0.4);
+  border-color: rgba(0, 170, 85, 0.6);
+}
+
+.z-position .axis-zero-btn {
+  background-color: rgba(0, 119, 204, 0.2);
+  border-color: rgba(0, 119, 204, 0.3);
+}
+
+.z-position .axis-zero-btn:hover:not(:disabled) {
+  background-color: rgba(0, 119, 204, 0.4);
+  border-color: rgba(0, 119, 204, 0.6);
+}
+
+.a-orientation .axis-zero-btn {
+  background-color: rgba(170, 85, 204, 0.2);
+  border-color: rgba(170, 85, 204, 0.3);
+}
+
+.a-orientation .axis-zero-btn:hover:not(:disabled) {
+  background-color: rgba(170, 85, 204, 0.4);
+  border-color: rgba(170, 85, 204, 0.6);
+}
+
+.axis-zero-btn:disabled {
+  display: none; /* Hide when disabled to avoid clutter */
+}
+
+.position-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  opacity: 0.7;
+  transform: scaleX(0.8);
+  transition: transform 0.3s ease;
+}

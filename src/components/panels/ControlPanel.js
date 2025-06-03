@@ -535,6 +535,14 @@ const ControlPanel = () => {
         {/* Enhanced Position Cards */}
         <div className="position-cards">
           <div className="position-card x-position">
+            <button 
+              className="axis-zero-btn"
+              onClick={() => setWorkZero('x')}
+              title="Set X to zero"
+              disabled={!isConnected || positionView !== 'work'}
+            >
+              0
+            </button>
             <div className="position-card-header">
               <div className="axis-label">X</div>
               <div className="axis-value">{activePosition.x.toFixed(2)}</div>
@@ -548,6 +556,14 @@ const ControlPanel = () => {
           </div>
 
           <div className="position-card y-position">
+            <button 
+              className="axis-zero-btn"
+              onClick={() => setWorkZero('y')}
+              title="Set Y to zero"
+              disabled={!isConnected || positionView !== 'work'}
+            >
+              0
+            </button>
             <div className="position-card-header">
               <div className="axis-label">Y</div>
               <div className="axis-value">{activePosition.y.toFixed(2)}</div>
@@ -561,6 +577,14 @@ const ControlPanel = () => {
           </div>
 
           <div className="position-card z-position">
+            <button 
+              className="axis-zero-btn"
+              onClick={() => setWorkZero('z')}
+              title="Set Z to zero"
+              disabled={!isConnected || positionView !== 'work'}
+            >
+              0
+            </button>
             <div className="position-card-header">
               <div className="axis-label">Z</div>
               <div className="axis-value">{activePosition.z.toFixed(2)}</div>
@@ -574,6 +598,14 @@ const ControlPanel = () => {
           </div>
 
           <div className="position-card a-orientation">
+            <button 
+              className="axis-zero-btn"
+              onClick={() => setWorkZero('a')}
+              title="Set A to zero"
+              disabled={!isConnected || positionView !== 'work'}
+            >
+              0
+            </button>
             <div className="position-card-header">
               <div className="axis-label">A</div>
               <div className="axis-value">{activePosition.a.toFixed(2)}</div>
