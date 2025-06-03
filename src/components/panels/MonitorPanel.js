@@ -260,72 +260,74 @@ const MonitorPanel = () => {
    */
   useEffect(() => {
     const handlePositionStatus = (event) => {
-      const data = event.detail;
-      
-      if (data && data.type === 'response' && data.data) {
-        // Check if this is a status message in FluidNC/GRBL format
-        if (data.data.startsWith('<') && data.data.includes('|')) {
-          try {
-            // Update last update time
-            lastUpdateTimeRef.current = Date.now();
-            
-            const parsedStatus = parseStatusMessage(data.data);
-            if (!parsedStatus) return;
-            
-            // Update status data
-            setStatusData(prev => ({
-              ...prev,
-              ...parsedStatus
-            }));
-            
-            // Track velocity for kinematics calculations
-            const timestamp = Date.now();
-            
-            if (parsedStatus.feedRate !== undefined) {
-              velocityHistoryRef.current.push(parsedStatus.feedRate);
-              timeHistoryRef.current.push(timestamp);
-            }
-            
-            // Limit history size
-            while (velocityHistoryRef.current.length > maxDataPoints) {
-              velocityHistoryRef.current.shift();
-              timeHistoryRef.current.shift();
-            }
-            
-            // Calculate acceleration and jerk
-            const kinematics = calculateKinematics(
-              velocityHistoryRef.current, 
-              timeHistoryRef.current
-            );
-            
-            // Update history data for charts and position history
-            setHistoryData(prev => {
-              // Update position history if we have position data
-              let newPositionHistory = { ...prev.positionHistory };
-              
-              if (parsedStatus.position) {
-                newPositionHistory = {
-                  x: [...prev.positionHistory.x.slice(1), parsedStatus.position.x || 0],
-                  y: [...prev.positionHistory.y.slice(1), parsedStatus.position.y || 0],
-                  z: [...prev.positionHistory.z.slice(1), parsedStatus.position.z || 0]
-                };
-              }
-              
-              return {
-                speedHistory: [...prev.speedHistory.slice(1), parsedStatus.feedRate || 0],
-                accelerationHistory: [...prev.accelerationHistory.slice(1), kinematics.acceleration],
-                jerkHistory: [...prev.jerkHistory.slice(1), kinematics.jerk],
-                tempHistory: [...prev.tempHistory.slice(1), prev.tempHistory[prev.tempHistory.length-1] || 0],
-                positionHistory: newPositionHistory
-              };
-            });
-            
-          } catch (error) {
-            console.error("Error processing status data:", error);
-          }
+  const data = event.detail;
+  
+  // Remove the check for data.type === 'response' since SerialCommunicationService 
+  // doesn't send that structure
+  if (data && data.data) {
+    // Check if this is a status message in FluidNC/GRBL format
+    if (data.data.startsWith('<') && data.data.includes('|')) {
+      try {
+        // Update last update time
+        lastUpdateTimeRef.current = Date.now();
+        
+        const parsedStatus = parseStatusMessage(data.data);
+        if (!parsedStatus) return;
+        
+        // Update status data
+        setStatusData(prev => ({
+          ...prev,
+          ...parsedStatus
+        }));
+        
+        // Track velocity for kinematics calculations
+        const timestamp = Date.now();
+        
+        if (parsedStatus.feedRate !== undefined) {
+          velocityHistoryRef.current.push(parsedStatus.feedRate);
+          timeHistoryRef.current.push(timestamp);
         }
+        
+        // Limit history size
+        while (velocityHistoryRef.current.length > maxDataPoints) {
+          velocityHistoryRef.current.shift();
+          timeHistoryRef.current.shift();
+        }
+        
+        // Calculate acceleration and jerk
+        const kinematics = calculateKinematics(
+          velocityHistoryRef.current, 
+          timeHistoryRef.current
+        );
+        
+        // Update history data for charts and position history
+        setHistoryData(prev => {
+          // Update position history if we have position data
+          let newPositionHistory = { ...prev.positionHistory };
+          
+          if (parsedStatus.position) {
+            newPositionHistory = {
+              x: [...prev.positionHistory.x.slice(1), parsedStatus.position.x || 0],
+              y: [...prev.positionHistory.y.slice(1), parsedStatus.position.y || 0],
+              z: [...prev.positionHistory.z.slice(1), parsedStatus.position.z || 0]
+            };
+          }
+          
+          return {
+            speedHistory: [...prev.speedHistory.slice(1), parsedStatus.feedRate || 0],
+            accelerationHistory: [...prev.accelerationHistory.slice(1), kinematics.acceleration],
+            jerkHistory: [...prev.jerkHistory.slice(1), kinematics.jerk],
+            tempHistory: [...prev.tempHistory.slice(1), prev.tempHistory[prev.tempHistory.length-1] || 0],
+            positionHistory: newPositionHistory
+          };
+        });
+        
+      } catch (error) {
+        console.error("Error processing status data:", error);
       }
-    };
+    }
+  }
+};
     
     // Listen for status data from serial port
     document.addEventListener('serialdata', handlePositionStatus);
