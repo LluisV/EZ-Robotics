@@ -104,7 +104,7 @@ class DockingManager {
       // Use location object directly
       position = location;
     }
-    
+
     // Get the actual component from panelComponents
     const ComponentFunction = window.panelComponents && window.panelComponents[panelDef.component];
     
@@ -123,7 +123,7 @@ class DockingManager {
     // Add the panel
     this.api.addPanel({
       id: panelId,
-      component: ComponentFunction,  // Pass the actual component function
+      component: panelDef.component,  // Pass the component ID string, not the function
       params: { ...panelDef.params, ...params },
       position: position
     });
