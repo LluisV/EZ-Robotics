@@ -187,12 +187,11 @@ const MainToolbar = ({
   };
   
   // Add panel to the layout
-  const handleAddPanel = () => {
-    if (!selectedPanelType) return;
+  const handleAddPanel = (panelType) => {
+    if (!panelType) return;
     
     try {
-      dockingManager.addPanel(selectedPanelType);
-      setSelectedPanelType('');
+      dockingManager.addPanel(panelType);
       setActiveDropdown(null);
     } catch (error) {
       console.error('Failed to add panel:', error);
@@ -370,55 +369,37 @@ const MainToolbar = ({
           <div className="toolbar-dropdown-content">
             <button 
               className="dropdown-item"
-              onClick={() => {
-                setSelectedPanelType('controlPanel');
-                handleAddPanel();
-              }}
+              onClick={() => handleAddPanel('controlPanel')}
             >
               Control Panel
             </button>
             <button 
               className="dropdown-item"
-              onClick={() => {
-                setSelectedPanelType('monitor');
-                handleAddPanel();
-              }}
+              onClick={() => handleAddPanel('monitor')}
             >
               Status Monitor
             </button>
             <button 
               className="dropdown-item"
-              onClick={() => {
-                setSelectedPanelType('viewer3D');
-                handleAddPanel();
-              }}
+              onClick={() => handleAddPanel('viewer3D')}
             >
               3D Viewer
             </button>
             <button 
               className="dropdown-item"
-              onClick={() => {
-                setSelectedPanelType('codeEditor');
-                handleAddPanel();
-              }}
+              onClick={() => handleAddPanel('codeEditor')}
             >
               G-Code Editor
             </button>
             <button 
               className="dropdown-item"
-              onClick={() => {
-                setSelectedPanelType('console');
-                handleAddPanel();
-              }}
+              onClick={() => handleAddPanel('console')}
             >
               Console
             </button>
             <button 
               className="dropdown-item"
-              onClick={() => {
-                setSelectedPanelType('acceleration');
-                handleAddPanel();
-              }}
+              onClick={() => handleAddPanel('acceleration')}
             >
               Acceleration Profile
             </button>
