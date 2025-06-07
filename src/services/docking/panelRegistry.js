@@ -47,9 +47,10 @@ try {
 /**
  * Registry of all panel components available in the application.
  * Each panel is wrapped with a common container for consistent styling.
+ * All components are wrapped with React.memo for Dockview compatibility.
  */
 export const panelComponents = {
-  controlPanel: (props) => {
+  controlPanel: React.memo((props) => {
     console.log('Rendering controlPanel with props:', props);
     const params = props?.params || {};
     return (
@@ -57,9 +58,9 @@ export const panelComponents = {
         <ControlPanel {...params} />
       </div>
     );
-  },
+  }),
   
-  monitor: (props) => {
+  monitor: React.memo((props) => {
     console.log('Rendering monitor with props:', props);
     const params = props?.params || {};
     return (
@@ -67,9 +68,9 @@ export const panelComponents = {
         <MonitorPanel {...params} />
       </div>
     );
-  },
+  }),
   
-  viewer3D: (props) => {
+  viewer3D: React.memo((props) => {
     console.log('Rendering viewer3D with props:', props);
     const params = props?.params || {};
     return (
@@ -77,9 +78,9 @@ export const panelComponents = {
         <Viewer3DPanel {...params} />
       </div>
     );
-  },
+  }),
   
-  codeEditor: (props) => {
+  codeEditor: React.memo((props) => {
     console.log('Rendering codeEditor with props:', props);
     const params = props?.params || {};
     return (
@@ -87,9 +88,9 @@ export const panelComponents = {
         <CodeEditorPanel {...params} />
       </div>
     );
-  },
+  }),
   
-  console: (props) => {
+  console: React.memo((props) => {
     console.log('Rendering console with props:', props);
     const params = props?.params || {};
     return (
@@ -97,9 +98,9 @@ export const panelComponents = {
         <ConsolePanel {...params} />
       </div>
     );
-  },
+  }),
 
-  acceleration: (props) => {
+  acceleration: React.memo((props) => {
     console.log('Rendering acceleration panel with props:', props);
     const params = props?.params || {};
     return (
@@ -107,8 +108,13 @@ export const panelComponents = {
         <AccelerationPanel {...params} />
       </div>
     );
-  },
+  }),
 };
+
+// Set display names for debugging
+Object.keys(panelComponents).forEach(key => {
+  panelComponents[key].displayName = `MemoizedPanel_${key}`;
+});
 
 /**
  * Panel metadata definitions that include titles, icons, and other configuration.
@@ -158,3 +164,9 @@ export const panelDefinitions = [
     defaultLocation: 'right'
   }
 ];
+
+// Make panel components and definitions available globally for plugin system
+if (typeof window !== 'undefined') {
+  window.panelComponents = panelComponents;
+  window.panelDefinitions = panelDefinitions;
+}

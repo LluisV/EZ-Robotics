@@ -1,5 +1,5 @@
-// App.js with updated toolbar implementation
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+// App.js with updated toolbar implementation and plugin system
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { 
   DockviewReact,
   themeDark,
@@ -44,6 +44,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [currentTheme, setCurrentTheme] = useState('dracula');
   const [dockviewApi, setDockviewApi] = useState(null);
+  const [componentVersion, setComponentVersion] = useState(0); // For forcing component updates
 
   const MINIMUM_WIDTH = 380; // Minimum width in pixels
 
@@ -65,6 +66,76 @@ function App() {
     if (savedTheme && availableThemes.some(t => t.id === savedTheme)) {
       setCurrentTheme(savedTheme);
     }
+  }, []);
+
+  // Make utilities available globally for plugins
+  useEffect(() => {
+    // Make GCode parser available
+    if (window.GCodeParser === undefined) {
+      import('./utils/GCodeParser').then(module => {
+        window.GCodeParser = module.default;
+      });
+    }
+    
+    // Make serial service available
+    if (window.serialService === undefined) {
+      import('./services/SerialCommunicationService').then(module => {
+        window.serialService = module.default;
+      });
+    }
+    
+    // Initialize plugin manager with panel registry
+    import('./services/plugins/PluginManager').then(module => {
+      const manager = module.default;
+      if (window.panelDefinitions) {
+        manager.initialize(window.panelDefinitions);
+      }
+    });
+    
+    // Make React available globally for plugins
+    window.React = React;
+  }, []);
+
+  // Listen for plugin load events to update components
+  useEffect(() => {
+    const handlePluginLoaded = () => {
+      console.log('Plugin loaded event received, updating components');
+      // Force component refresh
+      setComponentVersion(v => v + 1);
+    };
+    
+    const handlePluginUnloaded = () => {
+      console.log('Plugin unloaded event received, updating components');
+      // Force component refresh
+      setComponentVersion(v => v + 1);
+    };
+    
+    // Wait a bit for enhancedPluginManager to be available
+    const setupListeners = () => {
+      if (window.enhancedPluginManager) {
+        window.enhancedPluginManager.eventBus.addEventListener('pluginLoaded', handlePluginLoaded);
+        window.enhancedPluginManager.eventBus.addEventListener('pluginUnloaded', handlePluginUnloaded);
+        
+        return () => {
+          window.enhancedPluginManager.eventBus.removeEventListener('pluginLoaded', handlePluginLoaded);
+          window.enhancedPluginManager.eventBus.removeEventListener('pluginUnloaded', handlePluginUnloaded);
+        };
+      }
+    };
+    
+    // Try immediately
+    const cleanup = setupListeners();
+    
+    // If not available yet, try again after a delay
+    if (!cleanup) {
+      const timer = setTimeout(() => {
+        setupListeners();
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+    
+    return cleanup;
   }, []);
 
   // Get current theme object from theme ID
@@ -198,15 +269,30 @@ function App() {
     );
   });
 
-  // Define components for dockview
-  const components = {
-    controlPanel: ControlPanelWrapper,
-    monitor: MonitorPanelWrapper,
-    viewer3D: Viewer3DPanelWrapper,
-    codeEditor: CodeEditorPanelWrapper,
-    console: ConsolePanelWrapper,
-    acceleration: AccelerationPanelWrapper
-  };
+  // Define components for dockview - use dynamic components from panelComponents
+  const components = useMemo(() => {
+    console.log('Rebuilding components object, version:', componentVersion);
+    
+    // Start with local wrapper components
+    const localComponents = {
+      controlPanel: ControlPanelWrapper,
+      monitor: MonitorPanelWrapper,
+      viewer3D: Viewer3DPanelWrapper,
+      codeEditor: CodeEditorPanelWrapper,
+      console: ConsolePanelWrapper,
+      acceleration: AccelerationPanelWrapper
+    };
+    
+    // If panelComponents exists, merge with it (for plugins)
+    if (window.panelComponents) {
+      console.log('Merging with window.panelComponents:', Object.keys(window.panelComponents));
+      const mergedComponents = { ...localComponents, ...window.panelComponents };
+      console.log('Final components:', Object.keys(mergedComponents));
+      return mergedComponents;
+    }
+    
+    return localComponents;
+  }, [componentVersion]); // Re-create when version changes
 
   // Handle ready event
   const onReady = (event) => {

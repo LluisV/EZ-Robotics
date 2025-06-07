@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   FileText, LayoutGrid, PlusSquare, Package, 
   Settings, ChevronDown, Plug, PlugZap, Palette
 } from 'lucide-react';
 import dockingManager from '../../services/docking/DockingManager';
 import serialService from '../../services/SerialCommunicationService';
+import { Upload } from 'lucide-react';
+import enhancedPluginManager from '../../services/plugins/PluginManager';
 
 /**
  * Main toolbar component for Robot Control UI.
@@ -30,7 +32,13 @@ const MainToolbar = ({
   const [activeDropdown, setActiveDropdown] = useState(null);
   const [selectedPanelType, setSelectedPanelType] = useState('');
   const [selectedPlugin, setSelectedPlugin] = useState('');
-  
+
+  // Plugin management states
+  const [showPluginDialog, setShowPluginDialog] = useState(false);
+  const [installedPlugins, setInstalledPlugins] = useState([]);
+  const [isLoadingPlugin, setIsLoadingPlugin] = useState(false);
+  const pluginInputRef = useRef(null);
+    
   // Track available layouts
   const [layouts, setLayouts] = useState([]);
   const [currentLayout, setCurrentLayout] = useState('default');
@@ -93,6 +101,25 @@ const MainToolbar = ({
       setLayouts([...predefined, ...userSaved]);
     }
   }, [dockviewApi]);
+
+  // Load installed plugins and listen for changes
+  useEffect(() => {
+    const loadInstalledPlugins = () => {
+      const plugins = enhancedPluginManager.getLoadedPlugins();
+      setInstalledPlugins(plugins);
+    };
+    
+    loadInstalledPlugins();
+    
+    // Listen for plugin load/unload events
+    enhancedPluginManager.eventBus.addEventListener('pluginLoaded', loadInstalledPlugins);
+    enhancedPluginManager.eventBus.addEventListener('pluginUnloaded', loadInstalledPlugins);
+    
+    return () => {
+      enhancedPluginManager.eventBus.removeEventListener('pluginLoaded', loadInstalledPlugins);
+      enhancedPluginManager.eventBus.removeEventListener('pluginUnloaded', loadInstalledPlugins);
+    };
+  }, []);
   
   // Toggle dropdown visibility
   const toggleDropdown = (name) => {
@@ -181,6 +208,47 @@ const MainToolbar = ({
     setSelectedPlugin('');
     setActiveDropdown(null);
   };
+
+  // Handle plugin import from ZIP file
+  const handlePluginImport = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    // Validate file type
+    if (!file.name.endsWith('.zip')) {
+      alert('Please select a valid plugin file (.zip)');
+      return;
+    }
+    
+    setIsLoadingPlugin(true);
+    
+    try {
+      // Load the plugin
+      const manifest = await enhancedPluginManager.loadPluginFromZip(file);
+      
+      // Show success message
+      alert(`Plugin "${manifest.name}" loaded successfully!`);
+      
+      // Add panel to the layout if docking manager is initialized
+      if (dockingManager.isInitialized()) {
+        dockingManager.addPanel(
+          manifest.id, 
+          manifest.panel.params || {}, 
+          manifest.panel.defaultLocation
+        );
+      }
+      
+    } catch (error) {
+      console.error('Plugin import error:', error);
+      alert(`Failed to import plugin: ${error.message}`);
+    } finally {
+      setIsLoadingPlugin(false);
+      // Reset file input
+      if (pluginInputRef.current) {
+        pluginInputRef.current.value = '';
+      }
+    }
+  };
   
   // Get current layout name
   const getCurrentLayoutName = () => {
@@ -195,300 +263,353 @@ const MainToolbar = ({
   };
   
   return (
-    <div className="main-toolbar">
-      {/* Left side tools */}
-      <div className="toolbar-section">
-        {/* Open File */}
+  <div className="main-toolbar">
+    {/* Left side tools */}
+    <div className="toolbar-section">
+      {/* Open File */}
+      <button 
+        className="toolbar-button icon-button" 
+        onClick={handleOpenFile}
+        title="Open File"
+      >
+        <FileText size={16} />
+      </button>
+      
+      <div className="toolbar-divider"></div>
+      
+      {/* Layout selector */}
+      <div className="toolbar-dropdown toolbar-dropdown-trigger">
         <button 
-          className="toolbar-button icon-button" 
-          onClick={handleOpenFile}
-          title="Open File"
+          className="toolbar-button with-text" 
+          onClick={() => toggleDropdown('layout')}
+          title="Select Layout"
         >
-          <FileText size={16} />
+          <LayoutGrid size={16} />
+          <span className="button-text">{getCurrentLayoutName()}</span>
+          <ChevronDown size={12} />
         </button>
         
-        <div className="toolbar-divider"></div>
-        
-        {/* Layout selector */}
-        <div className="toolbar-dropdown toolbar-dropdown-trigger">
-          <button 
-            className="toolbar-button with-text" 
-            onClick={() => toggleDropdown('layout')}
-            title="Select Layout"
-          >
-            <LayoutGrid size={16} />
-            <span className="button-text">{getCurrentLayoutName()}</span>
-            <ChevronDown size={12} />
-          </button>
-          
-          {activeDropdown === 'layout' && (
-            <div className="toolbar-dropdown-content">
+        {activeDropdown === 'layout' && (
+          <div className="toolbar-dropdown-content">
+            <div className="dropdown-section">
+              <div className="dropdown-section-title">Predefined Layouts</div>
+              {layouts
+                .filter(layout => layout.isPredefined)
+                .map(layout => (
+                  <button 
+                    key={layout.id}
+                    className={`dropdown-item ${currentLayout === layout.id ? 'active' : ''}`}
+                    onClick={() => applyLayout(layout.id)}
+                  >
+                    {layout.name}
+                  </button>
+                ))
+              }
+            </div>
+            
+            {layouts.some(layout => !layout.isPredefined) && (
               <div className="dropdown-section">
-                <div className="dropdown-section-title">Predefined Layouts</div>
+                <div className="dropdown-section-title">User Layouts</div>
                 {layouts
-                  .filter(layout => layout.isPredefined)
+                  .filter(layout => !layout.isPredefined)
                   .map(layout => (
-                    <button 
-                      key={layout.id}
-                      className={`dropdown-item ${currentLayout === layout.id ? 'active' : ''}`}
-                      onClick={() => applyLayout(layout.id)}
-                    >
-                      {layout.name}
-                    </button>
+                    <div key={layout.id} className="dropdown-item-with-action">
+                      <button 
+                        className={`dropdown-item ${currentLayout === layout.id ? 'active' : ''}`}
+                        onClick={() => applyLayout(layout.id)}
+                      >
+                        {layout.name}
+                      </button>
+                      <button 
+                        className="dropdown-item-action"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const confirm = window.confirm(`Delete layout "${layout.name}"?`);
+                          if (confirm) {
+                            localStorage.removeItem(`layout_${layout.id}`);
+                            setLayouts(layouts.filter(l => l.id !== layout.id));
+                            if (currentLayout === layout.id) {
+                              applyLayout('default');
+                            }
+                          }
+                        }}
+                        title="Delete layout"
+                      >
+                        ×
+                      </button>
+                    </div>
                   ))
                 }
               </div>
-              
-              {layouts.some(layout => !layout.isPredefined) && (
-                <div className="dropdown-section">
-                  <div className="dropdown-section-title">User Layouts</div>
-                  {layouts
-                    .filter(layout => !layout.isPredefined)
-                    .map(layout => (
-                      <div key={layout.id} className="dropdown-item-with-action">
-                        <button 
-                          className={`dropdown-item ${currentLayout === layout.id ? 'active' : ''}`}
-                          onClick={() => applyLayout(layout.id)}
-                        >
-                          {layout.name}
-                        </button>
-                        <button 
-                          className="dropdown-item-action"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const confirm = window.confirm(`Delete layout "${layout.name}"?`);
-                            if (confirm) {
-                              localStorage.removeItem(`layout_${layout.id}`);
-                              setLayouts(layouts.filter(l => l.id !== layout.id));
-                              if (currentLayout === layout.id) {
-                                applyLayout('default');
-                              }
-                            }
-                          }}
-                          title="Delete layout"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))
-                  }
-                </div>
-              )}
-              
-              <div className="dropdown-divider"></div>
-              <button 
-                className="dropdown-item with-icon" 
-                onClick={saveCurrentLayout}
-              >
-                <PlusSquare size={14} /> Save Current Layout
-              </button>
-            </div>
-          )}
-        </div>
-        
-        {/* Add Panel */}
-        <div className="toolbar-dropdown toolbar-dropdown-trigger">
-          <button 
-            className="toolbar-button with-text" 
-            onClick={() => toggleDropdown('panel')}
-            title="Add Panel"
-          >
-            <PlusSquare size={16} />
-            <span className="button-text">Panel</span>
-            <ChevronDown size={12} />
-          </button>
-          
-          {activeDropdown === 'panel' && (
-            <div className="toolbar-dropdown-content">
-              <button 
-                className="dropdown-item"
-                onClick={() => {
-                  setSelectedPanelType('controlPanel');
-                  handleAddPanel();
-                }}
-              >
-                Control Panel
-              </button>
-              <button 
-                className="dropdown-item"
-                onClick={() => {
-                  setSelectedPanelType('monitor');
-                  handleAddPanel();
-                }}
-              >
-                Status Monitor
-              </button>
-              <button 
-                className="dropdown-item"
-                onClick={() => {
-                  setSelectedPanelType('viewer3D');
-                  handleAddPanel();
-                }}
-              >
-                3D Viewer
-              </button>
-              <button 
-                className="dropdown-item"
-                onClick={() => {
-                  setSelectedPanelType('codeEditor');
-                  handleAddPanel();
-                }}
-              >
-                G-Code Editor
-              </button>
-              <button 
-                className="dropdown-item"
-                onClick={() => {
-                  setSelectedPanelType('console');
-                  handleAddPanel();
-                }}
-              >
-                Console
-              </button>
-              <button 
-                className="dropdown-item"
-                onClick={() => {
-                  setSelectedPanelType('acceleration');
-                  handleAddPanel();
-                }}
-              >
-                Acceleration Profile
-              </button>
-            </div>
-          )}
-        </div>
-        
-        {/* Import Plugin */}
-        <div className="toolbar-dropdown toolbar-dropdown-trigger">
-          <button 
-            className="toolbar-button with-text" 
-            onClick={() => toggleDropdown('plugin')}
-            title="Import Plugin"
-          >
-            <Package size={16} />
-            <span className="button-text">Plugin</span>
-            <ChevronDown size={12} />
-          </button>
-          
-          {activeDropdown === 'plugin' && (
-            <div className="toolbar-dropdown-content">
-              <button 
-                className="dropdown-item"
-                onClick={() => {
-                  setSelectedPlugin('imageToGcode');
-                  handleLoadPlugin();
-                }}
-              >
-                Image to G-Code
-              </button>
-              <button 
-                className="dropdown-item"
-                onClick={() => {
-                  setSelectedPlugin('mazeSolver');
-                  handleLoadPlugin();
-                }}
-              >
-                Maze Solver
-              </button>
-              <button 
-                className="dropdown-item"
-                onClick={() => {
-                  setSelectedPlugin('objectPalletizer');
-                  handleLoadPlugin();
-                }}
-              >
-                Object Palletizer
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-      
-      {/* Center - Connection status */}
-      <div className="toolbar-section center">
-        <div className="connection-status">
-          <div className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`}></div>
-          <span className="status-text">{isConnected ? 'Connected' : 'Disconnected'}</span>
-        </div>
-      </div>
-      
-      {/* Right side controls */}
-      <div className="toolbar-section">
-        {/* Connection controls */}
-        <div className="connection-controls">
-          <select 
-            className="baud-select"
-            value={baudRate}
-            onChange={(e) => setBaudRate(e.target.value)}
-            disabled={isConnected}
-          >
-            <option value="9600">9600</option>
-            <option value="19200">19200</option>
-            <option value="38400">38400</option>
-            <option value="57600">57600</option>
-            <option value="115200">115200</option>
-            <option value="230400">230400</option>
-            <option value="250000">250000</option>
-          </select>
-          
-          <button 
-            className={`connect-button ${isConnected ? 'connected' : 'disconnected'}`}
-            onClick={toggleConnection}
-          >
-            {isConnected ? (
-              <>
-                <PlugZap size={16} className="icon-pulse" />
-                <span>Connected</span>
-              </>
-            ) : (
-              <>
-                <Plug size={16} />
-                <span>Connect</span>
-              </>
             )}
-          </button>
-        </div>
-        
-        <div className="toolbar-divider"></div>
-        
-        {/* Theme selector - IMPROVED */}
-        <div className="toolbar-dropdown toolbar-dropdown-trigger">
-          <button 
-            className="toolbar-button with-text theme-button" 
-            onClick={() => toggleDropdown('theme')}
-            title="Change Theme"
-          >
-            <Palette size={16} className="theme-icon" />
-            <span className="button-text">Theme: {getCurrentThemeName()}</span>
-            <ChevronDown size={12} />
-          </button>
-          
-          {activeDropdown === 'theme' && (
-            <div className="toolbar-dropdown-content theme-dropdown">
-              {availableThemes.map(theme => (
-                <button 
-                  key={theme.id}
-                  className={`dropdown-item theme-item ${currentTheme === theme.id ? 'active' : ''}`}
-                  onClick={() => {
-                    onThemeChange(theme.id);
-                    setActiveDropdown(null);
-                  }}
-                >
-                  <span className={`theme-color-preview ${theme.id}`}></span>
-                  <span className="theme-name">{theme.name}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        
-        {/* Settings */}
-        <button className="toolbar-button icon-button" title="Settings">
-          <Settings size={16} />
+            
+            <div className="dropdown-divider"></div>
+            <button 
+              className="dropdown-item with-icon" 
+              onClick={saveCurrentLayout}
+            >
+              <PlusSquare size={14} /> Save Current Layout
+            </button>
+          </div>
+        )}
+      </div>
+      
+      {/* Add Panel */}
+      <div className="toolbar-dropdown toolbar-dropdown-trigger">
+        <button 
+          className="toolbar-button with-text" 
+          onClick={() => toggleDropdown('panel')}
+          title="Add Panel"
+        >
+          <PlusSquare size={16} />
+          <span className="button-text">Panel</span>
+          <ChevronDown size={12} />
         </button>
+        
+        {activeDropdown === 'panel' && (
+          <div className="toolbar-dropdown-content">
+            <button 
+              className="dropdown-item"
+              onClick={() => {
+                setSelectedPanelType('controlPanel');
+                handleAddPanel();
+              }}
+            >
+              Control Panel
+            </button>
+            <button 
+              className="dropdown-item"
+              onClick={() => {
+                setSelectedPanelType('monitor');
+                handleAddPanel();
+              }}
+            >
+              Status Monitor
+            </button>
+            <button 
+              className="dropdown-item"
+              onClick={() => {
+                setSelectedPanelType('viewer3D');
+                handleAddPanel();
+              }}
+            >
+              3D Viewer
+            </button>
+            <button 
+              className="dropdown-item"
+              onClick={() => {
+                setSelectedPanelType('codeEditor');
+                handleAddPanel();
+              }}
+            >
+              G-Code Editor
+            </button>
+            <button 
+              className="dropdown-item"
+              onClick={() => {
+                setSelectedPanelType('console');
+                handleAddPanel();
+              }}
+            >
+              Console
+            </button>
+            <button 
+              className="dropdown-item"
+              onClick={() => {
+                setSelectedPanelType('acceleration');
+                handleAddPanel();
+              }}
+            >
+              Acceleration Profile
+            </button>
+          </div>
+        )}
+      </div>
+      
+      {/* Hidden file input for plugin import */}
+      <input
+        ref={pluginInputRef}
+        type="file"
+        accept=".zip"
+        style={{ display: 'none' }}
+        onChange={handlePluginImport}
+      />
+      
+      {/* Plugin Management Dropdown */}
+      <div className="toolbar-dropdown toolbar-dropdown-trigger">
+        <button 
+          className="toolbar-button with-text" 
+          onClick={() => toggleDropdown('plugin')}
+          title="Manage Plugins"
+        >
+          <Package size={16} />
+          <span className="button-text">Plugins</span>
+          <ChevronDown size={12} />
+        </button>
+        
+        {activeDropdown === 'plugin' && (
+          <div className="toolbar-dropdown-content">
+            {/* Import Plugin Button */}
+            <button 
+              className="dropdown-item with-icon"
+              onClick={() => pluginInputRef.current?.click()}
+              disabled={isLoadingPlugin}
+            >
+              <Upload size={14} />
+              {isLoadingPlugin ? 'Loading...' : 'Import Plugin (.zip)'}
+            </button>
+            
+            <div className="dropdown-divider"></div>
+            
+            {/* Plugin Registry (Future) */}
+            <button 
+              className="dropdown-item with-icon"
+              onClick={() => {
+                alert('Plugin marketplace coming soon!');
+                setActiveDropdown(null);
+              }}
+            >
+              <Package size={14} />
+              Browse Plugin Marketplace
+            </button>
+            
+            <div className="dropdown-divider"></div>
+            
+            {/* Installed Plugins */}
+            <div className="dropdown-section">
+              <div className="dropdown-section-title">Installed Plugins</div>
+              
+              {installedPlugins.length === 0 ? (
+                <div className="dropdown-item disabled">No plugins installed</div>
+              ) : (
+                installedPlugins.map(plugin => (
+                  <div key={plugin.id} className="plugin-item">
+                    <div className="plugin-info">
+                      <span className="plugin-name">{plugin.name}</span>
+                      <span className="plugin-version">v{plugin.version}</span>
+                    </div>
+                    {!plugin.builtIn && (
+                      <button
+                        className="plugin-action"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm(`Unload plugin "${plugin.name}"?`)) {
+                            enhancedPluginManager.unloadPlugin(plugin.id);
+                          }
+                        }}
+                        title="Unload plugin"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+            
+            <div className="dropdown-divider"></div>
+            
+            {/* Developer Options */}
+            <button 
+              className="dropdown-item with-icon"
+              onClick={() => {
+                window.open('https://github.com/fluidnc/plugin-template', '_blank');
+                setActiveDropdown(null);
+              }}
+            >
+              <Package size={14} />
+              Create New Plugin
+            </button>
+          </div>
+        )}
       </div>
     </div>
-  );
+    
+    {/* Center - Connection status */}
+    <div className="toolbar-section center">
+      <div className="connection-status">
+        <div className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`}></div>
+        <span className="status-text">{isConnected ? 'Connected' : 'Disconnected'}</span>
+      </div>
+    </div>
+    
+    {/* Right side controls */}
+    <div className="toolbar-section">
+      {/* Connection controls */}
+      <div className="connection-controls">
+        <select 
+          className="baud-select"
+          value={baudRate}
+          onChange={(e) => setBaudRate(e.target.value)}
+          disabled={isConnected}
+        >
+          <option value="9600">9600</option>
+          <option value="19200">19200</option>
+          <option value="38400">38400</option>
+          <option value="57600">57600</option>
+          <option value="115200">115200</option>
+          <option value="230400">230400</option>
+          <option value="250000">250000</option>
+        </select>
+        
+        <button 
+          className={`connect-button ${isConnected ? 'connected' : 'disconnected'}`}
+          onClick={toggleConnection}
+        >
+          {isConnected ? (
+            <>
+              <PlugZap size={16} className="icon-pulse" />
+              <span>Connected</span>
+            </>
+          ) : (
+            <>
+              <Plug size={16} />
+              <span>Connect</span>
+            </>
+          )}
+        </button>
+      </div>
+      
+      <div className="toolbar-divider"></div>
+      
+      {/* Theme selector - IMPROVED */}
+      <div className="toolbar-dropdown toolbar-dropdown-trigger">
+        <button 
+          className="toolbar-button with-text theme-button" 
+          onClick={() => toggleDropdown('theme')}
+          title="Change Theme"
+        >
+          <Palette size={16} className="theme-icon" />
+          <span className="button-text">Theme: {getCurrentThemeName()}</span>
+          <ChevronDown size={12} />
+        </button>
+        
+        {activeDropdown === 'theme' && (
+          <div className="toolbar-dropdown-content theme-dropdown">
+            {availableThemes.map(theme => (
+              <button 
+                key={theme.id}
+                className={`dropdown-item theme-item ${currentTheme === theme.id ? 'active' : ''}`}
+                onClick={() => {
+                  onThemeChange(theme.id);
+                  setActiveDropdown(null);
+                }}
+              >
+                <span className={`theme-color-preview ${theme.id}`}></span>
+                <span className="theme-name">{theme.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      
+      {/* Settings */}
+      <button className="toolbar-button icon-button" title="Settings">
+        <Settings size={16} />
+      </button>
+    </div>
+  </div>
+);
 };
 
 export default MainToolbar;

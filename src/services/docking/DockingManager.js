@@ -104,11 +104,26 @@ class DockingManager {
       // Use location object directly
       position = location;
     }
+    
+    // Get the actual component from panelComponents
+    const ComponentFunction = window.panelComponents && window.panelComponents[panelDef.component];
+    
+    if (!ComponentFunction) {
+      throw new Error(`Component for panel type ${panelType} not found in registry`);
+    }
+
+    // Debug: Check what type of component we have
+    console.log(`Adding panel ${panelType}:`);
+    console.log('Component type:', typeof ComponentFunction);
+    console.log('Component name:', ComponentFunction.name || 'unnamed');
+    console.log('Is React.memo?:', ComponentFunction.$$typeof === Symbol.for('react.memo'));
+    console.log('Display name:', ComponentFunction.displayName);
+    console.log('Component:', ComponentFunction);
 
     // Add the panel
     this.api.addPanel({
       id: panelId,
-      component: panelDef.component,
+      component: ComponentFunction,  // Pass the actual component function
       params: { ...panelDef.params, ...params },
       position: position
     });
