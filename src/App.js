@@ -270,11 +270,17 @@ function App() {
   });
 
   // Define components for dockview - use dynamic components from panelComponents
-  const components = useMemo(() => {
+ const components = useMemo(() => {
     console.log('Rebuilding components object, version:', componentVersion);
     
-    // Start with local wrapper components
-    const localComponents = {
+    // If panelComponents exists, use it directly as it contains all components
+    if (window.panelComponents) {
+      console.log('Using window.panelComponents:', Object.keys(window.panelComponents));
+      return window.panelComponents;
+    }
+    
+    // Fallback to local components if window.panelComponents doesn't exist
+    return {
       controlPanel: ControlPanelWrapper,
       monitor: MonitorPanelWrapper,
       viewer3D: Viewer3DPanelWrapper,
@@ -282,16 +288,6 @@ function App() {
       console: ConsolePanelWrapper,
       acceleration: AccelerationPanelWrapper
     };
-    
-    // If panelComponents exists, merge with it (for plugins)
-    if (window.panelComponents) {
-      console.log('Merging with window.panelComponents:', Object.keys(window.panelComponents));
-      const mergedComponents = { ...localComponents, ...window.panelComponents };
-      console.log('Final components:', Object.keys(mergedComponents));
-      return mergedComponents;
-    }
-    
-    return localComponents;
   }, [componentVersion]); // Re-create when version changes
 
   // Handle ready event

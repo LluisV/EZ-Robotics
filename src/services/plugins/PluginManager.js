@@ -212,22 +212,11 @@ registerPanel(manifest, component) {
   
   // Register with the existing panel components registry
   if (window.panelComponents) {
-    // Create a wrapper function that matches the existing pattern
-    const PanelWrapper = (props) => {
-      const params = props?.params || {};
-      // Use React.createElement to avoid JSX
-      return window.React.createElement('div', { className: 'panel-container' },
-        window.React.createElement(component, { ...params })
-      );
-    };
+    // The component from loadPluginModule is already a proper React component
+    // that's been wrapped correctly for Dockview, so use it directly
+    window.panelComponents[manifest.id] = component;
     
-    // Wrap with React.memo to satisfy Dockview requirements
-    const MemoizedPanel = window.React.memo(PanelWrapper);
-    
-    // Set display name for debugging
-    MemoizedPanel.displayName = `Plugin_${manifest.id}`;
-    
-    window.panelComponents[manifest.id] = MemoizedPanel;
+    console.log(`Registered plugin component ${manifest.id} in window.panelComponents`);
   }
   
   // Add to panel definitions if the array exists
