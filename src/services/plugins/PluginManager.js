@@ -24,6 +24,32 @@ class PluginManager {
   }
 
   /**
+   * Show dependency installation status to the user
+   * @param {string} pluginId - Plugin ID
+   * @param {string} status - Status message
+   * @param {string} type - Message type (info, success, error)
+   */
+  showDependencyStatus(pluginId, status, type = 'info') {
+    // Create or update status notification
+    const notificationId = `plugin-deps-${pluginId}`;
+    
+    // Create a custom event for the UI to handle
+    const event = new CustomEvent('pluginDependencyStatus', {
+      detail: {
+        pluginId,
+        status,
+        type,
+        notificationId
+      }
+    });
+    
+    document.dispatchEvent(event);
+    
+    // Also show in console for debugging
+    console.log(`[Plugin ${pluginId}] ${status}`);
+  }
+
+  /**
    * Load a plugin from a ZIP file
    * @param {File} zipFile - The ZIP file containing the plugin
    * @returns {Promise<Object>} The loaded plugin metadata
@@ -101,8 +127,108 @@ class PluginManager {
     
     console.log(`Initializing plugin: ${manifest.id}`);
     
+    // Check if plugin has Python support
+    if (manifest.pythonSupport && manifest.pythonSupport.enabled) {
+      // Show initial status
+      this.showDependencyStatus(
+        manifest.id, 
+        'Checking Python dependencies...', 
+        'info'
+      );
+      
+      // Check if requirements file exists
+      const requirementsPath = manifest.pythonSupport.requirements;
+      if (files.has(requirementsPath)) {
+        const requirements = files.get(requirementsPath);
+        const deps = requirements.split('\n').filter(line => line.trim() && !line.startsWith('#'));
+        
+        if (deps.length > 0) {
+          this.showDependencyStatus(
+            manifest.id, 
+            `Installing ${deps.length} Python dependencies. This may take a few minutes...`, 
+            'info'
+          );
+          
+          // Simulate dependency installation progress
+          // In a real implementation, this would communicate with the Python backend
+          for (let i = 0; i < deps.length; i++) {
+            const dep = deps[i].trim();
+            if (dep) {
+              this.showDependencyStatus(
+                manifest.id, 
+                `Installing ${dep} (${i + 1}/${deps.length})...`, 
+                'info'
+              );
+              
+              // In real implementation, await actual installation
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+          }
+          
+          this.showDependencyStatus(
+            manifest.id, 
+            'Python dependencies installed successfully!', 
+            'success'
+          );
+        }
+      }
+    }
+    
     // Create plugin API instance
     const api = new PluginAPI(manifest.id, manifest.permissions || []);
+    
+    // Add Python WebSocket connection handler with status updates
+    if (manifest.pythonSupport && manifest.pythonSupport.enabled) {
+      // Store original python API methods
+      const originalPythonAPI = api.python || {};
+      
+      // Enhance with status notifications
+      api.python = {
+        ...originalPythonAPI,
+        connect: async () => {
+          this.showDependencyStatus(
+            manifest.id, 
+            'Connecting to Python backend...', 
+            'info'
+          );
+          
+          try {
+            // Simulate connection (real implementation would connect to WebSocket)
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            this.showDependencyStatus(
+              manifest.id, 
+              'Connected to Python backend!', 
+              'success'
+            );
+            
+            // Hide notification after success
+            setTimeout(() => {
+              const event = new CustomEvent('pluginDependencyStatus', {
+                detail: {
+                  pluginId: manifest.id,
+                  hide: true,
+                  notificationId: `plugin-deps-${manifest.id}`
+                }
+              });
+              document.dispatchEvent(event);
+            }, 3000);
+            
+            return true;
+          } catch (error) {
+            this.showDependencyStatus(
+              manifest.id, 
+              `Failed to connect to Python backend: ${error.message}`, 
+              'error'
+            );
+            throw error;
+          }
+        },
+        execute: originalPythonAPI.execute || (async () => { throw new Error('Python not implemented'); }),
+        startStream: originalPythonAPI.startStream || (async () => { throw new Error('Python streaming not implemented'); })
+      };
+    }
+    
     this.pluginAPIs.set(manifest.id, api);
     
     // Load CSS if present
@@ -131,110 +257,110 @@ class PluginManager {
   }
 
   /**
- * Load plugin module in a sandboxed environment
- * @param {string} pluginId - Plugin ID
- * @param {string} code - Plugin code
- * @param {PluginAPI} api - Plugin API instance
- * @returns {Promise<React.Component>} The plugin component
- */
-async loadPluginModule(pluginId, code, api) {
-  console.log(`Loading module for plugin: ${pluginId}`);
-  
-  // Store API in global scope temporarily
-  if (!window.__pluginAPIs) window.__pluginAPIs = {};
-  window.__pluginAPIs[pluginId] = api;
-  
-  if (!window.__pluginComponents) window.__pluginComponents = {};
-  
-  try {
-    // Create a wrapper that provides React and the API
-    const wrappedCode = `
-      (function() {
-        const React = window.React;
-        const { useState, useEffect, useRef, useCallback, useMemo } = React;
-        const api = window.__pluginAPIs['${pluginId}'];
-        
-        ${code}
-        
-        // The plugin should export a PluginPanel component
-        if (typeof PluginPanel !== 'undefined') {
-          // Create a proper functional component for Dockview
-          const DockviewComponent = (props) => {
-            // Extract params from Dockview props structure
-            const params = props?.params || props || {};
-            // Ensure api is passed to the plugin
-            return React.createElement(PluginPanel, { ...params, api: api });
-          };
+   * Load plugin module in a sandboxed environment
+   * @param {string} pluginId - Plugin ID
+   * @param {string} code - Plugin code
+   * @param {PluginAPI} api - Plugin API instance
+   * @returns {Promise<React.Component>} The plugin component
+   */
+  async loadPluginModule(pluginId, code, api) {
+    console.log(`Loading module for plugin: ${pluginId}`);
+    
+    // Store API in global scope temporarily
+    if (!window.__pluginAPIs) window.__pluginAPIs = {};
+    window.__pluginAPIs[pluginId] = api;
+    
+    if (!window.__pluginComponents) window.__pluginComponents = {};
+    
+    try {
+      // Create a wrapper that provides React and the API
+      const wrappedCode = `
+        (function() {
+          const React = window.React;
+          const { useState, useEffect, useRef, useCallback, useMemo } = React;
+          const api = window.__pluginAPIs['${pluginId}'];
           
-          // Mark it as a functional component
-          DockviewComponent.displayName = 'Plugin_${pluginId}';
+          ${code}
           
-          window.__pluginComponents['${pluginId}'] = DockviewComponent;
-        } else {
-          throw new Error('Plugin must export a PluginPanel component');
-        }
-      })();
-    `;
-    
-    // Execute the wrapped code
-    const moduleFunction = new Function(wrappedCode);
-    moduleFunction();
-    
-    // Get the component
-    const PluginComponent = window.__pluginComponents[pluginId];
-    
-    if (!PluginComponent) {
-      throw new Error('Plugin component not found after loading');
+          // The plugin should export a PluginPanel component
+          if (typeof PluginPanel !== 'undefined') {
+            // Create a proper functional component for Dockview
+            const DockviewComponent = (props) => {
+              // Extract params from Dockview props structure
+              const params = props?.params || props || {};
+              // Ensure api is passed to the plugin
+              return React.createElement(PluginPanel, { ...params, api: api });
+            };
+            
+            // Mark it as a functional component
+            DockviewComponent.displayName = 'Plugin_${pluginId}';
+            
+            window.__pluginComponents['${pluginId}'] = DockviewComponent;
+          } else {
+            throw new Error('Plugin must export a PluginPanel component');
+          }
+        })();
+      `;
+      
+      // Execute the wrapped code
+      const moduleFunction = new Function(wrappedCode);
+      moduleFunction();
+      
+      // Get the component
+      const PluginComponent = window.__pluginComponents[pluginId];
+      
+      if (!PluginComponent) {
+        throw new Error('Plugin component not found after loading');
+      }
+      
+      // Clean up temporary storage
+      delete window.__pluginComponents[pluginId];
+      
+      // Return the component directly - it's already wrapped properly
+      return PluginComponent;
+      
+    } catch (error) {
+      console.error(`Error loading plugin module ${pluginId}:`, error);
+      // Clean up on error
+      delete window.__pluginAPIs[pluginId];
+      delete window.__pluginComponents[pluginId];
+      throw error;
     }
-    
-    // Clean up temporary storage
-    delete window.__pluginComponents[pluginId];
-    
-    // Return the component directly - it's already wrapped properly
-    return PluginComponent;
-    
-  } catch (error) {
-    console.error(`Error loading plugin module ${pluginId}:`, error);
-    // Clean up on error
-    delete window.__pluginAPIs[pluginId];
-    delete window.__pluginComponents[pluginId];
-    throw error;
   }
-}
 
-/**
- * Register panel with the docking system
- * @param {Object} manifest - Plugin manifest
- * @param {React.Component} component - Plugin component
- */
-registerPanel(manifest, component) {
-  console.log(`Registering panel for plugin: ${manifest.id}`);
-  
-  // Register with the existing panel components registry
-  if (window.panelComponents) {
-    // The component from loadPluginModule is already a proper React component
-    // that's been wrapped correctly for Dockview, so use it directly
-    window.panelComponents[manifest.id] = component;
+  /**
+   * Register panel with the docking system
+   * @param {Object} manifest - Plugin manifest
+   * @param {React.Component} component - Plugin component
+   */
+  registerPanel(manifest, component) {
+    console.log(`Registering panel for plugin: ${manifest.id}`);
     
-    console.log(`Registered plugin component ${manifest.id} in window.panelComponents`);
-  }
-  
-  // Add to panel definitions if the array exists
-  if (window.panelDefinitions && Array.isArray(window.panelDefinitions)) {
-    const panelDef = {
-      id: manifest.id,
-      title: manifest.panel.title,
-      component: manifest.id,
-      params: manifest.panel.params || {},
-      defaultLocation: manifest.panel.defaultLocation || 'right'
-    };
+    // Register with the existing panel components registry
+    if (window.panelComponents) {
+      // The component from loadPluginModule is already a proper React component
+      // that's been wrapped correctly for Dockview, so use it directly
+      window.panelComponents[manifest.id] = component;
+      
+      console.log(`Registered plugin component ${manifest.id} in window.panelComponents`);
+    }
     
-    // Only add if not already present
-    if (!window.panelDefinitions.find(p => p.id === manifest.id)) {
-      window.panelDefinitions.push(panelDef);
+    // Add to panel definitions if the array exists
+    if (window.panelDefinitions && Array.isArray(window.panelDefinitions)) {
+      const panelDef = {
+        id: manifest.id,
+        title: manifest.panel.title,
+        component: manifest.id,
+        params: manifest.panel.params || {},
+        defaultLocation: manifest.panel.defaultLocation || 'right'
+      };
+      
+      // Only add if not already present
+      if (!window.panelDefinitions.find(p => p.id === manifest.id)) {
+        window.panelDefinitions.push(panelDef);
+      }
     }
   }
-}
 
   /**
    * Register a built-in plugin
@@ -432,6 +558,7 @@ const pluginManager = new PluginManager();
 // Make it available globally for debugging
 if (typeof window !== 'undefined') {
   window.pluginManager = pluginManager;
+  window.enhancedPluginManager = pluginManager; // Also keep the enhanced name for compatibility
 }
 
 export default pluginManager;

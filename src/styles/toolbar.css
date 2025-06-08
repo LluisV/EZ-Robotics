@@ -682,3 +682,63 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Plugin Dependency Notification Styles */
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.dependency-notification {
+  transition: all 0.3s ease-out;
+}
+
+.dependency-notification.fade-out {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+.dependency-notification.info {
+  border-left: 4px solid var(--accent-primary);
+}
+
+.dependency-notification.success {
+  border-left: 4px solid var(--accent-success);
+}
+
+.dependency-notification.error {
+  border-left: 4px solid var(--accent-error);
+}
+
+.dependency-spinner {
+  flex-shrink: 0;
+}
+
+.dependency-status-text {
+  line-height: 1.4;
+}
+
+/* Ensure notifications stack properly */
+.dependency-notification:nth-child(2) {
+  bottom: 100px;
+}
+
+.dependency-notification:nth-child(3) {
+  bottom: 180px;
+}
+
+.dependency-notification:nth-child(4) {
+  bottom: 260px;
+}

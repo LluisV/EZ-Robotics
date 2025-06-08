@@ -269,6 +269,11 @@ function App() {
     );
   });
 
+  useEffect(() => {
+  // Set Python backend port from environment or default
+  window.PYTHON_BACKEND_PORT = process.env.REACT_APP_PYTHON_BACKEND_PORT || 8001;
+}, []);
+
   // Define components for dockview - use dynamic components from panelComponents
  const components = useMemo(() => {
     console.log('Rebuilding components object, version:', componentVersion);

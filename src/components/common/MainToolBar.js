@@ -75,6 +75,173 @@ const MainToolbar = ({
       if (removeListener) removeListener();
     };
   }, []);
+
+  // Add this useEffect inside the MainToolbar component:
+
+useEffect(() => {
+  const handleDependencyStatus = (event) => {
+    const { pluginId, status, type, notificationId, hide } = event.detail;
+    
+    if (hide) {
+      // Remove notification
+      const notification = document.getElementById(notificationId);
+      if (notification) {
+        notification.classList.add('fade-out');
+        setTimeout(() => notification.remove(), 300);
+      }
+      return;
+    }
+    
+    // Check if notification already exists
+    let notification = document.getElementById(notificationId);
+    
+    if (!notification) {
+      // Create new notification
+      notification = document.createElement('div');
+      notification.id = notificationId;
+      notification.className = `dependency-notification ${type}`;
+      notification.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: var(--bg-dark);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 1rem 1.5rem;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        max-width: 400px;
+        animation: slideIn 0.3s ease-out;
+      `;
+      
+      // Add spinner for loading states
+      if (type === 'info') {
+        const spinner = document.createElement('div');
+        spinner.className = 'dependency-spinner';
+        spinner.style.cssText = `
+          width: 20px;
+          height: 20px;
+          border: 2px solid var(--accent-primary);
+          border-top-color: transparent;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        `;
+        notification.appendChild(spinner);
+      }
+      
+      // Add status text
+      const statusText = document.createElement('div');
+      statusText.className = 'dependency-status-text';
+      statusText.style.cssText = `
+        flex: 1;
+        color: var(--text-primary);
+      `;
+      notification.appendChild(statusText);
+      
+      // Add close button for errors
+      if (type === 'error') {
+        const closeBtn = document.createElement('button');
+        closeBtn.innerHTML = '×';
+        closeBtn.style.cssText = `
+          background: none;
+          border: none;
+          color: var(--text-secondary);
+          font-size: 1.5rem;
+          cursor: pointer;
+          padding: 0;
+          margin-left: 1rem;
+        `;
+        closeBtn.onclick = () => {
+          notification.classList.add('fade-out');
+          setTimeout(() => notification.remove(), 300);
+        };
+        notification.appendChild(closeBtn);
+      }
+      
+      document.body.appendChild(notification);
+    }
+    
+    // Update status text
+    const statusText = notification.querySelector('.dependency-status-text');
+    if (statusText) {
+      statusText.innerHTML = `
+        <div style="font-weight: 500; margin-bottom: 0.25rem;">Plugin: ${pluginId}</div>
+        <div style="font-size: 0.875rem; color: var(--text-secondary);">${status}</div>
+      `;
+    }
+    
+    // Update notification class for styling
+    notification.className = `dependency-notification ${type}`;
+    
+    // Add appropriate icon for success
+    if (type === 'success') {
+      const spinner = notification.querySelector('.dependency-spinner');
+      if (spinner) {
+        spinner.remove();
+      }
+      
+      // Add success icon if not already present
+      if (!notification.querySelector('.success-icon')) {
+        const successIcon = document.createElement('div');
+        successIcon.className = 'success-icon';
+        successIcon.innerHTML = '✓';
+        successIcon.style.cssText = `
+          width: 24px;
+          height: 24px;
+          background: var(--accent-success);
+          color: white;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: bold;
+        `;
+        notification.insertBefore(successIcon, notification.firstChild);
+      }
+      
+      // Auto-hide success messages after 5 seconds
+      setTimeout(() => {
+        notification.classList.add('fade-out');
+        setTimeout(() => notification.remove(), 300);
+      }, 5000);
+    }
+    
+    // Add error icon for errors
+    if (type === 'error') {
+      const spinner = notification.querySelector('.dependency-spinner');
+      if (spinner) {
+        spinner.remove();
+      }
+      
+      if (!notification.querySelector('.error-icon')) {
+        const errorIcon = document.createElement('div');
+        errorIcon.className = 'error-icon';
+        errorIcon.innerHTML = '!';
+        errorIcon.style.cssText = `
+          width: 24px;
+          height: 24px;
+          background: var(--accent-error);
+          color: white;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: bold;
+        `;
+        notification.insertBefore(errorIcon, notification.firstChild);
+      }
+    }
+  };
+  
+  document.addEventListener('pluginDependencyStatus', handleDependencyStatus);
+  
+  return () => {
+    document.removeEventListener('pluginDependencyStatus', handleDependencyStatus);
+  };
+}, []);
   
   // Load available layouts
   useEffect(() => {
