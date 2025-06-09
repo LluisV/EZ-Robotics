@@ -12,6 +12,7 @@ from pathlib import Path
 import aiofiles
 import base64
 from functools import partial
+import inspect
 
 logger = logging.getLogger(__name__)
 
@@ -291,21 +292,39 @@ class PluginInstance:
     async def _run_streaming_function(self, queue: asyncio.Queue, func, args, kwargs):
         """Run a streaming function and put results in queue"""
         try:
-            # First, call the function to get the generator
-            result = func(*args, **kwargs)
-            
-            # Check if it's an async generator
-            if hasattr(result, '__aiter__'):
-                # It's an async generator
-                async for data in result:
+            # Check if the function is an async generator function
+            if inspect.isasyncgenfunction(func):
+                # It's an async generator function (async def with yield)
+                async for data in func(*args, **kwargs):
                     await queue.put(data)
-            elif hasattr(result, '__iter__'):
-                # It's a regular generator
-                for data in result:
+            elif inspect.isgeneratorfunction(func):
+                # It's a regular generator function (def with yield)
+                for data in func(*args, **kwargs):
                     await queue.put(data)
+            elif asyncio.iscoroutinefunction(func):
+                # It's an async function that might return a generator
+                result = await func(*args, **kwargs)
+                
+                if hasattr(result, '__aiter__'):
+                    # It returned an async generator
+                    async for data in result:
+                        await queue.put(data)
+                elif hasattr(result, '__iter__'):
+                    # It returned a regular generator
+                    for data in result:
+                        await queue.put(data)
+                else:
+                    raise Exception(f"Async function {func.__name__} did not return a generator")
             else:
-                # It's a regular function, not a generator
-                raise Exception(f"Function {func.__name__} is not a generator")
+                # It's a regular function that might return a generator
+                result = func(*args, **kwargs)
+                
+                if hasattr(result, '__iter__'):
+                    # It's a regular generator
+                    for data in result:
+                        await queue.put(data)
+                else:
+                    raise Exception(f"Function {func.__name__} did not return a generator")
                     
         except Exception as e:
             logger.error(f"Error in streaming function: {e}")

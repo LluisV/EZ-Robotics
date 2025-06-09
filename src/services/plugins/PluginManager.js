@@ -3,6 +3,7 @@
  * Handles ZIP file extraction, validation, and plugin lifecycle
  */
 import PluginAPI from './PluginAPI';
+import PluginPythonAPI from './PluginPythonAPI';
 import React from 'react';
 
 class PluginManager {
@@ -10,6 +11,7 @@ class PluginManager {
     this.loadedPlugins = new Map();
     this.pluginAPIs = new Map();
     this.pluginComponents = new Map();
+    this.pluginPythonAPIs = new Map();
     this.eventBus = new EventTarget();
     this.panelRegistry = null;
   }
@@ -127,64 +129,17 @@ class PluginManager {
     
     console.log(`Initializing plugin: ${manifest.id}`);
     
-    // Check if plugin has Python support
-    if (manifest.pythonSupport && manifest.pythonSupport.enabled) {
-      // Show initial status
-      this.showDependencyStatus(
-        manifest.id, 
-        'Checking Python dependencies...', 
-        'info'
-      );
-      
-      // Check if requirements file exists
-      const requirementsPath = manifest.pythonSupport.requirements;
-      if (files.has(requirementsPath)) {
-        const requirements = files.get(requirementsPath);
-        const deps = requirements.split('\n').filter(line => line.trim() && !line.startsWith('#'));
-        
-        if (deps.length > 0) {
-          this.showDependencyStatus(
-            manifest.id, 
-            `Installing ${deps.length} Python dependencies. This may take a few minutes...`, 
-            'info'
-          );
-          
-          // Simulate dependency installation progress
-          // In a real implementation, this would communicate with the Python backend
-          for (let i = 0; i < deps.length; i++) {
-            const dep = deps[i].trim();
-            if (dep) {
-              this.showDependencyStatus(
-                manifest.id, 
-                `Installing ${dep} (${i + 1}/${deps.length})...`, 
-                'info'
-              );
-              
-              // In real implementation, await actual installation
-              await new Promise(resolve => setTimeout(resolve, 500));
-            }
-          }
-          
-          this.showDependencyStatus(
-            manifest.id, 
-            'Python dependencies installed successfully!', 
-            'success'
-          );
-        }
-      }
-    }
-    
     // Create plugin API instance
     const api = new PluginAPI(manifest.id, manifest.permissions || []);
     
-    // Add Python WebSocket connection handler with status updates
+    // Check if plugin has Python support
     if (manifest.pythonSupport && manifest.pythonSupport.enabled) {
-      // Store original python API methods
-      const originalPythonAPI = api.python || {};
+      // Create Python API instance
+      const pythonAPI = new PluginPythonAPI(manifest.id);
+      this.pluginPythonAPIs.set(manifest.id, pythonAPI);
       
-      // Enhance with status notifications
+      // Override the default Python API methods with the real implementation
       api.python = {
-        ...originalPythonAPI,
         connect: async () => {
           this.showDependencyStatus(
             manifest.id, 
@@ -193,8 +148,7 @@ class PluginManager {
           );
           
           try {
-            // Simulate connection (real implementation would connect to WebSocket)
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            const result = await pythonAPI.connect();
             
             this.showDependencyStatus(
               manifest.id, 
@@ -214,7 +168,7 @@ class PluginManager {
               document.dispatchEvent(event);
             }, 3000);
             
-            return true;
+            return result;
           } catch (error) {
             this.showDependencyStatus(
               manifest.id, 
@@ -224,9 +178,79 @@ class PluginManager {
             throw error;
           }
         },
-        execute: originalPythonAPI.execute || (async () => { throw new Error('Python not implemented'); }),
-        startStream: originalPythonAPI.startStream || (async () => { throw new Error('Python streaming not implemented'); })
+        
+        execute: async (functionName, args = [], kwargs = {}) => {
+          return pythonAPI.execute(functionName, args, kwargs);
+        },
+        
+        startStream: async (functionName, args = [], kwargs = {}, callback) => {
+          return pythonAPI.startStream(functionName, args, kwargs, callback);
+        }
       };
+      
+      // Show initial status
+      this.showDependencyStatus(
+        manifest.id, 
+        'Checking Python dependencies...', 
+        'info'
+      );
+      
+      // Extract Python code
+      const pythonEntry = manifest.pythonSupport.entry || 'python/main.py';
+      const pythonCode = files.get(pythonEntry);
+      
+      if (!pythonCode) {
+        throw new Error(`Python entry file ${pythonEntry} not found`);
+      }
+      
+      // Extract requirements
+      let requirements = [];
+      const requirementsPath = manifest.pythonSupport.requirements || 'python/requirements.txt';
+      if (files.has(requirementsPath)) {
+        const requirementsText = files.get(requirementsPath);
+        requirements = requirementsText.split('\n').filter(line => line.trim() && !line.startsWith('#'));
+      }
+      
+      // Connect to Python backend
+      try {
+        await pythonAPI.connect();
+        
+        // Load Python code
+        this.showDependencyStatus(
+          manifest.id, 
+          'Loading Python code...', 
+          'info'
+        );
+        
+        await pythonAPI.load(pythonCode, requirements);
+        
+        this.showDependencyStatus(
+          manifest.id, 
+          'Python code loaded successfully!', 
+          'success'
+        );
+        
+        // Hide success notification after a delay
+        setTimeout(() => {
+          const event = new CustomEvent('pluginDependencyStatus', {
+            detail: {
+              pluginId: manifest.id,
+              hide: true,
+              notificationId: `plugin-deps-${manifest.id}`
+            }
+          });
+          document.dispatchEvent(event);
+        }, 3000);
+        
+      } catch (error) {
+        console.error(`Failed to initialize Python for plugin ${manifest.id}:`, error);
+        this.showDependencyStatus(
+          manifest.id, 
+          `Python initialization failed: ${error.message}`, 
+          'error'
+        );
+        // Don't throw - allow plugin to load without Python support
+      }
     }
     
     this.pluginAPIs.set(manifest.id, api);
@@ -473,6 +497,13 @@ class PluginManager {
     }
     
     console.log(`Unloading plugin: ${pluginId}`);
+    
+    // Clean up Python API if exists
+    const pythonAPI = this.pluginPythonAPIs.get(pluginId);
+    if (pythonAPI) {
+      await pythonAPI.disconnect();
+      this.pluginPythonAPIs.delete(pluginId);
+    }
     
     // Clean up API
     const api = this.pluginAPIs.get(pluginId);
