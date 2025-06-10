@@ -4,7 +4,6 @@ import MouseIndicatorSettings from './components/MouseIndicatorSettings';
 import VisualizationSettings from './components/VisualizationSettings';
 import ViewToggle from './components/ViewToggle'; // Import the new component
 import { VisualizationModes } from './utils/VisualizationModes';
-import RobotSettings from './components/RobotSettings';
 
 // Import Lucide icons with correct names
 import { 
@@ -64,11 +63,6 @@ const Controls = ({
   opacityMultiplier = 1.0,
   setOpacityMultiplier,
   reapplyVisualization,
-  showRobot,
-  setShowRobot,
-  robotConfig,
-  setRobotConfig,
-  onRobotConfigChange
 }) => {
   const [activeSection, setActiveSection] = useState(null);
   
@@ -238,46 +232,6 @@ const Controls = ({
         <div className="controls-divider"></div>
         
 
-{/* Robot settings - Combined toggle and dropdown */}
-        <div className="controls-section robot-section">
-          <div className="section-toggle-container">
-            <label className="toggle-switch active-toggle" title="Show/Hide DH Robot">
-              <input
-                type="checkbox"
-                checked={showRobot}
-                onChange={() => setShowRobot(!showRobot)}
-              />
-              <span className="toggle-label">
-                <span className="toggle-icon">
-                  <Bot size={14} />
-                </span>
-                DH Robot
-              </span>
-              <span className={`toggle-indicator ${showRobot ? 'on' : 'off'}`}></span>
-            </label>
-            
-            <button 
-              className={`dropdown-toggle-btn ${activeSection === 'robot' ? 'active' : ''}`}
-              onClick={() => toggleSection('robot')}
-              title="Robot Settings"
-            >
-              <span className="toggle-icon">{activeSection === 'robot' ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>
-            </button>
-          </div>
-          
-          {activeSection === 'robot' && (
-            <div className="controls-dropdown">
-              <RobotSettings
-                showRobot={showRobot}
-                setShowRobot={setShowRobot}
-                robotConfig={robotConfig}
-                setRobotConfig={setRobotConfig}
-                onConfigChange={onRobotConfigChange}
-              />
-            </div>
-          )}
-        </div>
-<div className="controls-divider"></div>
         {/* Grid editor */}
         <div className="controls-section grid-section">
           <button 

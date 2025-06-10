@@ -8,7 +8,6 @@ import Gizmo from './components/Gizmo';
 import MouseCoordinatesPanel from './components/MouseCoordinatesPanel';
 import { processStlFiles } from './utils/fileHandler';
 import { VisualizationModes } from './utils/VisualizationModes';
-import { getPredefinedRobot } from './robot/predefinedRobots';
 
 /**
  * Viewer3D Panel - Main component that integrates all 3D viewer functionality
@@ -25,8 +24,6 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
   const [showWorkAxes, setShowWorkAxes] = useState(true);
   const [showToolpath, setShowToolpath] = useState(true);
   const [showMousePosition, setShowMousePosition] = useState(true);
-  const [showRobot, setShowRobot] = useState(true);
-  const [robotConfig, setRobotConfig] = useState(getPredefinedRobot('cartesian-3dof'));
   
   // Simplified indicator settings - only showProjectionLines
   const [indicatorSettings, setIndicatorSettings] = useState({
@@ -57,10 +54,6 @@ const Viewer3DPanel = ({ showAxes: initialShowAxes = true }) => {
     height: 350,
     depth: 150 // Default depth value
   });
-
-const handleRobotConfigChange = useCallback((newConfig) => {
-    setRobotConfig(newConfig);
-  }, []);
 
   const handleStlFileSelection = async (event) => {
     const files = event.target.files;
@@ -324,8 +317,6 @@ const handleRobotConfigChange = useCallback((newConfig) => {
     showPathLine,
     lineWidthMultiplier,
     opacityMultiplier,
-    showRobot,
-    robotConfig,
     setToolpathRendererRef // Pass callback to get reference to the toolpath renderer
   };
 
@@ -374,11 +365,6 @@ const handleRobotConfigChange = useCallback((newConfig) => {
         opacityMultiplier={opacityMultiplier}
         setOpacityMultiplier={handleOpacityMultiplierChange}
         reapplyVisualization={applyVisualizationSettings}
-        showRobot={showRobot}
-        setShowRobot={setShowRobot}
-        robotConfig={robotConfig}
-        setRobotConfig={setRobotConfig}
-        onRobotConfigChange={handleRobotConfigChange}
       />
 
       <PositionDisplay
