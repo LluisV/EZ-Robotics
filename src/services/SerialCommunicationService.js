@@ -15,6 +15,11 @@ class SerialCommunicationService {
     this.buffer = '';
     this.lastReceivedTime = 0;
     
+    // Machine information
+    this.kinematicsType = 'Unknown';  // Add kinematics tracking
+    this.firmwareVersion = '';
+    this.machineModel = '';
+    
     // Text encoding/decoding
     this.encoder = new TextEncoder();
     this.decoder = new TextDecoder();
@@ -53,6 +58,63 @@ class SerialCommunicationService {
    */
   isSupported() {
     return navigator && navigator.serial;
+  }
+
+  /**
+   * Parse system information response from FluidNC
+   * @param {string} response - The response line to parse
+   */
+  parseSystemInfo(response) {
+    try {
+      // Parse firmware version and type
+      // Example: [VER:3.7.14:FluidNC] or [VER:1.1h.20190825:GRBL]
+      const versionMatch = response.match(/\[VER:([^:]+):([^\]]+)\]/);
+      if (versionMatch) {
+        this.firmwareVersion = versionMatch[1];
+        this.machineModel = versionMatch[2];
+        console.log(`Connected to ${this.machineModel} v${this.firmwareVersion}`);
+      }
+      
+      // Parse kinematics type - FluidNC format
+      // Example: [MSG:INFO: Kinematic system: Cartesian]
+      const kinematicsMatch = response.match(/\[MSG:INFO:\s*Kinematic\s+system:\s*([^\]]+)\]/i);
+      if (kinematicsMatch) {
+        this.kinematicsType = kinematicsMatch[1].trim();
+        console.log(`Machine kinematics: ${this.kinematicsType}`);
+        
+        // Notify listeners about kinematics update
+        this.notifyListeners('kinematics', {
+          type: this.kinematicsType,
+          firmware: this.machineModel,
+          version: this.firmwareVersion
+        });
+      }
+      
+      // Also parse legacy GRBL format for compatibility
+      // Example: [KINEMATICS:Cartesian], [KINEMATICS:Delta], [KINEMATICS:SCARA]
+      const legacyKinematicsMatch = response.match(/\[KINEMATICS:([^\]]+)\]/);
+      if (legacyKinematicsMatch) {
+        this.kinematicsType = legacyKinematicsMatch[1];
+        console.log(`Machine kinematics: ${this.kinematicsType}`);
+        
+        // Notify listeners about kinematics update
+        this.notifyListeners('kinematics', {
+          type: this.kinematicsType,
+          firmware: this.machineModel,
+          version: this.firmwareVersion
+        });
+      }
+      
+      // Parse configuration options
+      // Example: [OPT:VHSN,35,1024,3,8]
+      const optionsMatch = response.match(/\[OPT:([^\]]+)\]/);
+      if (optionsMatch) {
+        console.log(`Machine options: ${optionsMatch[1]}`);
+      }
+      
+    } catch (error) {
+      console.warn('Error parsing system info:', error);
+    }
   }
 
   /**
@@ -212,8 +274,11 @@ class SerialCommunicationService {
           await this.disconnect();
         }
         
-        // Reset reconnect counter
+        // Reset connection state
         this.reconnectAttempts = 0;
+        this.kinematicsType = 'Unknown';
+        this.firmwareVersion = '';
+        this.machineModel = '';
         
         // Request a port from the user if we don't have one
         if (!this.port) {
@@ -254,7 +319,7 @@ class SerialCommunicationService {
         await new Promise(resolve => setTimeout(resolve, 1000));
         
         // Send initial queries to FluidNC
-        await this.send("$I"); // Request system information
+        await this.send("$I"); // Request system information - this will include kinematics
         await this.send("$#"); // Request parameters
         await this.send("$Report/Interval=100"); // Set status report interval to 50ms
         await this.send("$/use_line_numbers=true"); 
@@ -326,6 +391,11 @@ class SerialCommunicationService {
       this.commandQueue = [];
       this.processingCommand = false;
       
+      // Reset machine info
+      this.kinematicsType = 'Unknown';
+      this.firmwareVersion = '';
+      this.machineModel = '';
+      
       // Notify listeners
       this.notifyListeners('disconnect', {});
       
@@ -340,6 +410,9 @@ class SerialCommunicationService {
       this.reader = null;
       this.readingTask = null;
       this.processingCommand = false;
+      this.kinematicsType = 'Unknown';
+      this.firmwareVersion = '';
+      this.machineModel = '';
       
       return false;
     }
@@ -491,6 +564,12 @@ class SerialCommunicationService {
           for (const line of lines) {
             const trimmedLine = line.trim();
             if (trimmedLine) {
+              // Parse system information responses
+              if (trimmedLine.startsWith('[') && trimmedLine.endsWith(']')) {
+                console.log('Parsing system info:', trimmedLine); // Debug log
+                this.parseSystemInfo(trimmedLine);
+              }
+              
               // Determine if this is a status/telemetry message
               const isStatusMessage = trimmedLine.startsWith('<') && trimmedLine.includes('|MPos:');
               
@@ -574,6 +653,13 @@ class SerialCommunicationService {
               event === 'disconnect' ? { connected: false } : null 
     }));
     
+    // Dispatch kinematics event
+    if (event === 'kinematics') {
+      document.dispatchEvent(new CustomEvent('kinematics', { 
+        detail: data 
+      }));
+    }
+    
     if (event === 'error') {
       document.dispatchEvent(new CustomEvent('serialerror', { 
         detail: data 
@@ -595,6 +681,19 @@ class SerialCommunicationService {
    */
   getPortInfo() {
     return this.isConnected && this.port ? this.port.getInfo() : null;
+  }
+  
+  /**
+   * Get machine information
+   * @returns {Object} Machine information
+   */
+  getMachineInfo() {
+    return {
+      kinematics: this.kinematicsType,
+      firmware: this.machineModel,
+      version: this.firmwareVersion,
+      connected: this.isConnected
+    };
   }
   
   /**

@@ -27,6 +27,8 @@ const MainToolbar = ({
   // Connection state
   const [isConnected, setIsConnected] = useState(false);
   const [baudRate, setBaudRate] = useState('115200');
+  const [kinematicsType, setKinematicsType] = useState('Unknown');
+  const [machineInfo, setMachineInfo] = useState({ firmware: '', version: '' });
   
   // UI state
   const [activeDropdown, setActiveDropdown] = useState(null);
@@ -62,17 +64,47 @@ const MainToolbar = ({
     // Check current connection status
     setIsConnected(serialService.getConnectionStatus());
     
+    // Get current machine info
+    const info = serialService.getMachineInfo();
+    setKinematicsType(info.kinematics);
+    setMachineInfo({ firmware: info.firmware, version: info.version });
+    
     // Set up listener for connection changes
-    const removeListener = serialService.addListener((event) => {
+    const removeListener = serialService.addListener((event, data) => {
       if (event === 'connect') {
         setIsConnected(true);
       } else if (event === 'disconnect') {
         setIsConnected(false);
+        // Reset kinematics on disconnect
+        setKinematicsType('Unknown');
+        setMachineInfo({ firmware: '', version: '' });
+      } else if (event === 'kinematics') {
+        // Update kinematics info when received
+        setKinematicsType(data.type || 'Unknown');
+        setMachineInfo({ 
+          firmware: data.firmware || '', 
+          version: data.version || '' 
+        });
       }
     });
     
+    // Also listen for kinematics events directly
+    const handleKinematicsEvent = (event) => {
+      const data = event.detail;
+      if (data) {
+        setKinematicsType(data.type || 'Unknown');
+        setMachineInfo({ 
+          firmware: data.firmware || '', 
+          version: data.version || '' 
+        });
+      }
+    };
+    
+    document.addEventListener('kinematics', handleKinematicsEvent);
+    
     return () => {
       if (removeListener) removeListener();
+      document.removeEventListener('kinematics', handleKinematicsEvent);
     };
   }, []);
 
@@ -427,6 +459,18 @@ useEffect(() => {
     const theme = availableThemes.find(t => t.id === currentTheme);
     return theme ? theme.name : 'Default';
   };
+
+  // Get kinematics display info
+  const getKinematicsDisplay = () => {
+    if (kinematicsType === 'Unknown' || !isConnected) {
+      return null;
+    }
+    
+    return {
+      name: kinematicsType,
+      color: '#4caf50' // Simple green color for all kinematics types
+    };
+  };
   
   return (
   <div className="main-toolbar">
@@ -673,11 +717,32 @@ useEffect(() => {
       </div>
     </div>
     
-    {/* Center - Connection status */}
+    {/* Center - Connection status and machine info */}
     <div className="toolbar-section center">
       <div className="connection-status">
         <div className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`}></div>
         <span className="status-text">{isConnected ? 'Connected' : 'Disconnected'}</span>
+        
+        {/* Kinematics Badge */}
+        {getKinematicsDisplay() && (
+          <div 
+            className="kinematics-badge"
+            style={{
+              backgroundColor: getKinematicsDisplay().color + '20',
+              color: getKinematicsDisplay().color,
+              border: `1px solid ${getKinematicsDisplay().color}40`,
+              borderRadius: '12px',
+              padding: '2px 8px',
+              fontSize: '11px',
+              fontWeight: '600',
+              marginLeft: '8px',
+              letterSpacing: '0.5px'
+            }}
+            title={`Machine Type: ${kinematicsType}${machineInfo.firmware ? ` (${machineInfo.firmware})` : ''}`}
+          >
+            {getKinematicsDisplay().name}
+          </div>
+        )}
       </div>
     </div>
     
