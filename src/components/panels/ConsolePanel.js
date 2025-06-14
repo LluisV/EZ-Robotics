@@ -341,6 +341,10 @@ const FluidNCConsolePanel = ({ onSendCommand = () => {} }) => {
   const isScrollingRef = useRef(false);
   const lastScrollTime = useRef(0);
 
+  // Use refs to track initialization and event handlers
+  const initializedRef = useRef(false);
+  const handlersRef = useRef({});
+
   // Parse message level from robot message format - memoized
   const parseMessageLevel = useCallback((message) => {
     if (message.includes('[TELEMETRY]')) {
@@ -645,29 +649,63 @@ const FluidNCConsolePanel = ({ onSendCommand = () => {} }) => {
     inputRef.current?.focus();
   }, []);
 
-  // Listen for serial data events
+  // Listen for serial data events - use a stable effect with no dependencies
   useEffect(() => {
+    // Only show the ready message once
+    if (!initializedRef.current) {
+      addEntry('system', `FluidNC Console ready`);
+      initializedRef.current = true;
+    }
+    
+    // Use a flag to track if this effect is still active
+    let isActive = true;
+    
+    // Add debugging to track duplicate events
+    const eventTracker = new Map(); // Track recent events to detect duplicates
+    
+    // Create handlers that check the active flag
     const handleSerialData = (event) => {
+      if (!isActive) return; // Don't process if effect has been cleaned up
+      
       if (event.detail && event.detail.data) {
+        const data = event.detail.data.trim();
+        
+        // Skip simple "ok" messages
+        if (data === "ok") {
+          return;
+        }
+        
+        // Debug: Check for duplicate events
+        const eventKey = `${data}_${Date.now()}`;
+        const recentKey = Array.from(eventTracker.keys()).find(key => 
+          key.startsWith(data + '_') && (Date.now() - parseInt(key.split('_')[1])) < 100
+        );
+        
+        if (recentKey) {
+          console.warn('Duplicate serial event detected:', data);
+          console.trace('Duplicate event source'); // This will show us the call stack
+          return; // Skip duplicate
+        }
+        
+        eventTracker.set(eventKey, true);
+        // Clean up old entries
+        setTimeout(() => eventTracker.delete(eventKey), 1000);
+        
+        // Get current values directly from state/refs
+        const currentDebugLevels = debugLevels;
+        
         // Determine if this is a status/telemetry message
         const isStatusMessage = event.detail.isStatusMessage || 
                                (event.detail.data.startsWith('<') && event.detail.data.includes('|MPos:'));
         
         // Skip status messages if TELEMETRY filter is disabled
-        if (isStatusMessage && !debugLevels.TELEMETRY) {
+        if (isStatusMessage && !currentDebugLevels.TELEMETRY) {
           return;
         }
         
         // Determine the message type/level for styling
         let messageType = 'response';
         let messageLevel = 'INFO';
-        
-        const data = event.detail.data.trim();
-      
-        // Skip simple "ok" messages
-        if (data === "ok") {
-          return;
-        }
         
         // Parse message type based on content
         if (isStatusMessage) {
@@ -692,8 +730,9 @@ const FluidNCConsolePanel = ({ onSendCommand = () => {} }) => {
       }
     };
     
-    // Listen for serial connection status changes
     const handleSerialConnection = (event) => {
+      if (!isActive) return; // Don't process if effect has been cleaned up
+      
       if (event.detail) {
         const { connected, port } = event.detail;
         addEntry('system', connected 
@@ -702,16 +741,14 @@ const FluidNCConsolePanel = ({ onSendCommand = () => {} }) => {
       }
     };
     
-    // Listen for console entries from other components
     const handleConsoleEntry = (event) => {
+      if (!isActive) return; // Don't process if effect has been cleaned up
+      
       if (event.detail) {
         const { type, content, level } = event.detail;
         addEntry(type, content, level);
       }
     };
-    
-    // Simulate initial connection message
-    addEntry('system', `FluidNC Console ready`);
     
     // Add event listeners
     document.addEventListener('serialdata', handleSerialData);
@@ -720,11 +757,12 @@ const FluidNCConsolePanel = ({ onSendCommand = () => {} }) => {
     
     // Clean up
     return () => {
+      isActive = false; // Mark as inactive
       document.removeEventListener('serialdata', handleSerialData);
       document.removeEventListener('serialconnection', handleSerialConnection);
       document.removeEventListener('consoleEntry', handleConsoleEntry);
     };
-  }, [addEntry, debugLevels.TELEMETRY]);
+  }, [addEntry, debugLevels]); // Include debugLevels in dependencies
 
 return (
   <div className="console-container">
